@@ -36,6 +36,16 @@ pub enum Deployment {
     K8s(K8s),
 }
 
+impl Deployment {
+    /// Whether this deployment declares at least one health check.
+    pub(crate) fn health_check_enabled(&self) -> bool {
+        match self {
+            Deployment::Host(on_host) => on_host.health_check_enabled(),
+            Deployment::K8s(k8s) => k8s.health_check_enabled(),
+        }
+    }
+}
+
 impl Templateable for Deployment {
     type Output = rendered::Deployment;
 

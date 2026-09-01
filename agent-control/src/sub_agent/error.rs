@@ -1,6 +1,7 @@
 //! Error types for sub-agent building, runtime, collection management, and stopping.
 
 use super::agent_renderer::AgentRendererError;
+use crate::agent_type::registry::AgentTypeRegistryError;
 use crate::event::channel::EventPublisherError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
 use crate::values::config_repository::ConfigRepositoryError;
@@ -50,6 +51,9 @@ pub enum SubAgentBuilderError {
     /// The OpAMP client could not be built.
     #[error("OpAMP client error: {0}")]
     OpampClientBuilderError(String),
+    /// The agent type could not be retrieved from the registry.
+    #[error("retrieving agent type: {0}")]
+    AgentTypeRegistry(#[from] AgentTypeRegistryError),
 }
 
 /// Errors produced while managing the sub-agent collection.

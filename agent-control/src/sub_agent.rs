@@ -8,7 +8,6 @@
 pub mod agent_renderer;
 pub mod collection;
 pub mod error;
-pub(crate) mod event_handler;
 pub mod health_checker;
 pub mod identity;
 pub mod k8s;
@@ -18,6 +17,7 @@ pub mod supervisor;
 
 use crate::agent_control::defaults::default_capabilities;
 use crate::agent_control::uptime_report::{UptimeReportConfig, UptimeReporter};
+use crate::agent_type::definition::AgentTypeDefinition;
 use crate::checkers::health::events::HealthEventPublisher;
 use crate::checkers::health::health_checker::{Health, Unhealthy};
 use crate::checkers::health::with_start_time::HealthWithStartTime;
@@ -41,7 +41,6 @@ use crossbeam::channel::never;
 use crossbeam::select;
 use error::SubAgentStopError;
 use error::{SubAgentBuilderError, SubAgentError};
-use event_handler::on_health::on_health;
 use identity::AgentIdentity;
 use opamp_client::StartedClient;
 use remote_config_parser::RemoteConfigParser;
@@ -122,6 +121,7 @@ where
     supervisor_builder: Arc<B>,
     config_repository: Arc<Y>,
     agent_renderer: Arc<A>,
+    agent_type_definition: AgentTypeDefinition,
 }
 
 impl<C, B, R, Y, A> SubAgent<C, B, R, Y, A>
@@ -132,8 +132,7 @@ where
     Y: ConfigRepository + Send + Sync + 'static,
     A: Renderer + Send + Sync + 'static,
 {
-    /// Creates a new sub-agent from its identity, optional OpAMP client, supervisor builder,
-    /// event channels, remote-config parser, config repository, and agent renderer.
+    /// Creates a new sub-agent.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         identity: AgentIdentity,
@@ -148,6 +147,7 @@ where
         remote_config_parser: Arc<R>,
         config_repository: Arc<Y>,
         agent_renderer: Arc<A>,
+        agent_type_definition: AgentTypeDefinition,
     ) -> Self {
         Self {
             identity,
@@ -160,6 +160,7 @@ where
             remote_config_parser,
             config_repository,
             agent_renderer,
+            agent_type_definition,
         }
     }
 
@@ -314,6 +315,8 @@ where
                 let _ = uptime_reporter.report();
             }
 
+            let health_check_enabled = self.agent_type_definition.health_check_enabled();
+
             drop(_span_guard);
 
             // Count the received remote configs during execution
@@ -364,24 +367,26 @@ where
                             Ok(SubAgentInternalEvent::AgentHealthInfo(health))=>{
                                 debug!(select_arm = "sub_agent_internal_consumer", ?health, "AgentHealthInfo");
 
+                                if !health_check_enabled {
+                                    debug!("Suppressing AgentHealthInfo: no health check configured");
+                                    continue;
+                                }
+
                                 let health_state = Health::from(health.clone());
                                 if !is_health_state_equal_to_previous_state(&previous_health, &health_state) {
                                     log_health_info(&health_state);
                                 }
                                 previous_health = Some(health_state);
-                                let _ = on_health(
-                                    health,
-                                    self.maybe_opamp_client.as_ref(),
-                                    self.sub_agent_publisher.clone(),
-                                    self.identity.clone(),
-                                )
-                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "Processing health message"));
+                                let _ = self.maybe_opamp_client.as_ref().map(|c|
+                                    c.set_health(health.clone().into())
+                                      .inspect_err(|e| error!("Processing health message: {e}")));
+                                self.sub_agent_publisher.broadcast(SubAgentEvent::new_health(self.identity.clone(), health));
                             },
                             Ok(SubAgentInternalEvent::AgentAttributesUpdated(attributes)) => {
                                 debug!("Updating SubAgent attributes with: {:?}", attributes);
                                 let _ = self.maybe_opamp_client.as_ref().map(|c|
                                     update_opamp_attributes(c, attributes.clone())
-                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing update agent attributes message")));
+                                .inspect_err(|e| error!("Processing update agent attributes message: {e}")));
 
                                 self.sub_agent_publisher.broadcast(SubAgentEvent::AgentDescriptionUpdated(self.identity.clone(), attributes));
                             }
@@ -1135,6 +1140,7 @@ deployment:
             ),
             config_repository,
             agent_renderer,
+            TestAgent::agent_type_definition(),
         )
     }
 
@@ -1268,6 +1274,7 @@ deployment:
             ),
             config_repository,
             agent_renderer,
+            TestAgent::agent_type_definition(),
         );
 
         sub_agent.run().stop().unwrap();

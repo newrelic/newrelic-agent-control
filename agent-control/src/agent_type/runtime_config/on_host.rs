@@ -114,6 +114,12 @@ impl OnHost {
     pub fn shared_filesystem(&self) -> &SharedFileSystem {
         &self.shared_filesystem
     }
+
+    /// Whether this deployment declares at least one health check. The `checks` list's shape
+    /// is static (never templated), so this is known without rendering.
+    pub(crate) fn health_check_enabled(&self) -> bool {
+        self.health.as_ref().is_some_and(|h| !h.checks.is_empty())
+    }
 }
 
 fn deserialize_executables<'de, D>(deserializer: D) -> Result<Vec<Executable>, D::Error>
