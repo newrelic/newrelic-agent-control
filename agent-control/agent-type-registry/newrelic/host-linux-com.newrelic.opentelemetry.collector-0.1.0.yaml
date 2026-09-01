@@ -16,6 +16,11 @@ variables:
     type: string
     required: false
     default: 20s
+  enable_file_logging:
+    description: "enable logging the on host executables' logs to files"
+    type: bool
+    required: false
+    default: false
   health_check:
     # Note the configs added here must align with the health check extension being used on the collector config variable.
     # See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/extension/healthcheckv2extension/README.md#configuration
@@ -44,6 +49,7 @@ variables:
     type: string
     required: true
 deployment:
+  enable_file_logging: ${nr-var:enable_file_logging}
   packages:
     nrdot:
       download:
