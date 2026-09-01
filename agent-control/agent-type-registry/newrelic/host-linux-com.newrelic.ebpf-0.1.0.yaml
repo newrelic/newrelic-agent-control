@@ -35,6 +35,12 @@ variables:
     required: true
 deployment:
   enable_file_logging: ${nr-var:enable_file_logging}
+  health:
+    interval: 30s
+    initial_delay: 60s
+    timeout: 5s
+    checks:
+      - kind: Process
   packages:
     ebpf-agent:
       download:
