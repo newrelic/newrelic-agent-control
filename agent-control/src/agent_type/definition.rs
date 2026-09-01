@@ -228,9 +228,10 @@ impl VariableTree {
     pub fn resolve(
         self,
         constraints: &VariableConstraints,
-        values: YAMLConfig,
-    ) -> Result<HashMap<VariableName, VariableValue>, AgentTypeError> {
-        let (resolved, mut missing) = resolve_sub_tree(values.into(), self.0, constraints, "")?;
+        user_values: YAMLConfig,
+    ) -> Result<Variables, AgentTypeError> {
+        let (resolved, mut missing) =
+            resolve_sub_tree(user_values.into(), self.0, constraints, "")?;
         if !missing.is_empty() {
             missing.sort();
             return Err(AgentTypeError::ValuesNotPopulated(missing));
@@ -245,8 +246,8 @@ fn resolve_sub_tree(
     sub_tree: HashMap<String, Tree<VariableDefinition>>,
     constraints: &VariableConstraints,
     path_prefix: &str,
-) -> Result<(HashMap<VariableName, VariableValue>, Vec<String>), AgentTypeError> {
-    let mut resolved: HashMap<VariableName, VariableValue> = HashMap::new();
+) -> Result<(Variables, Vec<String>), AgentTypeError> {
+    let mut resolved: Variables = HashMap::new();
     let mut missing: Vec<String> = Vec::new();
 
     for (key, subtree) in sub_tree.into_iter() {
@@ -435,10 +436,7 @@ pub mod tests {
         /// # Panics
         ///
         /// It will panic if the yaml values are not valid or there is any error resolving.
-        pub fn fill_test_variables(
-            &self,
-            yaml_values: &str,
-        ) -> HashMap<VariableName, VariableValue> {
+        pub fn fill_test_variables(&self, yaml_values: &str) -> Variables {
             let values = serde_saphyr::from_str::<YAMLConfig>(yaml_values).unwrap();
             self.variables
                 .clone()

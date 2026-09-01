@@ -453,7 +453,7 @@ packages:
 "#;
         let on_host: OnHost = serde_saphyr::from_str(yaml).unwrap();
 
-        let mut vars: Variables = Variables::new();
+        let mut vars = Variables::new();
         vars.insert(
             VariableName::new(
                 Namespace::SubAgent,

@@ -3,6 +3,7 @@ use super::variable::namespace::{Namespace, VariableName};
 use super::variable_value::VariableValue;
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{AGENT_FILESYSTEM_FOLDER_NAME, SHARED_FILESYSTEM_FOLDER_NAME};
+use crate::agent_type::definition::Variables;
 use std::{collections::HashMap, path::PathBuf};
 use thiserror::Error;
 use tracing::debug;
@@ -60,7 +61,7 @@ impl AgentAttributes {
     }
 
     /// Returns the variables from the sub-agent attributes source 'nr-sub'.
-    pub fn nr_sub_variables(&self) -> HashMap<VariableName, VariableValue> {
+    pub fn nr_sub_variables(&self) -> Variables {
         HashMap::from([
             (
                 VariableName::new(Namespace::SubAgent, Self::NR_SUB_AGENT_ID),
@@ -82,7 +83,7 @@ impl AgentAttributes {
     }
 
     /// Returns the variables from agent attributes to be exposed as `nr-path`
-    pub fn nr_path_variables(&self) -> HashMap<VariableName, VariableValue> {
+    pub fn nr_path_variables(&self) -> Variables {
         HashMap::from([(
             VariableName::new(Namespace::Path, Self::NR_PATH_AGENT_DIR),
             VariableValue::String(self.agent_filesystem_dir.to_string_lossy().into_owned()),
@@ -96,11 +97,7 @@ mod tests {
     use crate::agent_control::defaults::AGENT_CONTROL_DATA_DIR;
     use crate::agent_type::variable_value::VariableValue;
 
-    fn final_string(
-        vars: &HashMap<VariableName, VariableValue>,
-        namespace: Namespace,
-        name: &str,
-    ) -> String {
+    fn final_string(vars: &Variables, namespace: Namespace, name: &str) -> String {
         let key = VariableName::new(namespace, name);
         match vars
             .get(&key)

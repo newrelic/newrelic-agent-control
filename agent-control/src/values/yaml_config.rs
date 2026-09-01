@@ -408,7 +408,7 @@ deployment: {}
         let input_structure = serde_saphyr::from_str::<YAMLConfig>(EXAMPLE_CONFIG_REPLACE).unwrap();
         let agent_type = AgentTypeDefinition::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE);
 
-        let expected: HashMap<VariableName, VariableValue> = HashMap::from([
+        let expected: Variables = HashMap::from([
             (
                 VariableName::new(Namespace::Variable, "whatever.test.path".to_string()),
                 VariableValue::String("/etc".to_string()),
