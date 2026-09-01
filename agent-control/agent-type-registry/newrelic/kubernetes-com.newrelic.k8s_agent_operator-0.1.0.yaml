@@ -10,11 +10,13 @@ variables:
       type: yaml
       required: false
       default: { }
+      classification: config
     global:
       description: "Global values for the chart"
       type: yaml
       required: false
       default: { }
+      classification: config
   chart_version:
     description: "Newrelic Kubernetes Agents Operator chart version"
     type: string

@@ -9,6 +9,7 @@ variables:
     description: "nri-apache integration YAML consumed by the infra-agent"
     type: yaml
     required: true
+    classification: config
   version:
     description: "Agent version"
     type: string

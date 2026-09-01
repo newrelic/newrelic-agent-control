@@ -10,11 +10,13 @@ variables:
     type: yaml
     required: false
     default: ""
+    classification: config
   config_logging:
     description: "map of logging config file names to their contents"
     type: string_map
     required: false
     default: { }
+    classification: multi-config
   config_docker:
     description: "nri-docker configuration"
     type: yaml
@@ -26,6 +28,7 @@ variables:
             feature: docker_enabled
             file_exists: /var/run/docker.sock
           interval: 15s
+    classification: config
   backoff_delay:
     description: "seconds until next retry if agent fails to start"
     type: string

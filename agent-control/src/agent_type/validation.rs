@@ -249,6 +249,61 @@ deployment:
       path: ${nr-var:bin|indent 2}
 "#;
 
+    // The `classification` field just added to the real agent-type registry (and any other
+    // unrecognized field, e.g. `metadata`) must not fail validation, for every variant of
+    // VariableTypeDefinition (string, bool, number, yaml, string_map) — each is a structurally
+    // distinct type in the deserialization chain and none declare `deny_unknown_fields`.
+    const HOST_ALL_VARIABLE_TYPES_WITH_UNKNOWN_FIELD_YAML: &str = r#"
+namespace: newrelic
+name: test
+version: 0.0.1
+protocol_version: "1.0"
+platform: host
+operating_system: linux
+variables:
+  a_string:
+    description: "string var"
+    type: string
+    required: false
+    default: "x"
+    classification: config
+    metadata:
+      some: nested-value
+  a_bool:
+    description: "bool var"
+    type: bool
+    required: false
+    default: true
+    classification: config
+    metadata:
+      some: nested-value
+  a_number:
+    description: "number var"
+    type: number
+    required: false
+    default: 1
+    classification: config
+    metadata:
+      some: nested-value
+  a_yaml:
+    description: "yaml var"
+    type: yaml
+    required: false
+    default: { }
+    classification: config
+    metadata:
+      some: nested-value
+  a_string_map:
+    description: "string_map var"
+    type: string_map
+    required: false
+    default: { }
+    classification: multi-config
+    metadata:
+      some: nested-value
+deployment: {}
+"#;
+
     const MISSING_REQUIRED_FIELD_YAML: &str = r#"
 namespace: newrelic
 name: test
@@ -351,6 +406,9 @@ deployment:
     #[case::host_unused_variable_is_allowed(HOST_UNUSED_VARIABLE_IS_ALLOWED_YAML)]
     #[case::host_ignores_other_namespaces(HOST_IGNORES_OTHER_NAMESPACES_YAML)]
     #[case::host_ignores_pipe_function_suffix(HOST_WITH_PIPE_FUNCTION_YAML)]
+    #[case::host_ignores_unknown_field_across_all_variable_types(
+        HOST_ALL_VARIABLE_TYPES_WITH_UNKNOWN_FIELD_YAML
+    )]
     fn test_validate_accepts_valid_definitions(#[case] yaml: &str) {
         assert_matches!(validate(yaml.as_bytes()), Ok(_));
     }

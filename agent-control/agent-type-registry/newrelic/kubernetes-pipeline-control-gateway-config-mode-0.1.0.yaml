@@ -8,6 +8,7 @@ variables:
     description: "OTel Collector configuration for the Pipeline Control Gateway"
     type: yaml
     required: true
+    classification: config
   config_map_name:
     description: "Name of the ConfigMap that AC creates and PCG mounts as its configuration source"
     type: string
