@@ -143,11 +143,21 @@ impl SecretEngine {
 }
 
 /// Configuration for a Vault source, including URL, token, and engine type.
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Deserialize, PartialEq, Clone)]
 pub struct VaultSourceConfig {
     url: Url,
     token: String,
     engine: SecretEngine,
+}
+
+impl std::fmt::Debug for VaultSourceConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VaultSourceConfig")
+            .field("url", &self.url)
+            .field("token", &"[REDACTED]")
+            .field("engine", &self.engine)
+            .finish()
+    }
 }
 
 /// Type to represent a client timeout. It adds a default implementation to [std::time::Duration].

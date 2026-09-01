@@ -20,7 +20,10 @@ debug!("Creating agent's communication channels.");
 Log messages should generally be static, with fields used for dynamic content. However, the error message should be
 included in the log message, even if it is static. The fields used for dynamic content should be `snake_case` and consistent.
 
+## Sensitive information
 
+Never log a value that could hold a credential (secret contents, API keys, tokens, private key material, etc.), at any log level, including `trace`. Log the identifier used to look it up (a path, a name, a key) instead of the value.
+Be careful with `{:?}` on config or variable types: check that none of their fields can carry a credential before printing them, and give such a field a redacting `Debug` impl rather than relying on callers to remember not to print it.
 
 ## Span
 

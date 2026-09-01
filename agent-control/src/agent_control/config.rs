@@ -641,7 +641,7 @@ pub struct AuthSecret {
 }
 
 /// Configuration for the OpAMP (Fleet Control) client.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(PartialEq, Clone)]
 pub struct OpAMPClientConfig {
     /// OpAMP server endpoint.
     pub endpoint: Url,
@@ -655,6 +655,20 @@ pub struct OpAMPClientConfig {
     pub fleet_id: String,
     /// Contains the signature_validation configuration
     pub signature_validation: SignatureValidatorConfig,
+}
+
+impl std::fmt::Debug for OpAMPClientConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OpAMPClientConfig")
+            .field("endpoint", &self.endpoint)
+            .field("poll_interval", &self.poll_interval)
+            // headers could contain credentials
+            .field("headers", &self.headers.keys().collect::<Vec<_>>())
+            .field("auth_config", &self.auth_config)
+            .field("fleet_id", &self.fleet_id)
+            .field("signature_validation", &self.signature_validation)
+            .finish()
+    }
 }
 
 impl<'de> Deserialize<'de> for OpAMPClientConfig {
