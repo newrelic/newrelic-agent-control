@@ -107,18 +107,6 @@ jobs:
           gh api -X POST "repos/$REPO/git/refs" \
             -f ref="refs/heads/$BRANCH" \
             -f sha="$BASE_SHA"
-      
-      - name: Create docs-website branch
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ env.PUBLIC_DOCS_REPO }}
-          BRANCH: ${{ steps.meta.outputs.branch_name }}
-          BASE_SHA: ${{ steps.base-sha.outputs.sha }}
-        run: |
-          # Fails with 422 "Reference already exists" if the branch is present.
-          gh api -X POST "repos/$REPO/git/refs" \
-            -f ref="refs/heads/$BRANCH" \
-            -f sha="$BASE_SHA"
 
       - name: Commit MDX to docs-website branch (signed via API)
         env:
