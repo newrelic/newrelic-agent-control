@@ -1,6 +1,7 @@
 mod ac_capabilities;
 mod ac_restarts;
 mod attributes;
+mod chart_values_override;
 mod config_signature;
 mod cr_based_agents;
 mod fail_remote_config;
