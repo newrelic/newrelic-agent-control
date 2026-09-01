@@ -30,15 +30,8 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
 
     let sleep_agent_type = OnHostCustomAgentTypeBuilder::default().write(dirs.local_dir());
 
-    let agents = format!(
-        r#"
-  nr-sleep-agent:
-    agent_type: "{sleep_agent_type}"
-"#
-    );
-
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .with_agents(agents.to_string())
+        .with_agent("nr-sleep-agent", sleep_agent_type)
         .write(dirs.local_dir());
 
     // And the custom-agent has local config values
@@ -99,16 +92,9 @@ fn onhost_opamp_sub_agent_with_no_local_config() {
 
     let sleep_agent_type = OnHostCustomAgentTypeBuilder::default().write(dirs.local_dir());
 
-    let agents = format!(
-        r#"
-  nr-sleep-agent:
-    agent_type: "{sleep_agent_type}"
-"#
-    );
-
     let agent_id = "nr-sleep-agent";
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .with_agents(agents.to_string())
+        .with_agent(agent_id, sleep_agent_type)
         .write(dirs.local_dir());
 
     // There is no local configuration for the sub-agent

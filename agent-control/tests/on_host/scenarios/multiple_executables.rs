@@ -34,15 +34,8 @@ fn onhost_subagent_multiple_executables_some_failed_launching() {
         ))
         .write(dirs.local_dir());
 
-    let agents = format!(
-        r#"
-  nr-sleep-agent:
-    agent_type: "{sleep_agent_type}"
-"#
-    );
-
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .with_agents(agents)
+        .with_agent("nr-sleep-agent", sleep_agent_type)
         .write(dirs.local_dir());
 
     let _agent_control =
@@ -81,15 +74,8 @@ fn onhost_subagent_multiple_executables_some_commands_failed_after_max_retries()
         .with_health(Some(r#"{"interval": "1s", "initial_delay": "2s", "checks": [{ "kind": "Process"}]}"#))
         .write(dirs.local_dir());
 
-    let agents = format!(
-        r#"
-nr-sleep-agent:
-  agent_type: "{sleep_agent_type}"
-"#
-    );
-
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .with_agents(agents)
+        .with_agent("nr-sleep-agent", sleep_agent_type)
         .write(dirs.local_dir());
 
     let _agent_control =

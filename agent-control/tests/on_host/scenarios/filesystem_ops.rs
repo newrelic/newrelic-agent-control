@@ -55,15 +55,8 @@ deployment:
         dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME),
     );
 
-    let agents = format!(
-        r#"
-  {agent_id}:
-    agent_type: "test/test:0.0.0"
-"#
-    );
-
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .with_agents(agents.to_string())
+        .with_agent(agent_id, "test/test:0.0.0")
         .write(dirs.local_dir());
     create_local_config(
         agent_id.to_string(),
@@ -188,12 +181,7 @@ deployment:
 
     // Create AC config
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .with_agents(format!(
-            r#"
-  {agent_id}:
-    agent_type: "test/test:0.0.0"
-"#
-        ))
+        .with_agent(agent_id, "test/test:0.0.0")
         .write(dirs.local_dir());
     // Values. Contains 3 variables: a YAML, a string, and a string_map (to create files in a directory)
     create_local_config(
@@ -341,15 +329,8 @@ deployment:
         dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME),
     );
 
-    let agents = format!(
-        r#"
-  {agent_id}:
-    agent_type: "test/infra_agent:0.0.0"
-"#
-    );
-
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .with_agents(agents.to_string())
+        .with_agent(agent_id, "test/infra_agent:0.0.0")
         .write(dirs.local_dir().to_path_buf());
 
     create_local_config(

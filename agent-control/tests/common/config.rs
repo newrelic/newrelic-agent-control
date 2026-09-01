@@ -1,10 +1,13 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
+
+use serde::Serialize;
 
 #[derive(Default)]
 pub struct AgentControlCommonConfigBuilder {
     pub opamp_endpoint: Option<String>,
     pub jwks_endpoint: Option<String>,
-    pub agents: Option<String>,
+    pub agents: Vec<(String, String)>,
+    pub agents_raw: Option<String>,
     pub status_server_port: Option<u16>,
     pub signature_validation_disabled: bool,
 }
@@ -44,9 +47,44 @@ impl AgentControlCommonConfigBuilder {
         }
     }
 
+    pub fn with_agent(
+        mut self,
+        agent_id: impl Into<String>,
+        agent_type: impl Into<String>,
+    ) -> Self {
+        self.agents.push((agent_id.into(), agent_type.into()));
+        self
+    }
+
+    pub fn with_agents(mut self, agents: impl Into<String>) -> Self {
+        self.agents_raw = Some(agents.into());
+        self
+    }
+
     pub fn build_agents_yaml(&self) -> String {
-        let agents = self.agents.as_deref().unwrap_or("{}");
-        let agents: serde_json::Value = serde_saphyr::from_str(agents).unwrap();
+        if let Some(raw) = &self.agents_raw {
+            let agents: serde_json::Value = serde_saphyr::from_str(raw).unwrap();
+            let agents_config = HashMap::from([("agents".to_string(), agents)]);
+            return serde_saphyr::to_string(&agents_config).unwrap();
+        }
+
+        #[derive(Serialize)]
+        struct AgentEntry {
+            agent_type: String,
+        }
+
+        let agents: BTreeMap<String, AgentEntry> = self
+            .agents
+            .iter()
+            .map(|(id, agent_type)| {
+                (
+                    id.clone(),
+                    AgentEntry {
+                        agent_type: agent_type.clone(),
+                    },
+                )
+            })
+            .collect();
         let agents_config = HashMap::from([("agents".to_string(), agents)]);
         serde_saphyr::to_string(&agents_config).unwrap()
     }

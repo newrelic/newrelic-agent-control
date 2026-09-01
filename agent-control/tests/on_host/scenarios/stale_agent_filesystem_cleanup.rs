@@ -27,13 +27,7 @@ fn stale_agent_filesystem_cleanup_on_startup() {
     std::fs::write(kept_dir.join("placeholder.txt"), "placeholder").unwrap();
 
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .with_agents(
-            r#"
-  configured-agent:
-    agent_type: "test/test:0.0.0"
-"#
-            .to_string(),
-        )
+        .with_agent("configured-agent", "test/test:0.0.0")
         .write(dirs.local_dir());
 
     let _agent_control =

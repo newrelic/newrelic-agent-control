@@ -137,14 +137,8 @@ fn run_file_logging_scenario(
     );
 
     // Configure agent control with the agent
-    let agents = format!(
-        r#"
-  {agent_id}:
-    agent_type: "test/file_logging_agent:0.0.0"
-"#
-    );
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .with_agents(agents)
+        .with_agent(agent_id, "test/file_logging_agent:0.0.0")
         .write(dirs.local_dir());
 
     // Provide the initial local config for the sub-agent

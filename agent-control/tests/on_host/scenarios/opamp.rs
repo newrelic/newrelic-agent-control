@@ -202,15 +202,8 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
 
     let sleep_agent_type = OnHostCustomAgentTypeBuilder::default().write(dirs.local_dir());
 
-    let agents = format!(
-        r#"
-  nr-sleep-agent:
-    agent_type: "{sleep_agent_type}"
-"#
-    );
-
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .with_agents(agents.to_string())
+        .with_agent("nr-sleep-agent", sleep_agent_type)
         .write(dirs.local_dir());
 
     // And the custom-agent has local config values
@@ -266,15 +259,8 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
 
     let sleep_agent_type = OnHostCustomAgentTypeBuilder::default().write(dirs.local_dir());
 
-    let agents = format!(
-        r#"
-  nr-sleep-agent:
-    agent_type: "{sleep_agent_type}"
-"#
-    );
-
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .with_agents(agents.to_string())
+        .with_agent("nr-sleep-agent", sleep_agent_type)
         .write(dirs.local_dir());
 
     // And the custom-agent has local config values
@@ -327,15 +313,8 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
 
     let sleep_agent_type = OnHostCustomAgentTypeBuilder::default().write(dirs.local_dir());
 
-    let agents = format!(
-        r#"
-  nr-sleep-agent:
-    agent_type: "{sleep_agent_type}"
-"#
-    );
-
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .with_agents(agents.to_string())
+        .with_agent("nr-sleep-agent", sleep_agent_type)
         .write(dirs.local_dir());
 
     // And the custom-agent has empty config values
@@ -403,15 +382,8 @@ checks:
         .with_health(Some(&health_agent_type_config))
         .write(dirs.local_dir());
 
-    let agents = format!(
-        r#"
-no-executables:
-  agent_type: "{agent_type_wo_exec}"
-"#
-    );
-
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .with_agents(agents.to_string())
+        .with_agent("no-executables", agent_type_wo_exec)
         .write(dirs.local_dir());
 
     let sub_agent_id = AgentID::try_from("no-executables").unwrap();

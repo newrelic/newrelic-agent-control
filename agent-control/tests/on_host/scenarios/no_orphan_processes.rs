@@ -39,15 +39,8 @@ fn test_no_orphan_processes_after_agent_control_stops() {
         ))
         .write(dirs.local_dir());
 
-    let agents = format!(
-        r#"
-test-agent:
-  agent_type: "{agent_type}"
-"#
-    );
-
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .with_agents(agents)
+        .with_agent("test-agent", agent_type)
         .write(dirs.local_dir());
 
     // Create local config to trigger the executable launch

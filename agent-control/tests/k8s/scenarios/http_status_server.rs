@@ -37,17 +37,10 @@ fn test_k8s_http_status_endpoint_response() {
 
     let agent_type_id = K8sCustomAgentTypeBuilder::default().write(&dirs.local_dir());
 
-    let agents = format!(
-        r#"
-  {AGENT_ID}:
-    agent_type: "{agent_type_id}"
-"#
-    );
-
     let status_server_port = available_port();
     K8sAgentControlConfigBuilder::new(&namespace)
         .with_fleet(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .with_agents(agents)
+        .with_agent(AGENT_ID, agent_type_id)
         .with_status_server(status_server_port)
         .write(k8s.client.clone(), &dirs.local_dir());
 

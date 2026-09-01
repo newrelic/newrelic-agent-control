@@ -29,20 +29,13 @@ fn test_on_host_no_health_in_agent_type_reports_no_health_via_opamp() {
         .with_health(None)
         .write(dirs.local_dir());
 
-    let agents = format!(
-        r#"
-  {sub_agent_id}:
-    agent_type: "{agent_type}"
-"#
-    );
-
     create_local_config(
         sub_agent_id.to_string(),
         NO_CONFIG.to_string(),
         dirs.local_dir(),
     );
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .with_agents(agents.to_string())
+        .with_agent(sub_agent_id.to_string(), agent_type)
         .write(dirs.local_dir());
 
     let _agent_control =

@@ -30,16 +30,9 @@ fn test_http_status_endpoint_response() {
     let dirs = TempBasePaths::default();
     let sleep_agent_type = OnHostCustomAgentTypeBuilder::default().write(dirs.local_dir());
 
-    let agents = format!(
-        r#"
-  {AGENT_ID}:
-    agent_type: "{sleep_agent_type}"
-"#
-    );
-
     let status_server_port = available_port();
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .with_agents(agents)
+        .with_agent(AGENT_ID, sleep_agent_type)
         .with_status_server(status_server_port)
         .write(dirs.local_dir());
 

@@ -35,16 +35,10 @@ fn k8s_test_attributes_from_existing_agent_type() {
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
     let agent_type_id = K8sCustomAgentTypeBuilder::default().write(tmp_dir.path());
-    let agents = format!(
-        r#"
-  hello-world:
-    agent_type: "{agent_type_id}"
-"#
-    );
 
     K8sAgentControlConfigBuilder::new(&namespace)
         .with_fleet(server.endpoint(), server.jwks_endpoint())
-        .with_agents(agents)
+        .with_agent("hello-world", agent_type_id.clone())
         .with_secret_private_key_name("agent-control-auth")
         .with_current_chart_version("1.2.3-beta")
         .with_cd_release_name("agent-control-cd")

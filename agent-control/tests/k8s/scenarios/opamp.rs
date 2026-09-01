@@ -36,17 +36,11 @@ fn k8s_opamp_remove_subagent() {
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
     let agent_type_id = K8sCustomAgentTypeBuilder::split_ns().write(tmp_dir.path());
-    let agents = format!(
-        r#"
-  hello-world:
-    agent_type: "{agent_type_id}"
-"#
-    );
 
     K8sAgentControlConfigBuilder::new(&ac_ns)
         .with_fleet(server.endpoint(), server.jwks_endpoint())
         .with_namespace_agents(&agents_ns)
-        .with_agents(agents)
+        .with_agent("hello-world", agent_type_id.clone())
         .write(k8s.client.clone(), tmp_dir.path());
 
     block_on(create_config_map(
@@ -208,16 +202,10 @@ fn k8s_opamp_modify_subagent_config() {
     let tmp_dir = tempdir().expect("failed to create local temp dir");
 
     let agent_type_id = K8sCustomAgentTypeBuilder::split_ns().write(tmp_dir.path());
-    let agents = format!(
-        r#"
-  hello-world:
-    agent_type: "{agent_type_id}"
-"#
-    );
 
     K8sAgentControlConfigBuilder::new(&namespace)
         .with_fleet(server.endpoint(), server.jwks_endpoint())
-        .with_agents(agents)
+        .with_agent("hello-world", agent_type_id)
         .write(k8s.client.clone(), tmp_dir.path());
 
     block_on(create_config_map(

@@ -168,15 +168,9 @@ var_e:
         .write(dirs.local_dir());
 
     let agent_id = "nr-sleep-agent";
-    let agents = format!(
-        r#"
-  {agent_id}:
-    agent_type: "{sleep_agent_type}"
-"#
-    );
 
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .with_agents(agents)
+        .with_agent(agent_id, sleep_agent_type)
         .write(dirs.local_dir());
 
     let _agent_control =
@@ -276,15 +270,9 @@ rendered:
         .write(dirs.local_dir());
 
     let agent_id = "nr-testing-agent-type";
-    let agents = format!(
-        r#"
-  {agent_id}:
-    agent_type: "{testing_agent_type}"
-"#
-    );
 
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .with_agents(agents)
+        .with_agent(agent_id, testing_agent_type)
         .write(dirs.local_dir());
 
     let _agent_control =
@@ -393,15 +381,9 @@ files:
         .write(dirs.local_dir());
 
     let agent_id = "nr-testing-agent-type";
-    let agents = format!(
-        r#"
-  {agent_id}:
-    agent_type: "{testing_agent_type}"
-"#
-    );
 
     OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
-        .with_agents(agents)
+        .with_agent(agent_id, testing_agent_type)
         .write(dirs.local_dir());
 
     let _agent_control =

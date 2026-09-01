@@ -70,16 +70,10 @@ release:
 "#
         )))
         .write(tmp_dir.path());
-    let agents = format!(
-        r#"
-  hello-world:
-    agent_type: "{agent_type_id}"
-"#
-    );
 
     K8sAgentControlConfigBuilder::new(&namespace)
-        .with_agents(agents)
         .with_value_providers(value_providers)
+        .with_agent("hello-world", agent_type_id)
         .write(k8s.client.clone(), tmp_dir.path());
 
     block_on(create_config_map(

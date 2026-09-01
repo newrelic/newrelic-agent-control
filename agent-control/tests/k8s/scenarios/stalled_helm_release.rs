@@ -89,17 +89,10 @@ release:
         ))
         .write(tmp_dir.path());
 
-    let agents = format!(
-        r#"
-  stall-agent:
-    agent_type: "{agent_type_id}"
-"#
-    );
-
     K8sAgentControlConfigBuilder::new(&ac_ns)
         .with_fleet(server.endpoint(), server.jwks_endpoint())
         .with_namespace_agents(&agents_ns)
-        .with_agents(agents)
+        .with_agent("stall-agent", agent_type_id)
         .write(k8s.client.clone(), tmp_dir.path());
 
     // Broken config: service.port must be an integer; passing a string causes the k8s API to
