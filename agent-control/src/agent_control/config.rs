@@ -360,7 +360,7 @@ impl<'de> Deserialize<'de> for OciAuth {
 }
 
 /// Username/password credentials for basic OCI authentication.
-#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
+#[derive(Deserialize, Serialize, Default, Clone, PartialEq)]
 pub struct BasicAuth {
     /// Registry username.
     pub username: String,
@@ -368,11 +368,28 @@ pub struct BasicAuth {
     pub password: String,
 }
 
+impl std::fmt::Debug for BasicAuth {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BasicAuth")
+            .field("username", &self.username)
+            .field("password", &"[REDACTED]")
+            .finish()
+    }
+}
+
 /// Bearer-token credentials for OCI authentication.
-#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
+#[derive(Deserialize, Serialize, Default, Clone, PartialEq)]
 pub struct BearerAuth {
     /// Bearer token.
     pub token: String,
+}
+
+impl std::fmt::Debug for BearerAuth {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BearerAuth")
+            .field("token", &"[REDACTED]")
+            .finish()
+    }
 }
 
 impl From<&OciAuth> for RegistryAuth {
