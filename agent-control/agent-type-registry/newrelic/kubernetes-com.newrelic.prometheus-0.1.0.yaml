@@ -16,7 +16,7 @@ variables:
       type: yaml
       required: false
       default: { }
-      classification: config
+      deprecated: true
   chart_version:
     description: "newrelic-prometheus chart version"
     type: string
@@ -34,7 +34,7 @@ variables:
       default: "https://newrelic.github.io/newrelic-prometheus-configurator"
       variants:
         ac_config_field: "chart_repository_urls"
-        values: ["https://newrelic.github.io/newrelic-prometheus-configurator"]
+        values: [ "https://newrelic.github.io/newrelic-prometheus-configurator" ]
     secret_reference:
       description: "HelmRepository secret reference (secretRef)"
       type: yaml

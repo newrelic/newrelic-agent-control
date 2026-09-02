@@ -28,7 +28,6 @@ variables:
             feature: docker_enabled
             file_exists: /var/run/docker.sock
           interval: 15s
-    classification: config
   backoff_delay:
     description: "seconds until next retry if agent fails to start"
     type: string

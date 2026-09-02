@@ -1,5 +1,5 @@
 use crate::common::runtime::block_on;
-use k8s_openapi::api::apps::v1::Deployment;
+use k8s_openapi::api::apps::v1::{DaemonSet, Deployment};
 use k8s_openapi::api::core::v1::{ConfigMap, Secret};
 use kube::api::{DeleteParams, PostParams};
 use kube::{Api, Client, api::DynamicObject, core::GroupVersion};
@@ -269,4 +269,46 @@ pub fn create_values_configmap(
     let configmaps: Api<ConfigMap> = Api::namespaced(k8s_client, namespace);
     let _ = block_on(configmaps.delete(configmap_name, &DeleteParams::default()));
     block_on(configmaps.create(&PostParams::default(), &configmap)).unwrap();
+}
+
+/// Check that the DaemonSet `name` in `namespace` has a container `container_name`
+/// whose `env` list contains an entry `env_name` with value `expected_value`.
+pub async fn check_daemonset_container_env(
+    k8s_client: Client,
+    namespace: &str,
+    name: &str,
+    container_name: &str,
+    env_name: &str,
+    expected_value: &str,
+) -> Result<(), Box<dyn Error>> {
+    let api: Api<DaemonSet> = Api::namespaced(k8s_client, namespace);
+    let ds = api
+        .get(name)
+        .await
+        .map_err(|err| format!("DaemonSet {name} not found: {err}"))?;
+
+    let container = ds
+        .spec
+        .as_ref()
+        .and_then(|s| s.template.spec.as_ref())
+        .and_then(|ps| ps.containers.iter().find(|c| c.name == container_name))
+        .ok_or_else(|| format!("container {container_name} not found in DaemonSet {name}"))?;
+
+    let env = container
+        .env
+        .as_ref()
+        .ok_or_else(|| format!("container {container_name} in DaemonSet {name} has no env"))?;
+
+    let entry = env.iter().find(|e| e.name == env_name).ok_or_else(|| {
+        format!("env {env_name} not found on container {container_name} in DaemonSet {name}")
+    })?;
+
+    let value = entry.value.as_deref().unwrap_or("");
+    if value != expected_value {
+        return Err(format!(
+            "env {env_name} on {name}/{container_name}: expected {expected_value:?}, found {value:?}"
+        )
+        .into());
+    }
+    Ok(())
 }

@@ -249,8 +249,7 @@ deployment:
       path: ${nr-var:bin|indent 2}
 "#;
 
-    // The `classification` field just added to the real agent-type registry (and any other
-    // unrecognized field, e.g. `metadata`) must not fail validation, for every variant of
+    // Unrecognized field, e.g. `metadata` must not fail validation, for every variant of
     // VariableTypeDefinition (string, bool, number, yaml, string_map) — each is a structurally
     // distinct type in the deserialization chain and none declare `deny_unknown_fields`.
     const HOST_ALL_VARIABLE_TYPES_WITH_UNKNOWN_FIELD_YAML: &str = r#"
@@ -267,6 +266,7 @@ variables:
     required: false
     default: "x"
     classification: config
+    deprecated: true
     metadata:
       some: nested-value
   a_bool:
@@ -275,6 +275,7 @@ variables:
     required: false
     default: true
     classification: config
+    deprecated: true
     metadata:
       some: nested-value
   a_number:
@@ -283,6 +284,7 @@ variables:
     required: false
     default: 1
     classification: config
+    deprecated: true
     metadata:
       some: nested-value
   a_yaml:
@@ -291,6 +293,7 @@ variables:
     required: false
     default: { }
     classification: config
+    deprecated: true
     metadata:
       some: nested-value
   a_string_map:
@@ -299,6 +302,7 @@ variables:
     required: false
     default: { }
     classification: multi-config
+    deprecated: true
     metadata:
       some: nested-value
 deployment: {}
