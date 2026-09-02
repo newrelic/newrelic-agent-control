@@ -17,14 +17,11 @@ use std::{
 
 use crate::agent_type::{
     agent_attributes::AgentAttributes,
-    definition::Variables,
+    definition::VariableValues,
     error::AgentTypeError,
     runtime_config::templateable_value::TemplateableValue,
     templates::Templateable,
-    variable::{
-        Variable,
-        namespace::{Namespace, VariableName},
-    },
+    variable::namespace::{Namespace, VariableName},
     variable_value::VariableValue,
 };
 use serde::{Deserialize, Serialize};
@@ -121,7 +118,7 @@ impl FileSystem {
     fn render_entries(
         self,
         base_dir: &Path,
-        variables: &Variables,
+        variables: &VariableValues,
     ) -> Result<HashMap<PathBuf, rendered::RenderedEntry>, AgentTypeError> {
         self.0
             .into_iter()
@@ -136,7 +133,7 @@ impl FileSystem {
 impl Templateable for FileSystem {
     type Output = rendered::FileSystem;
 
-    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self::Output, AgentTypeError> {
         let base_dir = PathBuf::from(filesystem_agent_dir(variables)?);
         let entries = self.render_entries(&base_dir, variables)?;
         Ok(rendered::FileSystem::new(entries))
@@ -150,7 +147,7 @@ pub struct SharedFileSystem(FileSystem);
 impl Templateable for SharedFileSystem {
     type Output = rendered::SharedFileSystem;
 
-    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self::Output, AgentTypeError> {
         // Return early if no shared entries are declared. Agent Types that don't use shared-filesystem aren't
         // enforced to provide the `${nr-sub:shared_filesystem_dir}` variable.
         if self.0.is_empty() {
@@ -213,7 +210,7 @@ impl Templateable for FilesystemEntry {
     /// Recursively templates this entry into a [`rendered::RenderedEntry`] tree. Sub-paths in the
     /// resulting tree are kept relative to their parent; the absolute prefix is applied once at
     /// the top level by [`FileSystem::template_with`].
-    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self::Output, AgentTypeError> {
         match self {
             FilesystemEntry::File {
                 text,
@@ -270,24 +267,24 @@ impl Templateable for FilesystemEntry {
     }
 }
 
-fn filesystem_agent_dir(variables: &Variables) -> Result<String, AgentTypeError> {
+fn filesystem_agent_dir(variables: &VariableValues) -> Result<String, AgentTypeError> {
     let key = VariableName::new(
         Namespace::SubAgent,
         AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
     );
-    match variables.get(&key).and_then(Variable::get_final_value) {
+    match variables.get(&key) {
         Some(VariableValue::String(s)) => Ok(s.clone()),
         _ => Err(AgentTypeError::MissingValue(key.to_string())),
     }
 }
 
 /// Resolves `${nr-sub:shared_filesystem_dir}`, the base for the shared filesystem tree.
-fn shared_filesystem_dir(variables: &Variables) -> Result<String, AgentTypeError> {
+fn shared_filesystem_dir(variables: &VariableValues) -> Result<String, AgentTypeError> {
     let key = VariableName::new(
         Namespace::SubAgent,
         AgentAttributes::NR_SUB_SHARED_FILESYSTEM_DIR,
     );
-    match variables.get(&key).and_then(Variable::get_final_value) {
+    match variables.get(&key) {
         Some(VariableValue::String(s)) => Ok(s.clone()),
         _ => Err(AgentTypeError::MissingValue(key.to_string())),
     }
@@ -295,9 +292,9 @@ fn shared_filesystem_dir(variables: &Variables) -> Result<String, AgentTypeError
 
 /// The root a `copy_from_file` source must stay within: the sub-agent's AC data dir
 /// (`${nr-sub:remote_dir}`), which contains packages and the per-agent and shared filesystem dirs.
-fn copy_source_base(variables: &Variables) -> Result<PathBuf, AgentTypeError> {
+fn copy_source_base(variables: &VariableValues) -> Result<PathBuf, AgentTypeError> {
     let key = VariableName::new(Namespace::SubAgent, AgentAttributes::NR_SUB_REMOTE_DIR);
-    match variables.get(&key).and_then(Variable::get_final_value) {
+    match variables.get(&key) {
         Some(VariableValue::String(s)) => Ok(PathBuf::from(s)),
         _ => Err(AgentTypeError::MissingValue(key.to_string())),
     }
@@ -308,7 +305,7 @@ impl Templateable for TemplateableValue<DirEntriesMap> {
 
     /// Templates the source string of a `dir_content_from_map` entry, then parses the result as a
     /// YAML mapping `filename -> contents`. Empty templated string yields an empty map.
-    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self::Output, AgentTypeError> {
         let templated_string = self.template.template_with(variables)?;
         let value: HashMap<SafePath, String> = if templated_string.is_empty() {
             HashMap::new()
@@ -410,12 +407,12 @@ mod tests {
 
     #[test]
     fn templates_top_level_file() {
-        let variables = Variables::from_iter(vec![(
+        let variables = VariableValues::from_iter(vec![(
             VariableName::new(
                 Namespace::SubAgent,
                 AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
             ),
-            Variable::new_final_string_variable("/base/dir"),
+            VariableValue::String("/base/dir".to_string()),
         )]);
 
         let fs_input = FileSystem(HashMap::from([(
@@ -464,18 +461,18 @@ nri-redis:
     /// Builds the reserved variables a filesystem render needs: the per-agent base dir and the
     /// remote dir that confines `copy_from_file` sources. Paths are passed through so callers can
     /// use real (absolute, platform-native) directories.
-    fn fs_variables(agent_dir: &Path, remote_dir: &Path) -> Variables {
-        Variables::from_iter(vec![
+    fn fs_variables(agent_dir: &Path, remote_dir: &Path) -> VariableValues {
+        VariableValues::from_iter(vec![
             (
                 VariableName::new(
                     Namespace::SubAgent,
                     AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
                 ),
-                Variable::new_final_string_variable(agent_dir.to_string_lossy()),
+                VariableValue::String(agent_dir.to_string_lossy().into_owned()),
             ),
             (
                 VariableName::new(Namespace::SubAgent, AgentAttributes::NR_SUB_REMOTE_DIR),
-                Variable::new_final_string_variable(remote_dir.to_string_lossy()),
+                VariableValue::String(remote_dir.to_string_lossy().into_owned()),
             ),
         ])
     }
@@ -560,12 +557,12 @@ nri-redis:
         #[case] text: Option<TemplateableValue<String>>,
         #[case] copy_from_file: Option<TemplateableValue<String>>,
     ) {
-        let variables = Variables::from_iter(vec![(
+        let variables = VariableValues::from_iter(vec![(
             VariableName::new(
                 Namespace::SubAgent,
                 AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
             ),
-            Variable::new_final_string_variable("/base/dir"),
+            VariableValue::String("/base/dir".to_string()),
         )]);
         let fs_input = FileSystem(HashMap::from([(
             PathBuf::from("f").try_into().unwrap(),
@@ -618,7 +615,7 @@ nri-redis:
 
     #[test]
     fn templating_fails_without_filesystem_agent_dir_variable() {
-        let variables = Variables::default();
+        let variables = VariableValues::default();
         let fs_input = FileSystem(HashMap::from([(
             PathBuf::from("any").try_into().unwrap(),
             FilesystemEntry::Dir {
@@ -702,29 +699,25 @@ agent:
       text: ${nr-var:config_agent}
 "#;
 
-    fn example_variables(base_dir: &str) -> Variables {
-        Variables::from_iter(vec![
+    fn example_variables(base_dir: &str) -> VariableValues {
+        VariableValues::from_iter(vec![
             (
                 VariableName::new(
                     Namespace::SubAgent,
                     AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
                 ),
-                Variable::new_final_string_variable(base_dir),
+                VariableValue::String(base_dir.to_string()),
             ),
             (
                 VariableName::new(Namespace::Variable, "config_agent"),
-                Variable::new_final_string_variable("license_key: REDACTED\n"),
+                VariableValue::String("license_key: REDACTED\n".to_string()),
             ),
             (
                 VariableName::new(Namespace::Variable, "config_logging"),
-                Variable::new(
-                    false,
-                    None,
-                    Some(HashMap::from([(
-                        "syslog.yaml".to_string(),
-                        "logs: []".to_string(),
-                    )])),
-                ),
+                VariableValue::MapStringString(HashMap::from([(
+                    "syslog.yaml".to_string(),
+                    "logs: []".to_string(),
+                )])),
             ),
         ])
     }
@@ -839,17 +832,17 @@ projected:
             ("a.yaml".to_string(), "a-content".to_string()),
             ("b.yaml".to_string(), "b-content".to_string()),
         ]);
-        let variables_first = Variables::from_iter(vec![
+        let variables_first = VariableValues::from_iter(vec![
             (
                 VariableName::new(
                     Namespace::SubAgent,
                     AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
                 ),
-                Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
+                VariableValue::String(tmp_dir.path().to_string_lossy().into_owned()),
             ),
             (
                 VariableName::new(Namespace::Variable, "proj"),
-                Variable::new(false, None, Some(proj_first)),
+                VariableValue::MapStringString(proj_first),
             ),
         ]);
 
@@ -883,17 +876,17 @@ projected:
   source: ${nr-var:proj}
 "#;
         let proj_second = HashMap::from([("a.yaml".to_string(), "a-content-v2".to_string())]);
-        let variables_second = Variables::from_iter(vec![
+        let variables_second = VariableValues::from_iter(vec![
             (
                 VariableName::new(
                     Namespace::SubAgent,
                     AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
                 ),
-                Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
+                VariableValue::String(tmp_dir.path().to_string_lossy().into_owned()),
             ),
             (
                 VariableName::new(Namespace::Variable, "proj"),
-                Variable::new(false, None, Some(proj_second)),
+                VariableValue::MapStringString(proj_second),
             ),
         ]);
 
@@ -959,24 +952,20 @@ logging.d:
 "#;
         let v2_yaml = v1_yaml;
 
-        let variables_v1 = Variables::from_iter(vec![
+        let variables_v1 = VariableValues::from_iter(vec![
             (
                 VariableName::new(
                     Namespace::SubAgent,
                     AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
                 ),
-                Variable::new_final_string_variable(base.to_string_lossy()),
+                VariableValue::String(base.to_string_lossy().into_owned()),
             ),
             (
                 VariableName::new(Namespace::Variable, "logs"),
-                Variable::new(
-                    false,
-                    None,
-                    Some(HashMap::from([(
-                        "file-1.conf".to_string(),
-                        "config-1".to_string(),
-                    )])),
-                ),
+                VariableValue::MapStringString(HashMap::from([(
+                    "file-1.conf".to_string(),
+                    "config-1".to_string(),
+                )])),
             ),
         ]);
 
@@ -993,24 +982,20 @@ logging.d:
         );
 
         // Second write: only file-2.conf in the map; file-1.conf is gone.
-        let variables_v2 = Variables::from_iter(vec![
+        let variables_v2 = VariableValues::from_iter(vec![
             (
                 VariableName::new(
                     Namespace::SubAgent,
                     AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
                 ),
-                Variable::new_final_string_variable(base.to_string_lossy()),
+                VariableValue::String(base.to_string_lossy().into_owned()),
             ),
             (
                 VariableName::new(Namespace::Variable, "logs"),
-                Variable::new(
-                    false,
-                    None,
-                    Some(HashMap::from([(
-                        "file-2.conf".to_string(),
-                        "config-2".to_string(),
-                    )])),
-                ),
+                VariableValue::MapStringString(HashMap::from([(
+                    "file-2.conf".to_string(),
+                    "config-2".to_string(),
+                )])),
             ),
         ]);
 
@@ -1032,18 +1017,18 @@ logging.d:
     }
 
     /// Builds the reserved variable holding the shared filesystem base dir.
-    fn shared_variables(shared_dir: &Path, remote_dir: &Path) -> Variables {
-        Variables::from_iter(vec![
+    fn shared_variables(shared_dir: &Path, remote_dir: &Path) -> VariableValues {
+        VariableValues::from_iter(vec![
             (
                 VariableName::new(
                     Namespace::SubAgent,
                     AgentAttributes::NR_SUB_SHARED_FILESYSTEM_DIR,
                 ),
-                Variable::new_final_string_variable(shared_dir.to_string_lossy()),
+                VariableValue::String(shared_dir.to_string_lossy().into_owned()),
             ),
             (
                 VariableName::new(Namespace::SubAgent, AgentAttributes::NR_SUB_REMOTE_DIR),
-                Variable::new_final_string_variable(remote_dir.to_string_lossy()),
+                VariableValue::String(remote_dir.to_string_lossy().into_owned()),
             ),
         ])
     }
@@ -1132,7 +1117,7 @@ infra-agent-ohi-configs:
     #[test]
     fn empty_shared_filesystem_renders_without_shared_dir_variable() {
         SharedFileSystem::default()
-            .template_with(&Variables::default())
+            .template_with(&VariableValues::default())
             .expect("empty shared filesystem must render without the shared dir variable")
             .write(&LocalFile, &DirectoryManagerFs)
             .unwrap();

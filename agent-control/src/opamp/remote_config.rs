@@ -2,7 +2,7 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::templates::TEMPLATE_KEY_SEPARATOR;
 use crate::agent_type::variable::VariableDefinition;
-use crate::agent_type::variable::variable_type::VariableTypeDefinition;
+use crate::agent_type::variable_value::VariableType;
 use crate::opamp::remote_config::hash::ConfigState;
 use crate::opamp::remote_config::{hash::Hash, signature::SignatureData};
 use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, EffectiveConfig};
@@ -258,22 +258,19 @@ impl<'a> VariableOverride<'a> {
             .map(|definition| match definition.kind() {
                 // Using explicit parsing for each type instead of `matches!` in case a new type is added.
                 // Strings don't need yaml parsing.
-                VariableTypeDefinition::String(_) => {
-                    Ok(serde_json::Value::String(self.raw_value.to_string()))
-                }
+                VariableType::String => Ok(serde_json::Value::String(self.raw_value.to_string())),
                 // Other types need to be a valid yaml in order to honor the variable type. Eg: a 'yaml' variable
                 // needs to be a valid yaml (deserialization must succeed).
-                VariableTypeDefinition::Bool(_)
-                | VariableTypeDefinition::Number(_)
-                | VariableTypeDefinition::StringMap(_)
-                | VariableTypeDefinition::Yaml(_) => serde_saphyr::from_str(self.raw_value)
-                    .map_err(|err| {
-                        format!(
-                            "could not decode the override value for variable '{}': {}",
-                            self.path,
-                            err.render_with_formatter(&serde_saphyr::UserMessageFormatter)
-                        )
-                    }),
+                VariableType::Bool
+                | VariableType::Number
+                | VariableType::StringMap
+                | VariableType::Yaml => serde_saphyr::from_str(self.raw_value).map_err(|err| {
+                    format!(
+                        "could not decode the override value for variable '{}': {}",
+                        self.path,
+                        err.render_with_formatter(&serde_saphyr::UserMessageFormatter)
+                    )
+                }),
             })
             .transpose()
     }
@@ -310,7 +307,7 @@ impl<'a> MapEntryOverride<'a> {
         let Some(definition) = definitions.get(self.path) else {
             return Ok(None);
         };
-        if !matches!(definition.kind(), VariableTypeDefinition::StringMap(_)) {
+        if !matches!(definition.kind(), VariableType::StringMap) {
             return Err(format!(
                 "overriding variable '{}:{}': the ':<map-key>' override syntax is only supported for 'string_map' variables",
                 self.path, self.map_key

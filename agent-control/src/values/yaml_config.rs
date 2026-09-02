@@ -1,6 +1,6 @@
 //! The [`YAMLConfig`] type wrapping a YAML mapping that Agent Control can read and store.
 
-use crate::agent_type::definition::Variables;
+use crate::agent_type::definition::VariableValues;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::templates::Templateable;
 use crate::{
@@ -204,7 +204,7 @@ pub struct YAMLConfigError(
 impl Templateable for YAMLConfig {
     type Output = Self;
 
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self, AgentTypeError> {
         Ok(Self(self.0.template_with(variables)?))
     }
 }
@@ -212,7 +212,7 @@ impl Templateable for YAMLConfig {
 impl Templateable for HashMap<String, serde_json::Value> {
     type Output = Self;
 
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self, AgentTypeError> {
         self.into_iter()
             .map(|(key, v)| Ok((key, v.template_with(variables)?)))
             .collect()
@@ -282,10 +282,9 @@ pub fn has_remote_management(capabilities: &Capabilities) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_type::{
-        definition::AgentType,
-        variable::{Variable, tree::Tree},
-    };
+    use crate::agent_type::variable::constraints::VariableConstraints;
+    use crate::agent_type::variable::namespace::{Namespace, VariableName};
+    use crate::agent_type::{definition::AgentTypeDefinition, variable_value::VariableValue};
     use rstest::rstest;
     use serde_json::json;
     use serde_json::{Map, Value};
@@ -407,35 +406,25 @@ deployment: {}
     #[test]
     fn test_update_specs() {
         let input_structure = serde_saphyr::from_str::<YAMLConfig>(EXAMPLE_CONFIG_REPLACE).unwrap();
-        let agent_type = AgentType::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE);
+        let agent_type = AgentTypeDefinition::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE);
 
-        let expected = HashMap::from([(
-            "whatever".to_string(),
-            Tree::Mapping(HashMap::from([(
-                "test".to_string(),
-                Tree::Mapping(HashMap::from([
-                    (
-                        "path".to_string(),
-                        Tree::End(Variable::new_string(true, None, Some("/etc".to_string()))),
-                    ),
-                    (
-                        "args".to_string(),
-                        Tree::End(Variable::new_string(
-                            true,
-                            None,
-                            Some("--verbose true".to_string()),
-                        )),
-                    ),
-                ])),
-            )])),
-        )]);
+        let expected: VariableValues = HashMap::from([
+            (
+                VariableName::new(Namespace::Variable, "whatever.test.path".to_string()),
+                VariableValue::String("/etc".to_string()),
+            ),
+            (
+                VariableName::new(Namespace::Variable, "whatever.test.args".to_string()),
+                VariableValue::String("--verbose true".to_string()),
+            ),
+        ]);
 
-        let filled_variables = agent_type
+        let resolved = agent_type
             .variables
-            .fill_with_values(input_structure)
+            .resolve(&VariableConstraints::default(), input_structure)
             .unwrap();
 
-        assert_eq!(expected, filled_variables.0);
+        assert_eq!(expected, resolved);
     }
 
     const EXAMPLE_CONFIG_REPLACE_WRONG_TYPE: &str = r#"
@@ -452,9 +441,11 @@ deployment: {}
     fn test_validate_with_agent_type_wrong_value_type() {
         let input_structure =
             serde_saphyr::from_str::<YAMLConfig>(EXAMPLE_CONFIG_REPLACE_WRONG_TYPE).unwrap();
-        let agent_type = AgentType::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE);
+        let agent_type = AgentTypeDefinition::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE);
 
-        let result = agent_type.variables.fill_with_values(input_structure);
+        let result = agent_type
+            .variables
+            .resolve(&VariableConstraints::default(), input_structure);
 
         assert!(result.is_err());
         assert!(

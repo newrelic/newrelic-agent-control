@@ -18,8 +18,8 @@ use crate::agent_control::run::{
 };
 use crate::agent_control::version_updater::on_host::OnHostACUpdater;
 use crate::agent_control::version_updater::on_host::verify::ProcessVerifyExecutor;
-use crate::agent_type::variable::Variable;
 use crate::agent_type::variable::namespace::{Namespace, VariableName};
+use crate::agent_type::variable_value::VariableValue;
 use crate::checkers::health::noop::NoOpHealthChecker;
 use crate::environment::Environment;
 use crate::event::channel::{EventConsumer, pub_sub};
@@ -122,7 +122,7 @@ impl AgentControlRunner {
 
         let agent_control_variables = HashMap::from([(
             VariableName::new(Namespace::AgentControl, HOST_ID_VARIABLE_NAME),
-            Variable::new_final_string_variable(identifiers.host_id.clone()),
+            VariableValue::String(identifiers.host_id.clone()),
         )]);
 
         let instance_id_storer = Arc::new(Storer::from(file_store));
