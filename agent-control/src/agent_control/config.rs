@@ -624,6 +624,10 @@ pub struct SubAgentConfig {
     #[serde(serialize_with = "AgentTypeID::serialize_fqn")]
     #[serde(deserialize_with = "AgentTypeID::deserialize_fqn")]
     pub agent_type: AgentTypeID,
+
+    /// An optional identifier for the sub-agent instance.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identifier: Option<String>,
 }
 
 /// Reference to a Kubernetes Secret holding authentication credentials.
@@ -1488,6 +1492,7 @@ k8s:
             &SubAgentConfig {
                 agent_type:
                     AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1").unwrap(),
+                identifier: "a".to_string().into(),
             },
         )));
         assert!(
@@ -1498,6 +1503,7 @@ k8s:
                         "newrelic/com.newrelic.opentelemetry.collector:0.0.1"
                     )
                     .unwrap(),
+                    identifier: "a".to_string().into(),
                 },
             ))
         );
@@ -1783,6 +1789,7 @@ agent_types:
             identity.id,
             SubAgentConfig {
                 agent_type: identity.agent_type_id,
+                identifier: "a".to_string().into(),
             },
         )])
     }
@@ -1800,6 +1807,7 @@ agent_types:
             identity.id,
             SubAgentConfig {
                 agent_type: identity.agent_type_id,
+                identifier: "a".to_string().into(),
             },
         )])
     }

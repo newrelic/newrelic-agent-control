@@ -581,6 +581,7 @@ mod tests {
                     agent_id(id),
                     crate::agent_control::config::SubAgentConfig {
                         agent_type: AgentTypeID::try_from(*agent_type).unwrap(),
+                        identifier: "a".to_string().into(),
                     },
                 )
             })

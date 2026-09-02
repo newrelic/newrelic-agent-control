@@ -182,6 +182,7 @@ mod tests {
                     AgentID::try_from(*agent_id).unwrap(),
                     SubAgentConfig {
                         agent_type: AgentTypeID::try_from(*agent_type).unwrap(),
+                        identifier: "a".to_string().into(),
                     },
                 )
             })

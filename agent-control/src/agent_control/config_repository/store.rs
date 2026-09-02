@@ -257,6 +257,7 @@ pub(crate) mod tests {
                     AgentID::try_from("rolldice").unwrap(),
                     SubAgentConfig {
                         agent_type: AgentTypeID::try_from("namespace/name:0.0.2").unwrap(),
+                        identifier: "a".to_string().into(),
                     },
                 )]),
                 version: None,
@@ -299,6 +300,7 @@ pub(crate) mod tests {
                     AgentID::try_from("rolldice").unwrap(),
                     SubAgentConfig {
                         agent_type: AgentTypeID::try_from("namespace/name:0.0.2").unwrap(),
+                        identifier: "a".to_string().into(),
                     },
                 )]),
                 ..Default::default()
@@ -344,6 +346,7 @@ pub(crate) mod tests {
                     AgentID::try_from("overrideme").unwrap(),
                     SubAgentConfig {
                         agent_type: AgentTypeID::try_from("namespace/from.env:0.0.2").unwrap(),
+                        identifier: "a".to_string().into(),
                     },
                 )]),
                 ..Default::default()
