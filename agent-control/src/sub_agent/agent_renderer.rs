@@ -408,10 +408,7 @@ pub(crate) mod tests {
         let agent_type = definition.with_constraints(&VariableConstraints::default());
 
         let vars = agent_type.variables.flatten();
-        assert_eq!(
-            "K8s var".to_string(),
-            vars.get("config.var").unwrap().description
-        );
+        assert!(vars.contains_key("config.var"));
         assert!(matches!(
             agent_type.runtime_config.deployment,
             crate::agent_type::runtime_config::Deployment::K8s(_)
@@ -427,10 +424,7 @@ pub(crate) mod tests {
         let agent_type = definition.with_constraints(&VariableConstraints::default());
 
         let vars = agent_type.variables.flatten();
-        assert_eq!(
-            "Linux var".to_string(),
-            vars.get("config.var").unwrap().description
-        );
+        assert!(vars.contains_key("config.var"));
         assert!(matches!(
             agent_type.runtime_config.deployment,
             crate::agent_type::runtime_config::Deployment::Host(_)

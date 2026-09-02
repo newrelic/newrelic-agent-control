@@ -301,7 +301,7 @@ mod tests {
     }
 
     const EXAMPLE_CONFIG: &str = r#"
-description:
+metadata:
   name: newrelic-infra
   float_val: 0.14
   logs: -4
@@ -330,7 +330,7 @@ verbose: true
         let actual = serde_saphyr::from_str::<YAMLConfig>(EXAMPLE_CONFIG).unwrap();
         let expected = Value::Object(Map::from_iter([
             (
-                "description".to_string(),
+                "metadata".to_string(),
                 Value::Object(Map::from_iter([
                     (
                         "name".to_string(),
@@ -396,11 +396,9 @@ variables:
   whatever:
     test:
       path:
-        description: "Path to the agent"
         type: string
         required: true
       args:
-        description: "Args passed to the agent"
         type: string
         required: true
 deployment: {}
@@ -418,17 +416,11 @@ deployment: {}
                 Tree::Mapping(HashMap::from([
                     (
                         "path".to_string(),
-                        Tree::End(Variable::new_string(
-                            "Path to the agent".to_string(),
-                            true,
-                            None,
-                            Some("/etc".to_string()),
-                        )),
+                        Tree::End(Variable::new_string(true, None, Some("/etc".to_string()))),
                     ),
                     (
                         "args".to_string(),
                         Tree::End(Variable::new_string(
-                            "Args passed to the agent".to_string(),
                             true,
                             None,
                             Some("--verbose true".to_string()),

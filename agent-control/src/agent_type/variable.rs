@@ -32,7 +32,6 @@ use variable_type::VariableType;
 /// Static Variable definition defines the supported fields for a variable in an Agent Type.
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 pub struct VariableDefinition {
-    pub(crate) description: String,
     #[serde(flatten)]
     variable_type: VariableTypeDefinition,
 }
@@ -40,7 +39,6 @@ pub struct VariableDefinition {
 /// [VariableDefinition] including information known at runtime.
 #[derive(Debug, PartialEq, Clone)]
 pub struct Variable {
-    pub(crate) description: String,
     variable_type: VariableType,
 }
 
@@ -48,7 +46,6 @@ impl VariableDefinition {
     /// Returns the corresponding [Variable] according to the provided configuration.
     pub fn with_config(self, constraints: &VariableConstraints) -> Variable {
         Variable {
-            description: self.description,
             variable_type: self.variable_type.with_config(constraints),
         }
     }
@@ -63,7 +60,6 @@ impl Variable {
     /// Builds a string variable already populated with its final value.
     pub fn new_final_string_variable(final_value: impl ToString) -> Self {
         Self {
-            description: String::new(),
             variable_type: VariableType::String(StringFields {
                 inner: Fields {
                     required: false,
@@ -113,7 +109,6 @@ mod tests {
     impl From<Fields<serde_json::Value>> for Variable {
         fn from(kind_value: Fields<serde_json::Value>) -> Self {
             Self {
-                description: String::new(),
                 variable_type: VariableType::Yaml(kind_value),
             }
         }
@@ -122,37 +117,28 @@ mod tests {
     impl From<Fields<HashMap<String, String>>> for Variable {
         fn from(kind_value: Fields<HashMap<String, String>>) -> Self {
             Self {
-                description: String::new(),
                 variable_type: VariableType::StringMap(kind_value),
             }
         }
     }
 
     impl Variable {
-        pub(crate) fn new<T>(
-            description: String,
-            required: bool,
-            default: Option<T>,
-            final_value: Option<T>,
-        ) -> Self
+        pub(crate) fn new<T>(required: bool, default: Option<T>, final_value: Option<T>) -> Self
         where
             T: PartialEq,
             VariableType: From<Fields<T>>,
         {
             Self {
-                description,
                 variable_type: Fields::new(required, default, final_value).into(),
             }
         }
 
         pub(crate) fn new_string(
-            description: String,
             required: bool,
             default: Option<String>,
             final_value: Option<String>,
         ) -> Self {
             Self {
-                description,
                 variable_type: StringFields::new(
                     required,
                     default,
@@ -174,7 +160,6 @@ mod tests {
             variants: Default::default(),
         });
         let definition = VariableDefinition {
-            description: "some description".to_string(),
             variable_type: variable_type.clone(),
         };
 
@@ -187,7 +172,6 @@ mod tests {
 foo:
   bar:
     var_name:
-      description: "some description"
       type: string
       required: false
       default: "a"
@@ -203,7 +187,6 @@ foo:
                 Tree::Mapping(HashMap::from([(
                     "var_name".to_string(),
                     Tree::End(VariableDefinition {
-                        description: "some description".to_string(),
                         variable_type: VariableTypeDefinition::String(StringFieldsDefinition {
                             inner: FieldsDefinition {
                                 required: false,

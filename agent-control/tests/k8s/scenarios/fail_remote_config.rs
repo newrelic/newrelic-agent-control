@@ -31,11 +31,9 @@ fn k8s_fail_remote_config_missing_required_values() {
         .with_variables(
             r#"
 required_var:
-  description: "required_var"
   type: yaml
   required: true
 non_required_var:
-  description: "non_required_var"
   type: yaml
   required: false
   default: { }

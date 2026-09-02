@@ -302,7 +302,6 @@ fn update_specs(
 ///
 /// ```yaml
 /// name:
-///   description: "Name of the agent"
 ///   type: string
 ///   required: false
 ///   default: nrdot
@@ -315,7 +314,6 @@ fn update_specs(
 ///     system:
 ///       logging:
 ///         level:
-///           description: "Logging level"
 ///           type: string
 ///           required: false
 ///           default: info
@@ -476,9 +474,8 @@ version: 0.0.1
 platform: host
 operating_system: linux
 variables:
-  description:
+  my:
     name:
-      description: "Name of the agent"
       type: string
       required: false
       default: nrdot
@@ -513,7 +510,7 @@ version: 0.1.0
 platform: host
 operating_system: linux
 variables:
-  description:
+  my:
     name:
 "#;
 
@@ -687,7 +684,6 @@ platform: host
     #[case::dot_in_top_level_variable_name(
         r#"
   "foo.bar":
-    description: "some description"
     type: string
     required: true
 "#,
@@ -696,7 +692,6 @@ platform: host
     #[case::colon_in_top_level_variable_name(
         r#"
   "foo:bar":
-    description: "some description"
     type: string
     required: true
 "#,
@@ -707,7 +702,6 @@ platform: host
   common:
     two:
       "three.four":
-        description: "some description"
         type: string
         required: true
 "#,
@@ -746,30 +740,18 @@ deployment: {{}}
         let given_agent = AgentType::build_for_testing(AGENT_GIVEN_YAML);
 
         let expected_map: Map<String, Variable> = Map::from([(
-            "description.name".to_string(),
-            Variable::new_string(
-                "Name of the agent".to_string(),
-                false,
-                Some("nrdot".to_string()),
-                None,
-            ),
+            "my.name".to_string(),
+            Variable::new_string(false, Some("nrdot".to_string()), None),
         )]);
 
         // expect output to be the map
         assert_eq!(expected_map, given_agent.variables.clone().flatten());
 
-        let expected_spec = Variable::new_string(
-            "Name of the agent".to_string(),
-            false,
-            Some("nrdot".to_string()),
-            None,
-        );
+        let expected_spec = Variable::new_string(false, Some("nrdot".to_string()), None);
 
         assert_eq!(
             expected_spec,
-            given_agent
-                .get_variable("description.name".to_string())
-                .unwrap()
+            given_agent.get_variable("my.name".to_string()).unwrap()
         );
     }
 
@@ -781,11 +763,9 @@ platform: host
 operating_system: linux
 variables:
   config3:
-    description: "Newrelic infra configuration yaml"
     type: string_map
     required: true
   status_server_port:
-    description: "Newrelic infra health status port"
     type: number
     required: false
     default: 8003
@@ -873,7 +853,6 @@ operating_system: linux
 variables:
   restart_policy:
     type:
-      description: "restart policy type"
       type: string
       required: false
       variants:
@@ -1010,7 +989,6 @@ platform: kubernetes
 variables:
   group:
     name:
-      description: "Name of the agent"
       type: string
       required: false
       default: fake_value
@@ -1058,7 +1036,6 @@ operating_system: {environment}
 variables:
   group:
     name:
-      description: "Name of the agent"
       type: string
       required: false
       default: fake_value

@@ -235,7 +235,7 @@ mod tests {
     ) {
         let variables = Variables::from([(
             VariableName::new(Namespace::Variable, "foo"),
-            Variable::new_string(String::default(), true, None, Some(var_content.to_string())),
+            Variable::new_string(true, None, Some(var_content.to_string())),
         )]);
         let input = format!("${{nr-var:foo{var_functions}}}");
         let actual_output = template_string(input, &variables).unwrap();
@@ -259,16 +259,11 @@ mod tests {
         let variables = Variables::from([
             (
                 VariableName::new(Namespace::Variable, "name"),
-                Variable::new_string(
-                    String::default(),
-                    true,
-                    None,
-                    Some("Alice ${UNTOUCHED}".to_string()),
-                ),
+                Variable::new_string(true, None, Some("Alice ${UNTOUCHED}".to_string())),
             ),
             (
                 VariableName::new(Namespace::Variable, "age"),
-                Variable::new(String::default(), true, None, Some(Number::from(30))),
+                Variable::new(true, None, Some(Number::from(30))),
             ),
         ]);
 
@@ -285,20 +280,15 @@ mod tests {
         let variables = Variables::from([
             (
                 VariableName::new(Namespace::Variable, "change.me.string"),
-                Variable::new_string(
-                    String::default(),
-                    true,
-                    None,
-                    Some("CHANGED-STRING ${UNTOUCHED}".to_string()),
-                ),
+                Variable::new_string(true, None, Some("CHANGED-STRING ${UNTOUCHED}".to_string())),
             ),
             (
                 VariableName::new(Namespace::Variable, "change.me.bool"),
-                Variable::new(String::default(), true, None, Some(true)),
+                Variable::new(true, None, Some(true)),
             ),
             (
                 VariableName::new(Namespace::Variable, "change.me.number"),
-                Variable::new(String::default(), true, None, Some(Number::from(42))),
+                Variable::new(true, None, Some(Number::from(42))),
             ),
         ]);
         let input: serde_json::Map<String, serde_json::Value> = serde_saphyr::from_str(
@@ -335,20 +325,15 @@ mod tests {
         let variables = Variables::from([
             (
                 VariableName::new(Namespace::Variable, "change.me.string"),
-                Variable::new_string(
-                    String::default(),
-                    true,
-                    None,
-                    Some("CHANGED-STRING ${UNTOUCHED}".to_string()),
-                ),
+                Variable::new_string(true, None, Some("CHANGED-STRING ${UNTOUCHED}".to_string())),
             ),
             (
                 VariableName::new(Namespace::Variable, "change.me.bool"),
-                Variable::new(String::default(), true, None, Some(true)),
+                Variable::new(true, None, Some(true)),
             ),
             (
                 VariableName::new(Namespace::Variable, "change.me.number"),
-                Variable::new(String::default(), true, None, Some(Number::from(42))),
+                Variable::new(true, None, Some(Number::from(42))),
             ),
         ]);
         let input: Vec<serde_json::Value> = serde_saphyr::from_str(
@@ -381,25 +366,19 @@ mod tests {
         let variables = Variables::from([
             (
                 VariableName::new(Namespace::Variable, "change.me.string"),
-                Variable::new_string(
-                    String::default(),
-                    true,
-                    None,
-                    Some("CHANGED-STRING ${UNTOUCHED}".to_string()),
-                ),
+                Variable::new_string(true, None, Some("CHANGED-STRING ${UNTOUCHED}".to_string())),
             ),
             (
                 VariableName::new(Namespace::Variable, "change.me.bool"),
-                Variable::new(String::default(), true, None, Some(true)),
+                Variable::new(true, None, Some(true)),
             ),
             (
                 VariableName::new(Namespace::Variable, "change.me.number"),
-                Variable::new(String::default(), true, None, Some(Number::from(42))),
+                Variable::new(true, None, Some(Number::from(42))),
             ),
             (
                 VariableName::new(Namespace::Variable, "change.me.yaml"),
                 Variable::new(
-                    String::default(),
                     true,
                     None,
                     Some(serde_json::Value::Object(serde_json::Map::from_iter([(
@@ -411,7 +390,6 @@ mod tests {
             (
                 VariableName::new(Namespace::Variable, "change.me.yaml.map"),
                 Variable::new(
-                    String::default(),
                     true,
                     None,
                     Some(serde_json::Value::Object(serde_json::Map::from_iter([(
@@ -424,7 +402,6 @@ mod tests {
                 // Expansion inside variable's values is not supported.
                 VariableName::new(Namespace::Variable, "yaml.with.var.placeholder"),
                 Variable::new(
-                    String::default(),
                     true,
                     None,
                     Some(serde_json::Value::Object(serde_json::Map::from_iter([(
@@ -596,7 +573,7 @@ mod tests {
                 name: "simple string",
                 variables: Variables::from([(
                     VariableName::new(Namespace::Variable, "simple.string.var"),
-                    Variable::new_string(String::default(), true, None, Some("Value".to_string())),
+                    Variable::new_string(true, None, Some("Value".to_string())),
                 )]),
                 expectations: vec![
                     (
@@ -617,12 +594,7 @@ mod tests {
                 name: "string with yaml",
                 variables: Variables::from([(
                     VariableName::new(Namespace::Variable, "string.with.yaml.var"),
-                    Variable::new_string(
-                        String::default(),
-                        true,
-                        None,
-                        Some("[Value]".to_string()),
-                    ),
+                    Variable::new_string(true, None, Some("[Value]".to_string())),
                 )]),
                 expectations: vec![(
                     "${nr-var:string.with.yaml.var}",
@@ -633,7 +605,7 @@ mod tests {
                 name: "bool",
                 variables: Variables::from([(
                     VariableName::new(Namespace::Variable, "bool.var"),
-                    Variable::new(String::default(), true, None, Some(true)),
+                    Variable::new(true, None, Some(true)),
                 )]),
                 expectations: vec![
                     ("${nr-var:bool.var}", serde_json::Value::Bool(true)),
@@ -647,7 +619,7 @@ mod tests {
                 name: "number",
                 variables: Variables::from([(
                     VariableName::new(Namespace::Variable, "number.var"),
-                    Variable::new(String::default(), true, None, Some(Number::from(42))),
+                    Variable::new(true, None, Some(Number::from(42))),
                 )]),
                 expectations: vec![(
                     "${nr-var:number.var}",
@@ -659,20 +631,15 @@ mod tests {
                 variables: Variables::from([
                     (
                         VariableName::new(Namespace::Variable, "number.var"),
-                        Variable::new(String::default(), true, None, Some(Number::from(42))),
+                        Variable::new(true, None, Some(Number::from(42))),
                     ),
                     (
                         VariableName::new(Namespace::Variable, "bool.var"),
-                        Variable::new(String::default(), true, None, Some(true)),
+                        Variable::new(true, None, Some(true)),
                     ),
                     (
                         VariableName::new(Namespace::Variable, "simple.string.var"),
-                        Variable::new_string(
-                            String::default(),
-                            true,
-                            None,
-                            Some("Value".to_string()),
-                        ),
+                        Variable::new_string(true, None, Some("Value".to_string())),
                     ),
                 ]),
                 expectations: vec![
@@ -691,7 +658,6 @@ mod tests {
                 variables: Variables::from([(
                     VariableName::new(Namespace::Variable, "yaml.var"),
                     Variable::new(
-                        String::default(),
                         true,
                         None,
                         Some(serde_json::Value::Object(serde_json::Map::from_iter([(
@@ -719,7 +685,6 @@ mod tests {
                 variables: Variables::from([(
                     VariableName::new(Namespace::Variable, "yaml.var"),
                     Variable::new(
-                        String::default(),
                         false,
                         Some(serde_json::Value::Object(serde_json::Map::from_iter([(
                             "key".into(),
@@ -747,7 +712,7 @@ mod tests {
     fn test_normalized_var() {
         let variables = Variables::from([(
             VariableName::new(Namespace::Variable, "var.name"),
-            Variable::new_string(String::default(), true, None, Some("Value".to_string())),
+            Variable::new_string(true, None, Some("Value".to_string())),
         )]);
 
         assert_matches!(
