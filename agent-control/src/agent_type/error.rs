@@ -1,7 +1,8 @@
 //! Error type for operations involving agent types.
 use thiserror::Error;
 
-/// The different error types to be returned by operations involving the [`AgentType`](super::definition::AgentType) type.
+/// The different error types to be returned by operations involving the
+/// [`AgentTypeDefinition`](super::definition::AgentTypeDefinition) type.
 #[derive(Error, Debug)]
 pub enum AgentTypeError {
     /// Serializing a value to YAML failed.

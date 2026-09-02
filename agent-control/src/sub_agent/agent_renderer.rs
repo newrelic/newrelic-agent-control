@@ -2,7 +2,7 @@
 //! its YAML config, resolving the agent type, variables, and dynamic values.
 
 use crate::agent_type::agent_attributes::AgentAttributes;
-use crate::agent_type::definition::{VariableTree, VariableValues};
+use crate::agent_type::definition::{VariableTree, Variables};
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::registry::{AgentTypeRegistry, AgentTypeRegistryError};
 use crate::agent_type::runtime_config::k8s::K8s;
@@ -124,7 +124,7 @@ where
     S: ValueProvider,
 {
     registry: Arc<R>,
-    ac_variables: VariableValues,
+    ac_variables: Variables,
     variable_constraints: VariableConstraints,
     value_providers: Registry<S>,
     remote_dir: PathBuf,
@@ -139,7 +139,7 @@ where
     /// constraints, value providers, and the remote configuration directory.
     pub fn new(
         registry: Arc<R>,
-        ac_variables: VariableValues,
+        ac_variables: Variables,
         variable_constraints: VariableConstraints,
         value_providers: Registry<S>,
         remote_dir: &Path,
@@ -158,7 +158,7 @@ where
         &self,
         runtime_config: &Runtime,
         values: YAMLConfig,
-    ) -> Result<VariableValues, AgentRendererError> {
+    ) -> Result<Variables, AgentRendererError> {
         let user_values: String = values
             .clone()
             .try_into()
@@ -169,7 +169,7 @@ where
         let dynamic_variables_values = DynamicVariables::from(user_values.as_str());
         let dynamic_variables_runtime = DynamicVariables::from(runtime.as_str());
 
-        let mut dynamic_variables: VariableValues = HashMap::new();
+        let mut dynamic_variables: Variables = HashMap::new();
         dynamic_variables.extend(dynamic_variables_values.load_values(&self.value_providers)?);
         dynamic_variables.extend(dynamic_variables_runtime.load_values(&self.value_providers)?);
 
@@ -235,8 +235,8 @@ fn get_expanded_user_values(
     variable_tree: VariableTree,
     constraints: &VariableConstraints,
     values: YAMLConfig,
-    expansion_variables: &VariableValues,
-) -> Result<VariableValues, AgentTypeError> {
+    expansion_variables: &Variables,
+) -> Result<Variables, AgentTypeError> {
     // Values are expanded substituting all ${nr-env, nr-values} performing double expansions.
     // Notice that only data coming from value providers is taken into consideration (no other vars for example)
     let values_expanded = values.template_with(expansion_variables)?;

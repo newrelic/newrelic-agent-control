@@ -1,7 +1,7 @@
 //! Extraction and loading of dynamic variables referenced from a sub-agent configuration.
 use std::collections::{HashMap, HashSet};
 
-use crate::agent_type::definition::VariableValues;
+use crate::agent_type::definition::Variables;
 use crate::{
     agent_type::{
         templates::template_re,
@@ -85,7 +85,7 @@ impl DynamicVariables {
     pub fn load_values<S: ValueProvider>(
         &self,
         value_providers_registry: &Registry<S>,
-    ) -> Result<VariableValues, DynamicVariablesError> {
+    ) -> Result<Variables, DynamicVariablesError> {
         if value_providers_registry.is_empty() {
             return Ok(HashMap::new());
         }
@@ -123,7 +123,7 @@ impl DynamicVariables {
 }
 
 /// Loads all environment variables present in the system.
-pub fn load_env_vars() -> VariableValues {
+pub fn load_env_vars() -> Variables {
     std::env::vars_os()
         .map(|(k, v)| {
             (

@@ -13,8 +13,7 @@
 use super::definition::Variables;
 use super::error::AgentTypeError;
 use super::templates_function::{Function, SupportedFunction};
-use super::variable::Variable;
-use super::variable::variable_type::VariableType;
+use super::variable_value::VariableValue;
 use crate::agent_type::variable::namespace::{Namespace, VariableName};
 use regex::Regex;
 use std::sync::OnceLock;
@@ -67,28 +66,31 @@ fn template_trim(s: &str) -> &str {
 }
 
 /// Returns a variable reference from the provided set if it exists, it returns an error otherwise.
-fn normalized_var<'a>(
-    name: &str,
+fn get_variable<'a>(
+    namespaced_name: &str,
     variables: &'a Variables,
-) -> Result<&'a Variable, AgentTypeError> {
-    let (prefix, unprefixed) =
-        name.split_once(Namespace::PREFIX_NS_SEPARATOR)
-            .ok_or_else(|| {
-                AgentTypeError::MissingTemplateKey(format!(
-                    "Cannot split {} with the separator {}",
-                    name,
-                    Namespace::PREFIX_NS_SEPARATOR
-                ))
-            })?;
-    let namespace = Namespace::iter()
-        .find(|ns| ns.to_string() == prefix)
+) -> Result<&'a VariableValue, AgentTypeError> {
+    let (namespace, name) = namespaced_name
+        .split_once(Namespace::PREFIX_NS_SEPARATOR)
         .ok_or_else(|| {
-            AgentTypeError::MissingTemplateKey(format!("Namespace of {name} is unknown"))
+            AgentTypeError::MissingTemplateKey(format!(
+                "Cannot split {} with the separator {}",
+                namespaced_name,
+                Namespace::PREFIX_NS_SEPARATOR
+            ))
         })?;
-    let key = VariableName::new(namespace, unprefixed);
+
+    let namespace = Namespace::iter()
+        .find(|ns| ns.to_string() == namespace)
+        .ok_or_else(|| {
+            AgentTypeError::MissingTemplateKey(format!("Namespace of {namespaced_name} is unknown"))
+        })?;
+    let key = VariableName::new(namespace, name);
     variables
         .get(&key)
-        .ok_or(AgentTypeError::MissingTemplateKey(name.to_string()))
+        .ok_or(AgentTypeError::MissingTemplateKey(
+            namespaced_name.to_string(),
+        ))
 }
 
 // The actual std type that has a meaningful implementation of Templateable
@@ -113,13 +115,7 @@ fn template_string(s: String, variables: &Variables) -> Result<String, AgentType
         let (templatable_placeholder, [captured_var, captured_functions]) = captures.extract();
 
         // Get variable value
-        let normalized_var = normalized_var(captured_var, variables)?;
-        let value = normalized_var
-            .get_final_value()
-            .ok_or(AgentTypeError::MissingTemplateKey(
-                templatable_placeholder.to_string(),
-            ))?
-            .to_string();
+        let value = get_variable(captured_var, variables)?.to_string();
 
         // Apply functions
         let functions: Vec<SupportedFunction> =
@@ -192,34 +188,25 @@ fn template_yaml_value_string(
         let templated = template_string(s, variables)?;
         return Ok(serde_json::Value::String(templated));
     }
-    // Otherwise, template according to the variable type.
+    // Otherwise, template according to the variable value's variant.
     let var_name = template_trim(s.as_str());
-    let var_spec = normalized_var(var_name, variables)?;
-    let var_value = var_spec
-        .get_final_value()
-        .ok_or(AgentTypeError::MissingValue(var_name.to_string()))?;
+    let var_value = get_variable(var_name, variables)?;
 
-    match var_spec.kind() {
-        VariableType::Yaml(_) => {
-            var_value
-                .to_yaml_value()
-                .ok_or(AgentTypeError::UnexpectedValueForKey(
-                    var_name.to_string(),
-                    var_value.to_string(),
-                ))
-        }
-        VariableType::Bool(_) | VariableType::Number(_) => {
+    match var_value {
+        VariableValue::Yaml(v) => Ok(v.clone()),
+        VariableValue::Bool(_) | VariableValue::Number(_) => {
             serde_saphyr::from_str(var_value.to_string().as_str())
                 .map_err(AgentTypeError::Serialization)
         }
-        _ => Ok(serde_json::Value::String(var_value.to_string())),
+        VariableValue::String(_) | VariableValue::MapStringString(_) => {
+            Ok(serde_json::Value::String(var_value.to_string()))
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_type::variable::fields::Fields;
     use crate::agent_type::variable::namespace::{Namespace, VariableName};
     use assert_matches::assert_matches;
     use rstest::rstest;
@@ -235,7 +222,7 @@ mod tests {
     ) {
         let variables = Variables::from([(
             VariableName::new(Namespace::Variable, "foo"),
-            Variable::new_string(true, None, Some(var_content.to_string())),
+            VariableValue::String(var_content.to_string()),
         )]);
         let input = format!("${{nr-var:foo{var_functions}}}");
         let actual_output = template_string(input, &variables).unwrap();
@@ -259,11 +246,11 @@ mod tests {
         let variables = Variables::from([
             (
                 VariableName::new(Namespace::Variable, "name"),
-                Variable::new_string(true, None, Some("Alice ${UNTOUCHED}".to_string())),
+                VariableValue::String("Alice ${UNTOUCHED}".to_string()),
             ),
             (
                 VariableName::new(Namespace::Variable, "age"),
-                Variable::new(true, None, Some(Number::from(30))),
+                VariableValue::Number(Number::from(30)),
             ),
         ]);
 
@@ -280,15 +267,15 @@ mod tests {
         let variables = Variables::from([
             (
                 VariableName::new(Namespace::Variable, "change.me.string"),
-                Variable::new_string(true, None, Some("CHANGED-STRING ${UNTOUCHED}".to_string())),
+                VariableValue::String("CHANGED-STRING ${UNTOUCHED}".to_string()),
             ),
             (
                 VariableName::new(Namespace::Variable, "change.me.bool"),
-                Variable::new(true, None, Some(true)),
+                VariableValue::Bool(true),
             ),
             (
                 VariableName::new(Namespace::Variable, "change.me.number"),
-                Variable::new(true, None, Some(Number::from(42))),
+                VariableValue::Number(Number::from(42)),
             ),
         ]);
         let input: serde_json::Map<String, serde_json::Value> = serde_saphyr::from_str(
@@ -325,15 +312,15 @@ mod tests {
         let variables = Variables::from([
             (
                 VariableName::new(Namespace::Variable, "change.me.string"),
-                Variable::new_string(true, None, Some("CHANGED-STRING ${UNTOUCHED}".to_string())),
+                VariableValue::String("CHANGED-STRING ${UNTOUCHED}".to_string()),
             ),
             (
                 VariableName::new(Namespace::Variable, "change.me.bool"),
-                Variable::new(true, None, Some(true)),
+                VariableValue::Bool(true),
             ),
             (
                 VariableName::new(Namespace::Variable, "change.me.number"),
-                Variable::new(true, None, Some(Number::from(42))),
+                VariableValue::Number(Number::from(42)),
             ),
         ]);
         let input: Vec<serde_json::Value> = serde_saphyr::from_str(
@@ -366,49 +353,37 @@ mod tests {
         let variables = Variables::from([
             (
                 VariableName::new(Namespace::Variable, "change.me.string"),
-                Variable::new_string(true, None, Some("CHANGED-STRING ${UNTOUCHED}".to_string())),
+                VariableValue::String("CHANGED-STRING ${UNTOUCHED}".to_string()),
             ),
             (
                 VariableName::new(Namespace::Variable, "change.me.bool"),
-                Variable::new(true, None, Some(true)),
+                VariableValue::Bool(true),
             ),
             (
                 VariableName::new(Namespace::Variable, "change.me.number"),
-                Variable::new(true, None, Some(Number::from(42))),
+                VariableValue::Number(Number::from(42)),
             ),
             (
                 VariableName::new(Namespace::Variable, "change.me.yaml"),
-                Variable::new(
-                    true,
-                    None,
-                    Some(serde_json::Value::Object(serde_json::Map::from_iter([(
-                        "key".into(),
-                        "value".into(),
-                    )]))),
-                ),
+                VariableValue::Yaml(serde_json::Value::Object(serde_json::Map::from_iter([(
+                    "key".into(),
+                    "value".into(),
+                )]))),
             ),
             (
                 VariableName::new(Namespace::Variable, "change.me.yaml.map"),
-                Variable::new(
-                    true,
-                    None,
-                    Some(serde_json::Value::Object(serde_json::Map::from_iter([(
-                        "map".into(),
-                        serde_json::Map::from_iter([("key".into(), "value".into())]).into(),
-                    )]))),
-                ),
+                VariableValue::Yaml(serde_json::Value::Object(serde_json::Map::from_iter([(
+                    "map".into(),
+                    serde_json::Map::from_iter([("key".into(), "value".into())]).into(),
+                )]))),
             ),
             (
                 // Expansion inside variable's values is not supported.
                 VariableName::new(Namespace::Variable, "yaml.with.var.placeholder"),
-                Variable::new(
-                    true,
-                    None,
-                    Some(serde_json::Value::Object(serde_json::Map::from_iter([(
-                        "this.will.not.be.expanded".into(),
-                        "${nr-var:change.me.string}".into(),
-                    )]))),
-                ),
+                VariableValue::Yaml(serde_json::Value::Object(serde_json::Map::from_iter([(
+                    "this.will.not.be.expanded".into(),
+                    "${nr-var:change.me.string}".into(),
+                )]))),
             ),
         ]);
         let input: serde_json::Value = serde_saphyr::from_str(
@@ -518,32 +493,12 @@ mod tests {
                 (self.assert_fn)(actual_err);
             }
         }
-        let test_cases = vec![
-            TestCase {
-                name: "trying to replace a variable that is not defined",
-                variables: Variables::new(),
-                input: "${nr-var:not-defined}",
-                assert_fn: |err| assert_matches!(err, AgentTypeError::MissingTemplateKey(_)),
-            },
-            TestCase {
-                name: "missing required value key",
-                variables: Variables::from([(
-                    VariableName::new(Namespace::Variable, "yaml"),
-                    Fields::<serde_json::Value>::new(true, None, None).into(),
-                )]),
-                input: "${nr-var:yaml}",
-                assert_fn: |err| assert_matches!(err, AgentTypeError::MissingValue(_)),
-            },
-            TestCase {
-                name: "missing non-required key",
-                variables: Variables::from([(
-                    VariableName::new(Namespace::Variable, "yaml"),
-                    Fields::<serde_json::Value>::new(false, None, None).into(),
-                )]),
-                input: "${nr-var:yaml}",
-                assert_fn: |err| assert_matches!(err, AgentTypeError::MissingValue(_)),
-            },
-        ];
+        let test_cases = vec![TestCase {
+            name: "trying to replace a variable that is not defined",
+            variables: Variables::new(),
+            input: "${nr-var:not-defined}",
+            assert_fn: |err| assert_matches!(err, AgentTypeError::MissingTemplateKey(_)),
+        }];
         for test_case in test_cases {
             test_case.run();
         }
@@ -573,7 +528,7 @@ mod tests {
                 name: "simple string",
                 variables: Variables::from([(
                     VariableName::new(Namespace::Variable, "simple.string.var"),
-                    Variable::new_string(true, None, Some("Value".to_string())),
+                    VariableValue::String("Value".to_string()),
                 )]),
                 expectations: vec![
                     (
@@ -594,7 +549,7 @@ mod tests {
                 name: "string with yaml",
                 variables: Variables::from([(
                     VariableName::new(Namespace::Variable, "string.with.yaml.var"),
-                    Variable::new_string(true, None, Some("[Value]".to_string())),
+                    VariableValue::String("[Value]".to_string()),
                 )]),
                 expectations: vec![(
                     "${nr-var:string.with.yaml.var}",
@@ -605,7 +560,7 @@ mod tests {
                 name: "bool",
                 variables: Variables::from([(
                     VariableName::new(Namespace::Variable, "bool.var"),
-                    Variable::new(true, None, Some(true)),
+                    VariableValue::Bool(true),
                 )]),
                 expectations: vec![
                     ("${nr-var:bool.var}", serde_json::Value::Bool(true)),
@@ -619,7 +574,7 @@ mod tests {
                 name: "number",
                 variables: Variables::from([(
                     VariableName::new(Namespace::Variable, "number.var"),
-                    Variable::new(true, None, Some(Number::from(42))),
+                    VariableValue::Number(Number::from(42)),
                 )]),
                 expectations: vec![(
                     "${nr-var:number.var}",
@@ -631,15 +586,15 @@ mod tests {
                 variables: Variables::from([
                     (
                         VariableName::new(Namespace::Variable, "number.var"),
-                        Variable::new(true, None, Some(Number::from(42))),
+                        VariableValue::Number(Number::from(42)),
                     ),
                     (
                         VariableName::new(Namespace::Variable, "bool.var"),
-                        Variable::new(true, None, Some(true)),
+                        VariableValue::Bool(true),
                     ),
                     (
                         VariableName::new(Namespace::Variable, "simple.string.var"),
-                        Variable::new_string(true, None, Some("Value".to_string())),
+                        VariableValue::String("Value".to_string()),
                     ),
                 ]),
                 expectations: vec![
@@ -657,14 +612,10 @@ mod tests {
                 name: "yaml",
                 variables: Variables::from([(
                     VariableName::new(Namespace::Variable, "yaml.var"),
-                    Variable::new(
-                        true,
-                        None,
-                        Some(serde_json::Value::Object(serde_json::Map::from_iter([(
-                            "key".into(),
-                            "value".into(),
-                        )]))),
-                    ),
+                    VariableValue::Yaml(serde_json::Value::Object(serde_json::Map::from_iter([(
+                        "key".into(),
+                        "value".into(),
+                    )]))),
                 )]),
                 expectations: vec![
                     (
@@ -684,14 +635,10 @@ mod tests {
                 name: "yaml from default value",
                 variables: Variables::from([(
                     VariableName::new(Namespace::Variable, "yaml.var"),
-                    Variable::new(
-                        false,
-                        Some(serde_json::Value::Object(serde_json::Map::from_iter([(
-                            "key".into(),
-                            "value".into(),
-                        )]))),
-                        None,
-                    ),
+                    VariableValue::Yaml(serde_json::Value::Object(serde_json::Map::from_iter([(
+                        "key".into(),
+                        "value".into(),
+                    )]))),
                 )]),
                 expectations: vec![(
                     "${nr-var:yaml.var}",
@@ -712,17 +659,15 @@ mod tests {
     fn test_normalized_var() {
         let variables = Variables::from([(
             VariableName::new(Namespace::Variable, "var.name"),
-            Variable::new_string(true, None, Some("Value".to_string())),
+            VariableValue::String("Value".to_string()),
         )]);
 
         assert_matches!(
-            normalized_var("nr-var:var.name", &variables)
-                .unwrap()
-                .kind(),
-            VariableType::String(_)
+            get_variable("nr-var:var.name", &variables).unwrap(),
+            VariableValue::String(_)
         );
         let key = assert_matches!(
-            normalized_var("does.not.exists", &variables).unwrap_err(),
+            get_variable("does.not.exists", &variables).unwrap_err(),
             AgentTypeError::MissingTemplateKey(s) => s);
         assert_eq!(
             "Cannot split does.not.exists with the separator :".to_string(),

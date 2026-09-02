@@ -1,6 +1,6 @@
 //! The [`YAMLConfig`] type wrapping a YAML mapping that Agent Control can read and store.
 
-use crate::agent_type::definition::VariableValues;
+use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::templates::Templateable;
 use crate::{
@@ -204,7 +204,7 @@ pub struct YAMLConfigError(
 impl Templateable for YAMLConfig {
     type Output = Self;
 
-    fn template_with(self, variables: &VariableValues) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self(self.0.template_with(variables)?))
     }
 }
@@ -212,7 +212,7 @@ impl Templateable for YAMLConfig {
 impl Templateable for HashMap<String, serde_json::Value> {
     type Output = Self;
 
-    fn template_with(self, variables: &VariableValues) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         self.into_iter()
             .map(|(key, v)| Ok((key, v.template_with(variables)?)))
             .collect()
@@ -408,7 +408,7 @@ deployment: {}
         let input_structure = serde_saphyr::from_str::<YAMLConfig>(EXAMPLE_CONFIG_REPLACE).unwrap();
         let agent_type = AgentTypeDefinition::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE);
 
-        let expected: VariableValues = HashMap::from([
+        let expected: Variables = HashMap::from([
             (
                 VariableName::new(Namespace::Variable, "whatever.test.path".to_string()),
                 VariableValue::String("/etc".to_string()),

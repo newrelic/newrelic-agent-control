@@ -14,7 +14,7 @@
 //! The variables can be referenced with [TEMPLATE_KEY_SEPARATOR] separating names levels. The example variable from above could be used
 //! in agent types as `${nr-var:foo.bar.variable_name}`.
 
-use crate::agent_type::definition::{VariableValues, YAMLConfig};
+use crate::agent_type::definition::{Variables, YAMLConfig};
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::templates::TEMPLATE_KEY_SEPARATOR;
 use crate::agent_type::variable::VariableDefinition;
@@ -27,7 +27,7 @@ use thiserror::Error;
 use tracing::warn;
 
 /// This struct assures that variables have at least a name (one level of nested names).
-#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[derive(Default, Clone, Debug, Deserialize, PartialEq)]
 pub struct VariableTree(pub(crate) HashMap<String, VariableTreeNode>);
 
 /// A variable-name validation failure, with the dotted path context of the failing key.
@@ -50,14 +50,6 @@ pub enum VariableTreeNode {
     End(VariableDefinition),
     /// An intermediate node mapping names to subtrees.
     Mapping(HashMap<String, Self>),
-}
-
-// We cannot use the 'derive' of default implementation because serde's Deserialize needs it explicit as T might not
-// implement Default.
-impl Default for VariableTree {
-    fn default() -> Self {
-        Self(Default::default())
-    }
 }
 
 impl VariableTree {
@@ -115,7 +107,7 @@ impl VariableTree {
         result
     }
 
-    /// Resolves every definition in the tree into a fully-populated [`VariableValues`], using the
+    /// Resolves every definition in the tree into a fully-populated [`Variables`], using the
     /// provided constraints and user values.
     ///
     /// Errors when a required variable has no user value, when a user value doesn't match the declared type,
@@ -125,7 +117,7 @@ impl VariableTree {
         self,
         constraints: &VariableConstraints,
         user_values: YAMLConfig,
-    ) -> Result<VariableValues, AgentTypeError> {
+    ) -> Result<Variables, AgentTypeError> {
         let (resolved, mut missing) =
             resolve_sub_tree(user_values.into(), self.0, constraints, "")?;
         if !missing.is_empty() {
@@ -142,8 +134,8 @@ fn resolve_sub_tree(
     sub_tree: HashMap<String, VariableTreeNode>,
     constraints: &VariableConstraints,
     path_prefix: &str,
-) -> Result<(VariableValues, Vec<String>), AgentTypeError> {
-    let mut resolved: VariableValues = HashMap::new();
+) -> Result<(Variables, Vec<String>), AgentTypeError> {
+    let mut resolved: Variables = HashMap::new();
     let mut missing: Vec<String> = Vec::new();
 
     for (key, subtree) in sub_tree.into_iter() {

@@ -1,7 +1,7 @@
 //! Version-check configuration for on-host agents (command and optional output-parsing regex).
 use crate::agent_type::runtime_config::on_host::executable::rendered::Args as RenderedArgs;
 use crate::agent_type::{
-    definition::VariableValues,
+    definition::Variables,
     error::AgentTypeError,
     runtime_config::{on_host::executable::Args, templateable_value::TemplateableValue},
     templates::Templateable,
@@ -69,7 +69,7 @@ impl PartialEq for OnHostVersionConfig {
 impl Templateable for OnHostVersionConfig {
     type Output = rendered::OnHostVersionConfig;
 
-    fn template_with(self, variables: &VariableValues) -> Result<Self::Output, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         let args: Vec<String> = self
             .args
             .0

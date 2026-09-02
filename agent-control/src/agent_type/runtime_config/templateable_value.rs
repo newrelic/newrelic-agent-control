@@ -1,7 +1,7 @@
 //! A value that may be provided as a template string and resolved to its typed value during
 //! rendering.
 use super::restart_policy::{BackoffDelay, BackoffLastRetryInterval, MaxRetries};
-use crate::agent_type::definition::VariableValues;
+use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::templates::Templateable;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -80,7 +80,7 @@ where
 {
     type Output = S;
 
-    fn template_with(self, variables: &VariableValues) -> Result<Self::Output, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         let templated_string = self.template.template_with(variables)?;
         let value = if templated_string.is_empty() {
             S::default()
@@ -96,7 +96,7 @@ where
 impl Templateable for TemplateableValue<BackoffDelay> {
     type Output = BackoffDelay;
 
-    fn template_with(self, variables: &VariableValues) -> Result<Self::Output, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         let templated_string = self.template.template_with(variables)?;
         let value = if templated_string.is_empty() {
             BackoffDelay::default()
@@ -113,7 +113,7 @@ impl Templateable for TemplateableValue<BackoffDelay> {
 impl Templateable for TemplateableValue<BackoffLastRetryInterval> {
     type Output = BackoffLastRetryInterval;
 
-    fn template_with(self, variables: &VariableValues) -> Result<Self::Output, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         let templated_string = self.template.template_with(variables)?;
         let value = if templated_string.is_empty() {
             BackoffLastRetryInterval::default()
@@ -130,7 +130,7 @@ impl Templateable for TemplateableValue<BackoffLastRetryInterval> {
 impl Templateable for TemplateableValue<MaxRetries> {
     type Output = MaxRetries;
 
-    fn template_with(self, variables: &VariableValues) -> Result<Self::Output, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         let templated_string = self.template.template_with(variables)?;
         let value = if templated_string.is_empty() {
             MaxRetries::default()

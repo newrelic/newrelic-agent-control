@@ -673,7 +673,7 @@ pub mod tests {
     use crate::agent_control::defaults::STDOUT_LOG_FILE_NAME_SUFFIX;
     use crate::agent_type::agent_attributes::AgentAttributes;
     use crate::agent_type::agent_type_id::AgentTypeID;
-    use crate::agent_type::definition::VariableValues;
+    use crate::agent_type::definition::Variables;
     use crate::agent_type::runtime_config::health_config::HealthCheckTimeout;
     use crate::agent_type::runtime_config::on_host::executable::rendered::{Args, Env, Executable};
     use crate::agent_type::runtime_config::on_host::filesystem::FileSystem as ParsedFileSystem;
@@ -921,7 +921,7 @@ declared.txt:
 declared-dir:
   kind: dir
 "#;
-        let variables = VariableValues::from_iter(vec![(
+        let variables = Variables::from_iter(vec![(
             VariableName::new(
                 Namespace::SubAgent,
                 AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::agent_type::{
-    definition::VariableValues,
+    definition::Variables,
     error::AgentTypeError,
     runtime_config::{restart_policy::RestartPolicyConfig, templateable_value::TemplateableValue},
     templates::Templateable,
@@ -36,7 +36,7 @@ pub(super) struct Executable {
 impl Templateable for Executable {
     type Output = rendered::Executable;
 
-    fn template_with(self, variables: &VariableValues) -> Result<Self::Output, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         Ok(Self::Output {
             id: self.id.template_with(variables)?,
             path: self.path.template_with(variables)?,
@@ -57,7 +57,7 @@ pub struct Args(
 impl Templateable for Args {
     type Output = rendered::Args;
 
-    fn template_with(self, variables: &VariableValues) -> Result<Self::Output, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         self.0
             .into_iter()
             .map(|arg| arg.template_with(variables))
@@ -73,7 +73,7 @@ pub struct Env(pub(super) HashMap<String, TemplateableValue<String>>);
 impl Templateable for Env {
     type Output = rendered::Env;
 
-    fn template_with(self, variables: &VariableValues) -> Result<Self::Output, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         self.0
             .into_iter()
             .map(|(k, v)| Ok((k, v.template_with(variables)?)))
