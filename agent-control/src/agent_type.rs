@@ -11,7 +11,7 @@ pub mod registry;
 pub mod runtime_config;
 pub mod templates;
 pub mod templates_function;
-pub mod trivial_value;
 pub mod validation;
 pub mod variable;
+pub mod variable_value;
 pub mod version_config;

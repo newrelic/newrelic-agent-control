@@ -1,19 +1,16 @@
 //! This module defines the supported types for Agent Type variables.
 
-use std::collections::HashMap;
-
-use serde::{Deserialize, Serialize};
-
+use super::fields::{Fields, FieldsDefinition};
 use crate::agent_type::{
     error::AgentTypeError,
-    trivial_value::TrivialValue,
     variable::{
         constraints::VariableConstraints,
         fields::{StringFields, StringFieldsDefinition, YamlFieldsDefinition},
     },
+    variable_value::VariableValue,
 };
-
-use super::fields::{Fields, FieldsDefinition};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Defines the supported values for the `type` field in AgentTypes, each variant also defines the
 /// rest of the fields that are supported for variables of that type.
@@ -96,7 +93,7 @@ impl VariableType {
         Ok(())
     }
 
-    pub(crate) fn get_final_value(&self) -> Option<TrivialValue> {
+    pub(crate) fn get_final_value(&self) -> Option<VariableValue> {
         match self {
             VariableType::String(f) => f
                 .inner
@@ -104,26 +101,26 @@ impl VariableType {
                 .as_ref()
                 .or(f.inner.default.as_ref())
                 .cloned()
-                .map(TrivialValue::String),
-            VariableType::Bool(f) => f.final_value.or(f.default).map(TrivialValue::Bool),
+                .map(VariableValue::String),
+            VariableType::Bool(f) => f.final_value.or(f.default).map(VariableValue::Bool),
             VariableType::Number(f) => f
                 .final_value
                 .as_ref()
                 .or(f.default.as_ref())
                 .cloned()
-                .map(TrivialValue::Number),
+                .map(VariableValue::Number),
             VariableType::StringMap(f) => f
                 .final_value
                 .as_ref()
                 .or(f.default.as_ref())
                 .cloned()
-                .map(TrivialValue::MapStringString),
+                .map(VariableValue::MapStringString),
             VariableType::Yaml(f) => f
                 .final_value
                 .as_ref()
                 .or(f.default.as_ref())
                 .cloned()
-                .map(TrivialValue::Yaml),
+                .map(VariableValue::Yaml),
         }
     }
 }
@@ -195,7 +192,7 @@ mod tests {
             .merge_with_yaml_value(serde_json::json!({ "file.txt": "hello" }))
             .unwrap();
 
-        let Some(TrivialValue::MapStringString(map)) = variable_type.get_final_value() else {
+        let Some(VariableValue::MapStringString(map)) = variable_type.get_final_value() else {
             panic!("expected a MapStringString value");
         };
         assert_eq!(map.get("file.txt"), Some(&"hello".to_string()));
@@ -211,7 +208,7 @@ mod tests {
             .unwrap();
 
         let expected_content = serde_saphyr::to_string(&nested).unwrap();
-        let Some(TrivialValue::MapStringString(map)) = variable_type.get_final_value() else {
+        let Some(VariableValue::MapStringString(map)) = variable_type.get_final_value() else {
             panic!("expected a MapStringString value");
         };
         assert_eq!(map.get("logging.yml"), Some(&expected_content));
