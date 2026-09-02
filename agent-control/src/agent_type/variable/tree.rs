@@ -8,7 +8,6 @@
 //!     foo:
 //!       bar:
 //!         variable_name:
-//!           description: "Some description"
 //!           required: true
 //!           type: string
 //! ```

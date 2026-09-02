@@ -531,61 +531,31 @@ restart_policy:
         let normalized_values = HashMap::from([
             (
                 VariableName::new(Namespace::Variable, "bin"),
-                Variable::new_string("binary".to_string(), true, None, Some("/etc".to_string())),
+                Variable::new_string(true, None, Some("/etc".to_string())),
             ),
             (
                 VariableName::new(Namespace::Variable, "deployment.on_host.verbose"),
-                Variable::new_string(
-                    "verbosity".to_string(),
-                    true,
-                    None,
-                    Some("true".to_string()),
-                ),
+                Variable::new_string(true, None, Some("true".to_string())),
             ),
             (
                 VariableName::new(Namespace::Variable, "deployment.on_host.log_level"),
-                Variable::new_string(
-                    "log_level".to_string(),
-                    true,
-                    None,
-                    Some("trace".to_string()),
-                ),
+                Variable::new_string(true, None, Some("trace".to_string())),
             ),
             (
                 VariableName::new(Namespace::Variable, "backoff.type"),
-                Variable::new_string(
-                    "backoff_type".to_string(),
-                    true,
-                    None,
-                    Some("exponential".to_string()),
-                ),
+                Variable::new_string(true, None, Some("exponential".to_string())),
             ),
             (
                 VariableName::new(Namespace::Variable, "backoff.delay"),
-                Variable::new_string(
-                    "backoff_delay".to_string(),
-                    true,
-                    None,
-                    Some("10s".to_string()),
-                ),
+                Variable::new_string(true, None, Some("10s".to_string())),
             ),
             (
                 VariableName::new(Namespace::Variable, "backoff.retries"),
-                Variable::new(
-                    "backoff_retries".to_string(),
-                    true,
-                    None,
-                    Some(Number::from(30)),
-                ),
+                Variable::new(true, None, Some(Number::from(30))),
             ),
             (
                 VariableName::new(Namespace::Variable, "backoff.interval"),
-                Variable::new_string(
-                    "backoff_interval".to_string(),
-                    true,
-                    None,
-                    Some("300s".to_string()),
-                ),
+                Variable::new_string(true, None, Some("300s".to_string())),
             ),
         ]);
 
@@ -651,52 +621,27 @@ restart_policy:
         let normalized_values = HashMap::from([
             (
                 VariableName::new(Namespace::Variable, "bin"),
-                Variable::new_string("binary".to_string(), true, None, Some("/etc".to_string())),
+                Variable::new_string(true, None, Some("/etc".to_string())),
             ),
             (
                 VariableName::new(Namespace::Variable, "deployment.on_host.verbose"),
-                Variable::new_string(
-                    "verbosity".to_string(),
-                    true,
-                    None,
-                    Some("true".to_string()),
-                ),
+                Variable::new_string(true, None, Some("true".to_string())),
             ),
             (
                 VariableName::new(Namespace::Variable, "backoff.type"),
-                Variable::new_string(
-                    "backoff_type".to_string(),
-                    true,
-                    None,
-                    Some("linear".to_string()),
-                ),
+                Variable::new_string(true, None, Some("linear".to_string())),
             ),
             (
                 VariableName::new(Namespace::Variable, "backoff.delay"),
-                Variable::new_string(
-                    "backoff_delay".to_string(),
-                    true,
-                    None,
-                    Some("10s".to_string()),
-                ),
+                Variable::new_string(true, None, Some("10s".to_string())),
             ),
             (
                 VariableName::new(Namespace::Variable, "backoff.retries"),
-                Variable::new(
-                    "backoff_retries".to_string(),
-                    true,
-                    None,
-                    Some(Number::from(30)),
-                ),
+                Variable::new(true, None, Some(Number::from(30))),
             ),
             (
                 VariableName::new(Namespace::Variable, "backoff.interval"),
-                Variable::new_string(
-                    "backoff_interval".to_string(),
-                    true,
-                    None,
-                    Some("300s".to_string()),
-                ),
+                Variable::new_string(true, None, Some("300s".to_string())),
             ),
         ]);
 
@@ -730,36 +675,31 @@ restart_policy:
         let variables = Variables::from([
             (
                 VariableName::new(Namespace::Variable, "path"),
-                Variable::new_string(
-                    String::default(),
-                    true,
-                    None,
-                    Some("/usr/bin/myapp".to_string()),
-                ),
+                Variable::new_string(true, None, Some("/usr/bin/myapp".to_string())),
             ),
             (
                 VariableName::new(Namespace::Variable, "args"),
-                Variable::new_string(String::default(), true, None, Some("--my_arg".to_string())),
+                Variable::new_string(true, None, Some("--my_arg".to_string())),
             ),
             (
                 VariableName::new(Namespace::Variable, "env.MYAPP_PORT"),
-                Variable::new_string(String::default(), true, None, Some("8080".to_string())),
+                Variable::new_string(true, None, Some("8080".to_string())),
             ),
             (
                 VariableName::new(Namespace::Variable, "backoff.type"),
-                Variable::new_string(String::default(), true, None, Some("linear".to_string())),
+                Variable::new_string(true, None, Some("linear".to_string())),
             ),
             (
                 VariableName::new(Namespace::Variable, "backoff.delay"),
-                Variable::new_string(String::default(), true, None, Some("10s".to_string())),
+                Variable::new_string(true, None, Some("10s".to_string())),
             ),
             (
                 VariableName::new(Namespace::Variable, "backoff.retries"),
-                Variable::new(String::default(), true, None, Some(Number::from(30))),
+                Variable::new(true, None, Some(Number::from(30))),
             ),
             (
                 VariableName::new(Namespace::Variable, "backoff.interval"),
-                Variable::new_string(String::default(), true, None, Some("300s".to_string())),
+                Variable::new_string(true, None, Some("300s".to_string())),
             ),
         ]);
 

@@ -43,7 +43,6 @@ fn k8s_opamp_foo_cr_subagent() {
         .with_variables(
             r#"
 data:
-  description: "foo data"
   type: string
   required: false
   default: "default"
@@ -146,7 +145,6 @@ fn k8s_opamp_cr_subagent_installed_before_crd() {
         .with_variables(
             r#"
 data:
-  description: "bar data"
   type: string
   required: false
   default: "default"

@@ -331,7 +331,7 @@ objects:
         let variables = Variables::from([
             (
                 VariableName::new(Namespace::Variable, "any"),
-                Variable::new_string(String::default(), true, None, Some(value.to_string())),
+                Variable::new_string(true, None, Some(value.to_string())),
             ),
             (
                 VariableName::new(Namespace::SubAgent, "agent_id"),

@@ -718,7 +718,6 @@ agent:
             (
                 VariableName::new(Namespace::Variable, "config_logging"),
                 Variable::new(
-                    String::default(),
                     false,
                     None,
                     Some(HashMap::from([(
@@ -850,7 +849,7 @@ projected:
             ),
             (
                 VariableName::new(Namespace::Variable, "proj"),
-                Variable::new(String::default(), false, None, Some(proj_first)),
+                Variable::new(false, None, Some(proj_first)),
             ),
         ]);
 
@@ -894,7 +893,7 @@ projected:
             ),
             (
                 VariableName::new(Namespace::Variable, "proj"),
-                Variable::new(String::default(), false, None, Some(proj_second)),
+                Variable::new(false, None, Some(proj_second)),
             ),
         ]);
 
@@ -971,7 +970,6 @@ logging.d:
             (
                 VariableName::new(Namespace::Variable, "logs"),
                 Variable::new(
-                    String::default(),
                     false,
                     None,
                     Some(HashMap::from([(
@@ -1006,7 +1004,6 @@ logging.d:
             (
                 VariableName::new(Namespace::Variable, "logs"),
                 Variable::new(
-                    String::default(),
                     false,
                     None,
                     Some(HashMap::from([(

@@ -143,7 +143,6 @@ protocol_version: "1.0"
 platform: kubernetes
 variables:
   image:
-    description: "container image"
     type: string
     required: true
 deployment:
@@ -159,7 +158,6 @@ platform: host
 operating_system: linux
 variables:
   bin:
-    description: "binary path"
     type: string
     required: true
 deployment:
@@ -177,7 +175,6 @@ platform: kubernetes
 variables:
   container:
     image:
-      description: "container image"
       type: string
       required: true
 deployment:
@@ -201,7 +198,6 @@ platform: host
 operating_system: linux
 variables:
   bin:
-    description: "binary path"
     type: string
     required: true
 deployment:
@@ -219,7 +215,6 @@ platform: host
 operating_system: linux
 variables:
   bin:
-    description: "binary path"
     type: string
     required: true
 deployment:
@@ -240,7 +235,6 @@ platform: host
 operating_system: linux
 variables:
   bin:
-    description: "binary path"
     type: string
     required: true
 deployment:
