@@ -68,6 +68,25 @@ impl<C: K8sClient> K8sGarbageCollector<C> {
         self.garbage_collect_sub_agent_resources(&mode, &self.namespace)
     }
 
+    /// Garbage collect resources managed by AC associated to a certain Agent ID
+    /// without touching the fleet-data ConfigMap.
+    #[instrument(
+        skip_all,
+        name = "k8s_garbage_collector_collect_sub_agent_resources_only"
+    )]
+    fn collect_sub_agent_resources_only(
+        &self,
+        id: &AgentID,
+        agent_type_id: &AgentTypeID,
+    ) -> Result<(), K8sGarbageCollectorError> {
+        if id == &AgentID::AgentControl {
+            return Err(K8sGarbageCollectorError::AgentControlId);
+        }
+        let mode = K8sGarbageCollectorMode::Collect(id, agent_type_id);
+        self.garbage_collect_sub_agent_resources(&mode, &self.namespace_agents)?;
+        self.garbage_collect_sub_agent_resources(&mode, &self.namespace)
+    }
+
     /// Builds the map of active agent ids to their agent type id from a sub-agents config.
     pub fn active_config_ids(active_config: &SubAgentsMap) -> HashMap<AgentID, AgentTypeID> {
         active_config
@@ -193,20 +212,28 @@ impl ResourceCleaner for K8sGarbageCollector {
         agent_type_id: &AgentTypeID,
         _active_agents: &SubAgentsMap,
     ) -> Result<(), ResourceCleanerError> {
-        // Call the collect method to perform garbage collection.
         self.collect(id, agent_type_id)?;
         Ok(())
     }
 
-    fn on_agent_type_changed(
+    fn on_agent_version_bumped(
         &self,
         agent_id: &AgentID,
         old_agent_type: &AgentTypeID,
         _new_agent_type: &AgentTypeID,
         _active_agents: &SubAgentsMap,
     ) -> Result<(), ResourceCleanerError> {
-        // Only objects annotated with the old type are removed. Objects created by the new
-        // sub-agent already carry the new type annotation, so they are left intact.
+        self.collect_sub_agent_resources_only(agent_id, old_agent_type)?;
+        Ok(())
+    }
+
+    fn on_agent_type_replaced(
+        &self,
+        agent_id: &AgentID,
+        old_agent_type: &AgentTypeID,
+        _new_agent_type: &AgentTypeID,
+        _active_agents: &SubAgentsMap,
+    ) -> Result<(), ResourceCleanerError> {
         self.collect(agent_id, old_agent_type)?;
         Ok(())
     }

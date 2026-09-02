@@ -85,6 +85,11 @@ impl AgentTypeID {
         &self.version
     }
 
+    /// Returns `true` if `other` shares the same namespace and name, regardless of version.
+    pub fn is_same_type(&self, other: &AgentTypeID) -> bool {
+        self.namespace == other.namespace && self.name == other.name
+    }
+
     /// Parses a semver version, additionally rejecting anything that isn't a digit or `.`.
     /// This constraint relates to the OCI tag built from this metadata.
     fn parse_version(s: &str) -> Result<Version, AgentTypeIDError> {
@@ -313,5 +318,18 @@ agent_type_id: namespace/name:invalid_version
                 .to_string()
                 .contains("only Major.Minor.Patch semver format is allowed")
         );
+    }
+
+    #[rstest]
+    #[case::version_bump("ns/name:0.1.0", "ns/name:0.1.1", true)]
+    #[case::major_bump("ns/name:0.1.0", "ns/name:1.0.0", true)]
+    #[case::different_name("ns/name:0.1.0", "ns/other:0.1.0", false)]
+    #[case::different_namespace("ns/name:0.1.0", "other/name:0.1.0", false)]
+    #[case::different_ns_and_name("ns/name:0.1.0", "other/other:1.0.0", false)]
+    fn is_same_type(#[case] a: &str, #[case] b: &str, #[case] expected: bool) {
+        let a = AgentTypeID::try_from(a).unwrap();
+        let b = AgentTypeID::try_from(b).unwrap();
+        assert_eq!(a.is_same_type(&b), expected);
+        assert_eq!(b.is_same_type(&a), expected);
     }
 }
