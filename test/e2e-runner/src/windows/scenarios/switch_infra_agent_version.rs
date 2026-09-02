@@ -17,7 +17,7 @@ use tracing::info;
 const ENV_VARS_FILE: &str =
     r"C:\Program Files\New Relic\newrelic-agent-control\environment_variables.yaml";
 
-const UPDATE_FROM_INFRA_AGENT_VERSION: &str = "1.71.4";
+const UPDATE_FROM_INFRA_AGENT_VERSION: &str = "1.80.1";
 
 pub fn switch_infra_agent_version(args: InstallationArgs) {
     let update_to_infra_agent_version = args
