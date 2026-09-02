@@ -10,7 +10,7 @@
 //!
 //! Additionally, this module includes utility functions and constants to facilitate the templating
 //! process, such as trimming template delimiters and normalizing variable references.
-use super::definition::Variables;
+use super::definition::VariableValues;
 use super::error::AgentTypeError;
 use super::templates_function::{Function, SupportedFunction};
 use super::variable_value::VariableValue;
@@ -44,7 +44,7 @@ pub trait Templateable {
     type Output;
 
     /// Replaces placeholders in the content with values from the `Variables` map.
-    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError>;
+    fn template_with(self, variables: &VariableValues) -> Result<Self::Output, AgentTypeError>;
 }
 
 /// Returns the compiled regular expression matching template placeholders such as
@@ -68,7 +68,7 @@ fn template_trim(s: &str) -> &str {
 /// Returns a variable reference from the provided set if it exists, it returns an error otherwise.
 fn get_variable<'a>(
     namespaced_name: &str,
-    variables: &'a Variables,
+    variables: &'a VariableValues,
 ) -> Result<&'a VariableValue, AgentTypeError> {
     let (namespace, name) = namespaced_name
         .split_once(Namespace::PREFIX_NS_SEPARATOR)
@@ -97,12 +97,12 @@ fn get_variable<'a>(
 impl Templateable for String {
     type Output = Self;
 
-    fn template_with(self, variables: &Variables) -> Result<String, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<String, AgentTypeError> {
         template_string(self, variables)
     }
 }
 
-fn template_string(s: String, variables: &Variables) -> Result<String, AgentTypeError> {
+fn template_string(s: String, variables: &VariableValues) -> Result<String, AgentTypeError> {
     let re_template = template_re();
 
     // Iterates over each found place holder replacing the value in the original string.
@@ -135,7 +135,7 @@ fn template_string(s: String, variables: &Variables) -> Result<String, AgentType
 impl Templateable for serde_json::Value {
     type Output = Self;
 
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self, AgentTypeError> {
         let templated_value = match self {
             serde_json::Value::Object(m) => serde_json::Value::Object(m.template_with(variables)?),
             serde_json::Value::Array(seq) => {
@@ -152,7 +152,7 @@ impl Templateable for serde_json::Value {
 impl Templateable for serde_json::Map<String, serde_json::Value> {
     type Output = Self;
 
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self, AgentTypeError> {
         self.into_iter()
             .map(|(k, v)| Ok((k, v.template_with(variables)?)))
             .collect()
@@ -162,7 +162,7 @@ impl Templateable for serde_json::Map<String, serde_json::Value> {
 impl Templateable for Vec<serde_json::Value> {
     type Output = Self;
 
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self, AgentTypeError> {
         self.into_iter()
             .map(|v| v.template_with(variables))
             .collect()
@@ -181,7 +181,7 @@ impl Templateable for Vec<serde_json::Value> {
 /// ```
 fn template_yaml_value_string(
     s: String,
-    variables: &Variables,
+    variables: &VariableValues,
 ) -> Result<serde_json::Value, AgentTypeError> {
     // When there is more content than a variable template, template as a regular string.
     if !only_template_var_re().is_match(s.as_str()) {
@@ -220,7 +220,7 @@ mod tests {
         #[case] var_functions: &str,
         #[case] expected_out: &str,
     ) {
-        let variables = Variables::from([(
+        let variables = VariableValues::from([(
             VariableName::new(Namespace::Variable, "foo"),
             VariableValue::String(var_content.to_string()),
         )]);
@@ -236,14 +236,14 @@ mod tests {
     #[case::empty_function_name("${nr-var:foo |}")]
     #[case::invalid_function_parameter("${nr-var:foo | indent -1}")]
     fn test_invalid_pattern_renders_nothing(#[case] placeholder: &str) {
-        let variables = Variables::from([]);
+        let variables = VariableValues::from([]);
         let output = template_string(placeholder.to_string(), &variables).unwrap();
         assert_eq!(placeholder, output);
     }
 
     #[test]
     fn test_template_string() {
-        let variables = Variables::from([
+        let variables = VariableValues::from([
             (
                 VariableName::new(Namespace::Variable, "name"),
                 VariableValue::String("Alice ${UNTOUCHED}".to_string()),
@@ -264,7 +264,7 @@ mod tests {
 
     #[test]
     fn test_template_value_mapping() {
-        let variables = Variables::from([
+        let variables = VariableValues::from([
             (
                 VariableName::new(Namespace::Variable, "change.me.string"),
                 VariableValue::String("CHANGED-STRING ${UNTOUCHED}".to_string()),
@@ -309,7 +309,7 @@ mod tests {
 
     #[test]
     fn test_template_value_sequence() {
-        let variables = Variables::from([
+        let variables = VariableValues::from([
             (
                 VariableName::new(Namespace::Variable, "change.me.string"),
                 VariableValue::String("CHANGED-STRING ${UNTOUCHED}".to_string()),
@@ -350,7 +350,7 @@ mod tests {
 
     #[test]
     fn test_template_yaml() {
-        let variables = Variables::from([
+        let variables = VariableValues::from([
             (
                 VariableName::new(Namespace::Variable, "change.me.string"),
                 VariableValue::String("CHANGED-STRING ${UNTOUCHED}".to_string()),
@@ -481,7 +481,7 @@ mod tests {
     fn test_fail_template_yaml_value_string() {
         struct TestCase {
             name: &'static str,
-            variables: Variables,
+            variables: VariableValues,
             input: &'static str,
             assert_fn: fn(AgentTypeError),
         }
@@ -495,7 +495,7 @@ mod tests {
         }
         let test_cases = vec![TestCase {
             name: "trying to replace a variable that is not defined",
-            variables: Variables::new(),
+            variables: VariableValues::new(),
             input: "${nr-var:not-defined}",
             assert_fn: |err| assert_matches!(err, AgentTypeError::MissingTemplateKey(_)),
         }];
@@ -507,7 +507,7 @@ mod tests {
     fn test_template_yaml_value_string() {
         struct TestCase {
             name: &'static str,
-            variables: Variables,
+            variables: VariableValues,
             expectations: Vec<(&'static str, serde_json::Value)>,
         }
         impl TestCase {
@@ -526,7 +526,7 @@ mod tests {
         let test_cases = vec![
             TestCase {
                 name: "simple string",
-                variables: Variables::from([(
+                variables: VariableValues::from([(
                     VariableName::new(Namespace::Variable, "simple.string.var"),
                     VariableValue::String("Value".to_string()),
                 )]),
@@ -547,7 +547,7 @@ mod tests {
             },
             TestCase {
                 name: "string with yaml",
-                variables: Variables::from([(
+                variables: VariableValues::from([(
                     VariableName::new(Namespace::Variable, "string.with.yaml.var"),
                     VariableValue::String("[Value]".to_string()),
                 )]),
@@ -558,7 +558,7 @@ mod tests {
             },
             TestCase {
                 name: "bool",
-                variables: Variables::from([(
+                variables: VariableValues::from([(
                     VariableName::new(Namespace::Variable, "bool.var"),
                     VariableValue::Bool(true),
                 )]),
@@ -572,7 +572,7 @@ mod tests {
             },
             TestCase {
                 name: "number",
-                variables: Variables::from([(
+                variables: VariableValues::from([(
                     VariableName::new(Namespace::Variable, "number.var"),
                     VariableValue::Number(Number::from(42)),
                 )]),
@@ -583,7 +583,7 @@ mod tests {
             },
             TestCase {
                 name: "number, bool, and string",
-                variables: Variables::from([
+                variables: VariableValues::from([
                     (
                         VariableName::new(Namespace::Variable, "number.var"),
                         VariableValue::Number(Number::from(42)),
@@ -610,7 +610,7 @@ mod tests {
             },
             TestCase {
                 name: "yaml",
-                variables: Variables::from([(
+                variables: VariableValues::from([(
                     VariableName::new(Namespace::Variable, "yaml.var"),
                     VariableValue::Yaml(serde_json::Value::Object(serde_json::Map::from_iter([(
                         "key".into(),
@@ -633,7 +633,7 @@ mod tests {
             },
             TestCase {
                 name: "yaml from default value",
-                variables: Variables::from([(
+                variables: VariableValues::from([(
                     VariableName::new(Namespace::Variable, "yaml.var"),
                     VariableValue::Yaml(serde_json::Value::Object(serde_json::Map::from_iter([(
                         "key".into(),
@@ -657,7 +657,7 @@ mod tests {
 
     #[test]
     fn test_normalized_var() {
-        let variables = Variables::from([(
+        let variables = VariableValues::from([(
             VariableName::new(Namespace::Variable, "var.name"),
             VariableValue::String("Value".to_string()),
         )]);

@@ -1,6 +1,6 @@
 //! Kubernetes deployment configuration for an agent type: the objects to manage plus health,
 //! version and GUID check settings.
-use crate::agent_type::definition::Variables;
+use crate::agent_type::definition::VariableValues;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::guid_config::{GuidCheckerInitialDelay, GuidCheckerInterval};
 use crate::agent_type::templates::Templateable;
@@ -63,7 +63,7 @@ pub struct K8sObjectMeta {
 
 impl Templateable for K8s {
     type Output = Self;
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self, AgentTypeError> {
         Ok(Self {
             objects: self
                 .objects
@@ -82,7 +82,7 @@ impl Templateable for K8s {
 
 impl Templateable for K8sObject {
     type Output = Self;
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self, AgentTypeError> {
         Ok(Self {
             api_version: self.api_version.clone(),
             kind: self.kind.clone(),
@@ -95,7 +95,7 @@ impl Templateable for K8sObject {
 impl Templateable for K8sObjectMeta {
     type Output = Self;
 
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self, AgentTypeError> {
         Ok(Self {
             labels: self
                 .labels
@@ -137,7 +137,7 @@ pub struct K8sHealthCheckDefinition {
 
 impl Templateable for K8sHealthCheckDefinition {
     type Output = Self;
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self, AgentTypeError> {
         Ok(Self {
             name: self.name.template_with(variables)?,
             namespace: self.namespace.template_with(variables)?,
@@ -166,7 +166,7 @@ pub struct K8sHealthConfig {
 
 impl Templateable for K8sHealthConfig {
     type Output = Self;
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self, AgentTypeError> {
         Ok(Self {
             interval: self.interval,
             initial_delay: self.initial_delay,
@@ -205,7 +205,7 @@ pub struct K8sGuidCheckerConfig {
 mod tests {
     use std::time::Duration;
 
-    use crate::agent_type::definition::Variables;
+    use crate::agent_type::definition::VariableValues;
     use crate::agent_type::runtime_config::k8s::{
         K8s, K8sHealthCheckDefinition, K8sHealthResourceKind,
     };
@@ -328,7 +328,7 @@ objects:
         .unwrap();
 
         let value = "test_value";
-        let variables = Variables::from([
+        let variables = VariableValues::from([
             (
                 VariableName::new(Namespace::Variable, "any"),
                 VariableValue::String(value.to_string()),
@@ -389,7 +389,7 @@ health:
         )
         .unwrap();
 
-        let variables = Variables::from([
+        let variables = VariableValues::from([
             (
                 VariableName::new(Namespace::SubAgent, "agent_id"),
                 VariableValue::String("my-agent".to_string()),

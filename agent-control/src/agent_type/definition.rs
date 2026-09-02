@@ -229,7 +229,7 @@ impl VariableTree {
         self,
         constraints: &VariableConstraints,
         user_values: YAMLConfig,
-    ) -> Result<Variables, AgentTypeError> {
+    ) -> Result<VariableValues, AgentTypeError> {
         let (resolved, mut missing) =
             resolve_sub_tree(user_values.into(), self.0, constraints, "")?;
         if !missing.is_empty() {
@@ -246,8 +246,8 @@ fn resolve_sub_tree(
     sub_tree: HashMap<String, Tree<VariableDefinition>>,
     constraints: &VariableConstraints,
     path_prefix: &str,
-) -> Result<(Variables, Vec<String>), AgentTypeError> {
-    let mut resolved: Variables = HashMap::new();
+) -> Result<(VariableValues, Vec<String>), AgentTypeError> {
+    let mut resolved: VariableValues = HashMap::new();
     let mut missing: Vec<String> = Vec::new();
 
     for (key, subtree) in sub_tree.into_iter() {
@@ -290,39 +290,17 @@ fn prefixed_path(prefix: &str, segment: &str) -> String {
     }
 }
 
-/// Represents a normalized version of [VariableTree].
-///
-/// Example of the end node in the tree:
-///
-/// ```yaml
-/// name:
-///   type: string
-///   required: false
-///   default: nrdot
-/// ```
-///
-/// The path to the end node is converted to the string with `.` as a join symbol.
-///
-/// ```yaml
-/// variables:
-///     system:
-///       logging:
-///         level:
-///           type: string
-///           required: false
-///           default: info
-/// ```
-/// Will be converted to `system.logging.level` and can be used later in the AgentType_Meta part as `${nr-var:system.logging.level}`.
-pub(crate) type Variables = HashMap<VariableName, VariableValue>;
+/// Hashmap of VariableValue computed from the user_values and the definition of the variables
+pub(crate) type VariableValues = HashMap<VariableName, VariableValue>;
 
 // TODO refactor Variables into a struct with methods
 
 /// Adds a reserved `${nr-sub:packages.<id>.dir}` variable for each rendered package, pointing at
 /// the directory where the package is stored on disk.
 pub fn include_packages_variables(
-    mut variables: Variables,
+    mut variables: VariableValues,
     packages: &RenderedPackages,
-) -> Result<Variables, AgentTypeError> {
+) -> Result<VariableValues, AgentTypeError> {
     // Return early if no packages to avoid retrieving the filesystem dir unnecessarily
     if packages.is_empty() {
         return Ok(variables);
@@ -368,7 +346,7 @@ pub fn include_packages_variables(
 }
 
 /// Returns the final value of the sub-agent variable with the given name, if present.
-pub fn get_sub_agent_variable(variables: &Variables, variable_name: &str) -> Option<String> {
+pub fn get_sub_agent_variable(variables: &VariableValues, variable_name: &str) -> Option<String> {
     let key = VariableName::new(Namespace::SubAgent, variable_name);
     variables.get(&key).map(|v| v.to_string())
 }
@@ -436,7 +414,7 @@ pub mod tests {
         /// # Panics
         ///
         /// It will panic if the yaml values are not valid or there is any error resolving.
-        pub fn fill_test_variables(&self, yaml_values: &str) -> Variables {
+        pub fn fill_test_variables(&self, yaml_values: &str) -> VariableValues {
             let values = serde_saphyr::from_str::<YAMLConfig>(yaml_values).unwrap();
             self.variables
                 .clone()
@@ -731,9 +709,7 @@ deployment: {{}}
 
         assert_eq!(
             expected_def,
-            given_agent
-                .get_variable("my.name".to_string())
-                .unwrap()
+            given_agent.get_variable("my.name".to_string()).unwrap()
         );
     }
 

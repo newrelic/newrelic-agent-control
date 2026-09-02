@@ -1,5 +1,5 @@
 //! Restart policy and backoff strategy configuration for on-host executables.
-use crate::agent_type::definition::Variables;
+use crate::agent_type::definition::VariableValues;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::templates::Templateable;
 use serde::{Deserialize, Serialize};
@@ -23,7 +23,7 @@ pub struct RestartPolicyConfig {
 impl Templateable for RestartPolicyConfig {
     type Output = rendered::RestartPolicyConfig;
 
-    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self::Output, AgentTypeError> {
         Ok(Self::Output {
             backoff_strategy: self.backoff_strategy.template_with(variables)?,
         })
@@ -85,7 +85,7 @@ pub struct BackoffStrategyConfig {
 impl Templateable for BackoffStrategyConfig {
     type Output = rendered::BackoffStrategyConfig;
 
-    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self::Output, AgentTypeError> {
         let backoff_type = self.backoff_type.template_with(variables)?;
         let backoff_delay = self.backoff_delay.template_with(variables)?;
         let max_retries = self.max_retries.template_with(variables)?;
@@ -159,7 +159,7 @@ backoff_strategy:
 
         let rendered = config
             .backoff_strategy
-            .template_with(&Variables::new())
+            .template_with(&VariableValues::new())
             .unwrap();
 
         assert_eq!(rendered.backoff_type, BackoffStrategyType::Exponential);
