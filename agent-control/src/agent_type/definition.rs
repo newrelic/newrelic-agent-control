@@ -218,11 +218,10 @@ impl<'de> Deserialize<'de> for AgentTypeMetadata {
 pub type VariableTree = VarTree<VariableDefinition>;
 
 impl VariableTree {
-    /// Resolves every definition in the tree into a fully-populated [`VariableValue`], using the
+    /// Resolves every definition in the tree into a fully-populated [`VariableValues`], using the
     /// provided constraints and user values.
     ///
-    /// Returns a flat map keyed by the variable's dotted path (e.g. `foo.bar.name`). Errors when
-    /// a required variable has no user value, when a user value doesn't match the declared type,
+    /// Errors when a required variable has no user value, when a user value doesn't match the declared type,
     /// or when a user value fails variants validation. User-config keys with no matching
     /// definition are logged as `WARN` and ignored.
     pub fn resolve(
@@ -292,8 +291,6 @@ fn prefixed_path(prefix: &str, segment: &str) -> String {
 
 /// Hashmap of VariableValue computed from the user_values and the definition of the variables
 pub(crate) type VariableValues = HashMap<VariableName, VariableValue>;
-
-// TODO refactor Variables into a struct with methods
 
 /// Adds a reserved `${nr-sub:packages.<id>.dir}` variable for each rendered package, pointing at
 /// the directory where the package is stored on disk.
