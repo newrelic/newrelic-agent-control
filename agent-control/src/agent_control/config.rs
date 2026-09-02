@@ -10,7 +10,10 @@ use crate::agent_control::defaults::{
 };
 use crate::agent_control::health_checker::AgentControlHealthCheckerConfig;
 use crate::agent_type::runtime_config::on_host::package::rendered::{Repository, Version};
+use crate::agent_type::variable::VariableDefinition;
 use crate::agent_type::variable::constraints::VariableConstraints;
+use crate::agent_type::variable::fields::{FieldsDefinition, YamlFieldsDefinition};
+use crate::agent_type::variable::variable_type::VariableTypeDefinition;
 use crate::http::config::ProxyConfig;
 use crate::instrumentation::config::logs::config::LoggingConfig;
 use crate::opamp::auth::config::AuthConfig;
@@ -34,7 +37,7 @@ use std::num::NonZeroUsize;
 use std::str::FromStr;
 use std::time::Duration;
 use thiserror::Error;
-use tracing::info;
+use tracing::{info, warn};
 use url::Url;
 use wrapper_with_default::WrapperWithDefault;
 
@@ -483,6 +486,79 @@ pub struct AgentControlDynamicConfig {
     pub cd_chart_version: Option<String>,
 }
 
+impl AgentControlDynamicConfig {
+    /// Declares the [VariableDefinition] for every field of [AgentControlDynamicConfig], so that
+    /// `variable.agentConfig.*`/`variable.agentConfig.*:<map-key>` OpAMP overrides targeting Agent
+    /// Control's own config can be parsed with the same [VariableOverride::parse](crate::opamp::remote_config::VariableOverride::parse)/
+    /// [MapEntryOverride::parse](crate::opamp::remote_config::MapEntryOverride::parse) logic used
+    /// for sub-agent configs, without needing an [AgentTypeRegistry](crate::agent_type::registry::AgentTypeRegistry).
+    ///
+    /// `agents` is declared `string_map` so a single agent's config can be overridden via
+    /// `variable.agentConfig.agents:<agent-id>` without touching the others, applied after the
+    /// existing multi-key `agents` merge. Its map values are structured agent config (not plain
+    /// strings) — `string_map` is reused pragmatically since neither `override_variable_map_entry`
+    /// nor its override parsing constrain the value's shape, they only require the variable be
+    /// declared `string_map`.
+    ///
+    /// The destructure below exists purely so that adding a field to
+    /// [AgentControlDynamicConfig] without updating this method is a compile error.
+    pub(crate) fn variable_definitions() -> HashMap<String, VariableDefinition> {
+        // Destructuring this way makes sure every field of AgentControlDynamicConfig is covered by variable_definitions().
+        // It will fail on compile time if any field is missing. The rust analyzer lsp also notices the issue.
+        let AgentControlDynamicConfig {
+            agents: _,
+            version: _,
+            chart_version: _,
+            cd_chart_version: _,
+        } = AgentControlDynamicConfig::default();
+
+        HashMap::from([
+            (
+                "agents".to_string(),
+                VariableDefinition::for_static_field(VariableTypeDefinition::StringMap(
+                    FieldsDefinition {
+                        required: false,
+                        default: Some(HashMap::new()),
+                    },
+                )),
+            ),
+            (
+                "version".to_string(),
+                VariableDefinition::for_static_field(VariableTypeDefinition::Yaml(
+                    YamlFieldsDefinition {
+                        inner: FieldsDefinition {
+                            required: false,
+                            default: Some(serde_json::Value::Null),
+                        },
+                    },
+                )),
+            ),
+            (
+                "chart_version".to_string(),
+                VariableDefinition::for_static_field(VariableTypeDefinition::Yaml(
+                    YamlFieldsDefinition {
+                        inner: FieldsDefinition {
+                            required: false,
+                            default: Some(serde_json::Value::Null),
+                        },
+                    },
+                )),
+            ),
+            (
+                "cd_chart_version".to_string(),
+                VariableDefinition::for_static_field(VariableTypeDefinition::Yaml(
+                    YamlFieldsDefinition {
+                        inner: FieldsDefinition {
+                            required: false,
+                            default: Some(serde_json::Value::Null),
+                        },
+                    },
+                )),
+            ),
+        ])
+    }
+}
+
 /// This implementation reads all configuration entries whose keys start with
 /// [AGENT_CONFIG_PREFIX](crate::opamp::remote_config::AGENT_CONFIG_PREFIX) and produces
 /// a single dynamic config:
@@ -491,6 +567,15 @@ pub struct AgentControlDynamicConfig {
 ///   on duplicate agent IDs.
 /// - Preserves optional version fields like `chart_version` and `cd_chart_version`, failing
 ///   if multiple different configs define the same version key.
+/// - Applies the blob-level override identified by
+///   [AGENT_CONFIG_OVERRIDE_PREFIX](crate::opamp::remote_config::AGENT_CONFIG_OVERRIDE_PREFIX), if
+///   present, on top of the merged base config.
+/// - Applies any per-variable and map-entry overrides identified by
+///   [AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX](crate::opamp::remote_config::AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX)
+///   against [AgentControlDynamicConfig::variable_definitions], applied last and therefore taking
+///   precedence over both the base and blob-level override configs. Mirrors
+///   [extract_remote_config_values](crate::sub_agent::remote_config_parser::extract_remote_config_values)'s
+///   override handling for sub-agent configs, so both share the same OpAMP contract.
 ///
 /// # Example
 ///
@@ -537,13 +622,81 @@ impl TryFrom<&OpampRemoteConfig> for AgentControlDynamicConfig {
                 .map_err(|err| AgentControlConfigError(format!("appending config: {err}")))?;
         }
 
-        let remaining_config_appended = AgentControlDynamicConfig::try_from(remaining_config)
-            .map_err(|err| AgentControlConfigError(format!("encoding config: {}", err)))?;
+        remaining_config
+            .override_variable_value(
+                AGENTS_KEY,
+                serde_json::to_value(&merged_agents).map_err(|err| {
+                    AgentControlConfigError(format!("encoding merged agents: {err}"))
+                })?,
+            )
+            .map_err(|err| AgentControlConfigError(format!("setting merged agents: {err}")))?;
 
-        Ok(AgentControlDynamicConfig {
-            agents: merged_agents,
-            ..remaining_config_appended
-        })
+        let overrides = value
+            .overrides()
+            .map_err(|err| AgentControlConfigError(format!("getting override values: {err}")))?;
+
+        if let Some(override_content) = overrides.blob() {
+            let override_config =
+                YAMLConfig::try_from(override_content.as_str()).map_err(|err| {
+                    AgentControlConfigError(format!("decoding override values: {err}"))
+                })?;
+            remaining_config = YAMLConfig::merge_override(remaining_config, override_config);
+        }
+
+        if overrides.has_variable_overrides() {
+            let variable_definitions = AgentControlDynamicConfig::variable_definitions();
+
+            for variable_override in overrides.variables() {
+                let Some(value) = variable_override
+                    .parse(&variable_definitions)
+                    .map_err(AgentControlConfigError)?
+                else {
+                    warn!(
+                        variable = variable_override.path(),
+                        "Ignoring override for variable not declared in Agent Control's dynamic config"
+                    );
+                    continue;
+                };
+                remaining_config
+                    .override_variable_value(variable_override.path(), value)
+                    .map_err(|err| {
+                        AgentControlConfigError(format!(
+                            "overriding variable '{}': {err}",
+                            variable_override.path()
+                        ))
+                    })?;
+            }
+
+            for map_entry_override in overrides.map_entries() {
+                let Some(value) = map_entry_override
+                    .parse(&variable_definitions)
+                    .map_err(AgentControlConfigError)?
+                else {
+                    warn!(
+                        variable = map_entry_override.path(),
+                        map_key = map_entry_override.map_key(),
+                        "Ignoring override for variable not declared in Agent Control's dynamic config"
+                    );
+                    continue;
+                };
+                remaining_config
+                    .override_variable_map_entry(
+                        map_entry_override.path(),
+                        map_entry_override.map_key(),
+                        value,
+                    )
+                    .map_err(|err| {
+                        AgentControlConfigError(format!(
+                            "overriding variable '{}:{}': {err}",
+                            map_entry_override.path(),
+                            map_entry_override.map_key()
+                        ))
+                    })?;
+            }
+        }
+
+        AgentControlDynamicConfig::try_from(remaining_config)
+            .map_err(|err| AgentControlConfigError(format!("encoding config: {}", err)))
     }
 }
 
@@ -1847,5 +2000,181 @@ agent_types:
                 .to_string()
                 .contains("cannot specify both")
         );
+    }
+
+    // #[test]
+    // fn test_variable_definitions_cover_every_field() {
+    //     let definitions = AgentControlDynamicConfig::variable_definitions();
+
+    //     if let serde_json::Value::Object(map) =
+    //         serde_json::to_value(&AgentControlDynamicConfig::default()).unwrap()
+    //     {
+    //         for key in map.keys() {
+    //             assert!(
+    //                 definitions.contains_key(key.as_str()),
+    //                 "serialized field '{key}' is not covered by variable_definitions()"
+    //             );
+    //         }
+    //         assert_eq!(
+    //             definitions.len(),
+    //             map.len(),
+    //             "variable_definitions() has extra keys not present in serialized AgentControlDynamicConfig"
+    //         );
+    //     } else {
+    //         panic!("AgentControlDynamicConfig did not serialize to a JSON object");
+    //     }
+    // }
+
+    #[test]
+    fn test_ac_blob_override_takes_precedence_over_base() {
+        let opamp_config = testing_ac_remote_config(HashMap::from([
+            (
+                format!("{AGENT_CONFIG_PREFIX}-config1"),
+                r#"{"agents": {"agent-a": {"agent_type": "foo/bar:0.0.1"}}, "chart_version": "1"}"#
+                    .to_string(),
+            ),
+            (
+                crate::opamp::remote_config::AGENT_CONFIG_OVERRIDE_PREFIX.to_string(),
+                r#"{"chart_version": "2"}"#.to_string(),
+            ),
+        ]));
+
+        let config = AgentControlDynamicConfig::try_from(&opamp_config).unwrap();
+
+        assert_eq!(config.chart_version, Some("2".to_string()));
+        assert!(
+            config
+                .agents
+                .contains_key(&AgentID::try_from("agent-a").unwrap())
+        );
+    }
+
+    fn testing_ac_remote_config(config_map: HashMap<String, String>) -> OpampRemoteConfig {
+        OpampRemoteConfig::new(
+            AgentID::try_from("test-agent").unwrap(),
+            Hash::default(),
+            crate::opamp::remote_config::hash::ConfigState::Applying,
+            ConfigurationMap::new(config_map),
+        )
+    }
+
+    #[test]
+    fn test_ac_variable_override_takes_precedence_over_blob_override() {
+        let opamp_config = testing_ac_remote_config(HashMap::from([
+            (
+                format!("{AGENT_CONFIG_PREFIX}-config1"),
+                r#"{"chart_version": "1"}"#.to_string(),
+            ),
+            (
+                crate::opamp::remote_config::AGENT_CONFIG_OVERRIDE_PREFIX.to_string(),
+                r#"{"chart_version": "2"}"#.to_string(),
+            ),
+            (
+                format!(
+                    "{}.chart_version",
+                    crate::opamp::remote_config::AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX
+                ),
+                "3".to_string(),
+            ),
+        ]));
+
+        let config = AgentControlDynamicConfig::try_from(&opamp_config).unwrap();
+
+        assert_eq!(config.chart_version, Some("3".to_string()));
+    }
+
+    #[test]
+    fn test_ac_variable_override_unknown_path_is_ignored() {
+        let opamp_config = testing_ac_remote_config(HashMap::from([
+            (
+                format!("{AGENT_CONFIG_PREFIX}-config1"),
+                r#"{"chart_version": "1"}"#.to_string(),
+            ),
+            (
+                format!(
+                    "{}.unknown",
+                    crate::opamp::remote_config::AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX
+                ),
+                "ignored".to_string(),
+            ),
+        ]));
+
+        let config = AgentControlDynamicConfig::try_from(&opamp_config).unwrap();
+
+        assert_eq!(config.chart_version, Some("1".to_string()));
+    }
+
+    #[test]
+    fn test_ac_variable_map_entry_override_adds_agent_without_touching_others() {
+        let opamp_config = testing_ac_remote_config(HashMap::from([
+            (
+                format!("{AGENT_CONFIG_PREFIX}-config1"),
+                r#"{"agents": {"agent-a": {"agent_type": "foo/bar:0.0.1"}}}"#.to_string(),
+            ),
+            (
+                format!(
+                    "{}.agents:agent-b",
+                    crate::opamp::remote_config::AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX
+                ),
+                r#"agent_type: "foo/bar:0.0.1""#.to_string(),
+            ),
+        ]));
+
+        let config = AgentControlDynamicConfig::try_from(&opamp_config).unwrap();
+
+        assert_eq!(config.agents.len(), 2);
+        assert!(
+            config
+                .agents
+                .contains_key(&AgentID::try_from("agent-a").unwrap())
+        );
+        assert!(
+            config
+                .agents
+                .contains_key(&AgentID::try_from("agent-b").unwrap())
+        );
+    }
+
+    #[test]
+    fn test_ac_variable_map_entry_override_overrides_existing_agent() {
+        let opamp_config = testing_ac_remote_config(HashMap::from([
+            (
+                format!("{AGENT_CONFIG_PREFIX}-config1"),
+                r#"{"agents": {"agent-a": {"agent_type": "foo/bar:0.0.1"}}}"#.to_string(),
+            ),
+            (
+                format!(
+                    "{}.agents:agent-a",
+                    crate::opamp::remote_config::AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX
+                ),
+                r#"agent_type: "foo/bar:0.0.2""#.to_string(),
+            ),
+        ]));
+
+        let config = AgentControlDynamicConfig::try_from(&opamp_config).unwrap();
+
+        assert_eq!(config.agents.len(), 1);
+        let agent_a = config
+            .agents
+            .get(&AgentID::try_from("agent-a").unwrap())
+            .unwrap();
+        assert_eq!(
+            serde_json::to_value(agent_a)
+                .unwrap()
+                .get("agent_type")
+                .unwrap(),
+            "foo/bar:0.0.2"
+        );
+    }
+
+    #[test]
+    fn test_ac_malformed_blob_override_errors() {
+        let opamp_config = testing_ac_remote_config(HashMap::from([(
+            crate::opamp::remote_config::AGENT_CONFIG_OVERRIDE_PREFIX.to_string(),
+            "single-value".to_string(),
+        )]));
+
+        let result = AgentControlDynamicConfig::try_from(&opamp_config);
+        assert_matches!(result, Err(AgentControlConfigError(_)));
     }
 }
