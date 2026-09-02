@@ -43,6 +43,13 @@ pub struct Variable {
 }
 
 impl VariableDefinition {
+    /// Helper to build a `VariableDefinition`
+    /// I didn't make `variable_type` pub to make it clear in this PoC
+    /// that we need a way of constructing a `VariableDefinition`.
+    pub(crate) fn for_static_field(variable_type: VariableTypeDefinition) -> Self {
+        Self { variable_type }
+    }
+
     /// Returns the corresponding [Variable] according to the provided configuration.
     pub fn with_config(self, constraints: &VariableConstraints) -> Variable {
         Variable {

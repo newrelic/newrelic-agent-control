@@ -62,14 +62,6 @@ fn onhost_ac_multiconfig_agents_append() {
             ("agentConfig-a".to_string(), agent_a),
             ("agentConfig-b".to_string(), agent_b),
             ("new-feature-coming".to_string(), "oh-yeah".to_string()),
-            (
-                "override.agentConfig".to_string(),
-                "ignored as not supported for AC".to_string(),
-            ),
-            (
-                "variable.agentConfig".to_string(),
-                "ignored as not supported for AC".to_string(),
-            ),
         ]),
     );
 
@@ -83,6 +75,96 @@ fn onhost_ac_multiconfig_agents_append() {
             &opamp_server,
             &ac_instance_id,
             expected_config.clone(),
+        )?;
+        Ok(())
+    });
+}
+
+#[test]
+fn onhost_ac_multiconfig_override() {
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
+
+    let dirs = TempBasePaths::default();
+
+    let sleep_agent_type = OnHostCustomAgentTypeBuilder::default().write(dirs.local_dir());
+    let another_agent_type = OnHostCustomAgentTypeBuilder::default()
+        .with_agent_type_id("newrelic/com.newrelic.another_custom_agent:0.1.0")
+        .write(dirs.local_dir());
+
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .write(dirs.local_dir());
+
+    let _agent_control =
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
+
+    let ac_instance_id = get_instance_id(&AgentID::AgentControl, dirs.base_paths());
+
+    let agent_a = format!(
+        r#"
+        agents:
+          agent-a:
+            agent_type: "{sleep_agent_type}"
+            "#
+    );
+
+    let override_agents = format!(
+        r#"
+        agents:
+          agent-b:
+            agent_type: "{sleep_agent_type}"
+          agent-c:
+            agent_type: "{sleep_agent_type}"
+            identifier: "my_id"
+            "#
+    );
+
+    // Modifying the version field makes the test fail, because it
+    // tries to upgrade to whatever version we put in there.
+    // To avoid issues and/or "smart" solutions, I decided to modify the
+    // "chart_version" field instead.
+    let expected_override_config = format!(
+        r#"
+        agents:
+          agent-b:
+            agent_type: "{sleep_agent_type}"
+          agent-c:
+            agent_type: "{another_agent_type}"
+            identifier: my_id
+        chart_version: "2"
+        "#
+    );
+
+    opamp_server.set_multi_config_response(
+        ac_instance_id.clone(),
+        HashMap::from([
+            ("agentConfig-a".to_string(), agent_a),
+            ("override.agentConfig".to_string(), override_agents),
+            (
+                "variable.agentConfig.chart_version".to_string(),
+                "2".to_string(),
+            ),
+            (
+                "variable.agentConfig.agents.agent-c.agent_type".to_string(),
+                another_agent_type.clone(),
+            ),
+            // This one is ignored because the option doesn't exist
+            (
+                "variable.agentConfig.new-feature-coming".to_string(),
+                "oh-yeah".to_string(),
+            ),
+        ]),
+    );
+
+    retry(60, Duration::from_secs(1), || {
+        check_latest_remote_config_status_is_expected(
+            &opamp_server,
+            &ac_instance_id,
+            RemoteConfigStatuses::Applied as i32,
+        )?;
+        check_latest_effective_config_is_expected(
+            &opamp_server,
+            &ac_instance_id,
+            expected_override_config.clone(),
         )?;
         Ok(())
     });
