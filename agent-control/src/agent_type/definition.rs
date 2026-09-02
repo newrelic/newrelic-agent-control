@@ -9,14 +9,12 @@ use super::{
     error::AgentTypeError,
     protocol_version::{self, ProtocolVersionError},
     runtime_config::{Deployment, Runtime},
-    variable::tree::VariableTreeNode,
     variable_value::VariableValue,
 };
 use crate::agent_type::agent_attributes::AgentAttributes;
 use crate::agent_type::runtime_config::k8s::K8s;
 use crate::agent_type::runtime_config::on_host::OnHost;
 use crate::agent_type::runtime_config::on_host::rendered::RenderedPackages;
-use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::agent_type::variable::namespace::{Namespace, VariableName};
 use crate::environment::Environment;
 use crate::package::oci::package_manager::get_package_path;
@@ -26,7 +24,7 @@ use serde::{Deserialize, de::Error as _};
 use std::collections::HashMap;
 use std::path::Path;
 use thiserror::Error;
-use tracing::{debug, warn};
+use tracing::debug;
 
 /// The agent type as parsed from a YAML file. Variables are stored as a [`VariableTree`] of
 /// [`VariableDefinition`]s; call [`VariableTree::resolve`] with the AC-wide variable constraints

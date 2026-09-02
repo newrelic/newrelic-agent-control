@@ -3,7 +3,7 @@
 //!
 //! A [`VariableDefinition`] is the static shape parsed from an Agent Type YAML. Once we have the
 //! AC-wide constraints and the user-supplied values, [`VariableDefinition::resolve_variable_value`] produces
-//! the resolved [`VariableValue`] directly — there is no intermediate "runtime variable" wrapper.
+//! the resolved [`VariableValue`].
 
 pub mod constraints;
 pub mod dynamic_variables;
@@ -105,7 +105,7 @@ impl VariableDefinition {
         self,
         constraints: &VariableConstraints,
         user_value: Option<serde_json::Value>,
-    ) -> Result<VariableValue, AgentTypeError> {
+    ) -> Result<Option<VariableValue>, AgentTypeError> {
         match user_value {
             Some(v) => {
                 let coerced = coerce_serde_value(&self.variable_type, v)?;
@@ -115,11 +115,9 @@ impl VariableDefinition {
                         return Err(AgentTypeError::InvalidVariant(resolved.to_string()));
                     }
                 }
-                Ok(coerced)
+                Ok(Some(coerced))
             }
-            None => self
-                .default
-                .ok_or_else(|| AgentTypeError::ValuesNotPopulated(Vec::new())),
+            None => Ok(self.default),
         }
     }
 }

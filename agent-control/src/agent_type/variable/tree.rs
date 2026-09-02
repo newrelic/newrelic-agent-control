@@ -147,27 +147,27 @@ fn resolve_sub_tree(
     let mut missing: Vec<String> = Vec::new();
 
     for (key, subtree) in sub_tree.into_iter() {
-        let full_variable_path = prefixed_path(path_prefix, &key);
-        let variable_name = VariableName::new(Namespace::Variable, &full_variable_path);
+        let partial_variable_path = prefixed_path(path_prefix, &key);
+        let variable_name = VariableName::new(Namespace::Variable, &partial_variable_path);
         let user_value = values.remove(&key);
         match subtree {
-            VariableTreeNode::End(def) => match def.resolve_variable_value(constraints, user_value)
-            {
-                Ok(variable_value) => {
-                    resolved.insert(variable_name, variable_value);
+            VariableTreeNode::End(def) => {
+                match def.resolve_variable_value(constraints, user_value)? {
+                    Some(variable_value) => {
+                        resolved.insert(variable_name, variable_value);
+                    }
+                    // Missing required variables are accumulated so we surface every one at once
+                    // instead of short-circuiting on the first.
+                    None => missing.push(partial_variable_path),
                 }
-                // Missing required variables are accumulated so we surface every one at once
-                // instead of short-circuiting on the first.
-                Err(AgentTypeError::ValuesNotPopulated(_)) => missing.push(full_variable_path),
-                Err(other) => return Err(other),
-            },
+            }
             VariableTreeNode::Mapping(children) => {
                 let inner: HashMap<String, serde_json::Value> = match user_value {
                     Some(v) => serde_json::from_value(v)?,
                     None => HashMap::new(),
                 };
                 let (child_resolved, child_missing) =
-                    resolve_sub_tree(inner, children, constraints, &full_variable_path)?;
+                    resolve_sub_tree(inner, children, constraints, &partial_variable_path)?;
                 resolved.extend(child_resolved);
                 missing.extend(child_missing);
             }

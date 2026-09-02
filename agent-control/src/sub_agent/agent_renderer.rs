@@ -241,9 +241,6 @@ fn get_expanded_user_values(
     // Notice that only data coming from value providers is taken into consideration (no other vars for example)
     let values_expanded = values.template_with(expansion_variables)?;
 
-    // Resolve every variable definition against the user values and AC constraints. This is a
-    // single step: type/variants validation, default fallback, and required-check happen inline;
-    // the returned map is guaranteed to hold a fully-resolved value for every variable.
     variable_tree.resolve(constraints, values_expanded)
 }
 
