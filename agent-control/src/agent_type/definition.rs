@@ -9,7 +9,7 @@ use super::{
     error::AgentTypeError,
     protocol_version::{self, ProtocolVersionError},
     runtime_config::{Deployment, Runtime},
-    variable::{VariableDefinition, tree::Tree},
+    variable::tree::VariableTreeNode,
     variable_value::VariableValue,
 };
 use crate::agent_type::agent_attributes::AgentAttributes;
@@ -21,7 +21,7 @@ use crate::agent_type::variable::namespace::{Namespace, VariableName};
 use crate::environment::Environment;
 use crate::package::oci::package_manager::get_package_path;
 use crate::{agent_control::agent_id::AgentID, package::manager::PackageData};
-use crate::{agent_type::variable::tree::VarTree, values::yaml_config::YAMLConfig};
+pub(crate) use crate::{agent_type::variable::tree::VariableTree, values::yaml_config::YAMLConfig};
 use serde::{Deserialize, de::Error as _};
 use std::collections::HashMap;
 use std::path::Path;
@@ -210,85 +210,6 @@ impl<'de> Deserialize<'de> for AgentTypeMetadata {
     }
 }
 
-/// A variable tree whose leaves are static [`VariableDefinition`]s.
-///
-/// This is the shape held by [`AgentTypeDefinition`]: definitions are not turned into
-/// fully-populated [`VariableValue`]s until [`Self::resolve`] is called with the AC constraints and
-/// the user-supplied values.
-pub type VariableTree = VarTree<VariableDefinition>;
-
-impl VariableTree {
-    /// Resolves every definition in the tree into a fully-populated [`VariableValues`], using the
-    /// provided constraints and user values.
-    ///
-    /// Errors when a required variable has no user value, when a user value doesn't match the declared type,
-    /// or when a user value fails variants validation. User-config keys with no matching
-    /// definition are logged as `WARN` and ignored.
-    pub fn resolve(
-        self,
-        constraints: &VariableConstraints,
-        user_values: YAMLConfig,
-    ) -> Result<VariableValues, AgentTypeError> {
-        let (resolved, mut missing) =
-            resolve_sub_tree(user_values.into(), self.0, constraints, "")?;
-        if !missing.is_empty() {
-            missing.sort();
-            return Err(AgentTypeError::ValuesNotPopulated(missing));
-        }
-
-        Ok(resolved)
-    }
-}
-
-fn resolve_sub_tree(
-    mut values: HashMap<String, serde_json::Value>,
-    sub_tree: HashMap<String, Tree<VariableDefinition>>,
-    constraints: &VariableConstraints,
-    path_prefix: &str,
-) -> Result<(VariableValues, Vec<String>), AgentTypeError> {
-    let mut resolved: VariableValues = HashMap::new();
-    let mut missing: Vec<String> = Vec::new();
-
-    for (key, subtree) in sub_tree.into_iter() {
-        let full_variable_path = prefixed_path(path_prefix, &key);
-        let variable_name = VariableName::new(Namespace::Variable, &full_variable_path);
-        let user_value = values.remove(&key);
-        match subtree {
-            Tree::End(def) => match def.resolve_variable_value(constraints, user_value) {
-                Ok(variable_value) => {
-                    resolved.insert(variable_name, variable_value);
-                }
-                // Missing required variables are accumulated so we surface every one at once
-                // instead of short-circuiting on the first.
-                Err(AgentTypeError::ValuesNotPopulated(_)) => missing.push(full_variable_path),
-                Err(other) => return Err(other),
-            },
-            Tree::Mapping(children) => {
-                let inner: HashMap<String, serde_json::Value> = match user_value {
-                    Some(v) => serde_json::from_value(v)?,
-                    None => HashMap::new(),
-                };
-                let (child_resolved, child_missing) =
-                    resolve_sub_tree(inner, children, constraints, &full_variable_path)?;
-                resolved.extend(child_resolved);
-                missing.extend(child_missing);
-            }
-        }
-    }
-    for k in values.keys() {
-        warn!(key = %prefixed_path(path_prefix, k), "Unexpected variable in the configuration");
-    }
-    Ok((resolved, missing))
-}
-
-fn prefixed_path(prefix: &str, segment: &str) -> String {
-    if prefix.is_empty() {
-        segment.to_string()
-    } else {
-        format!("{prefix}.{segment}")
-    }
-}
-
 /// Hashmap of VariableValue computed from the user_values and the definition of the variables
 pub(crate) type VariableValues = HashMap<VariableName, VariableValue>;
 
@@ -353,7 +274,9 @@ pub fn get_sub_agent_variable(variables: &VariableValues, variable_name: &str) -
 pub mod tests {
     use super::*;
     use crate::agent_type::protocol_version::SUPPORTED_PROTOCOL_VERSION;
+    use crate::agent_type::variable::VariableDefinition;
     use crate::agent_type::variable::constraints::VariableConstraints;
+    use crate::agent_type::variable::tree::VariableTree;
     use crate::agent_type::variable_value::{VariableType, VariableValue};
     use assert_matches::assert_matches;
     use rstest::rstest;

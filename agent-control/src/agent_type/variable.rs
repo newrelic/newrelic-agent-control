@@ -165,7 +165,7 @@ pub(super) fn parse_string_map(
 mod tests {
     use crate::agent_type::variable_value::VariableType;
     use crate::agent_type::{
-        variable::{VariableDefinition, tree::Tree, variants::VariantsConfig},
+        variable::{VariableDefinition, tree::VariableTreeNode, variants::VariantsConfig},
         variable_value::VariableValue,
     };
     use std::collections::HashMap;
@@ -249,14 +249,14 @@ foo:
         ac_config_field: "foo.bar.var_name"
         values: ["a", "b"]
 "#;
-        let tree: Tree<VariableDefinition> = serde_saphyr::from_str(value).unwrap();
-        let expected: Tree<VariableDefinition> = Tree::Mapping(HashMap::from([(
+        let tree: VariableTreeNode = serde_saphyr::from_str(value).unwrap();
+        let expected: VariableTreeNode = VariableTreeNode::Mapping(HashMap::from([(
             "foo".to_string(),
-            Tree::Mapping(HashMap::from([(
+            VariableTreeNode::Mapping(HashMap::from([(
                 "bar".to_string(),
-                Tree::Mapping(HashMap::from([(
+                VariableTreeNode::Mapping(HashMap::from([(
                     "var_name".to_string(),
-                    Tree::End(VariableDefinition {
+                    VariableTreeNode::End(VariableDefinition {
                         default: Some(VariableValue::String("a".to_string())),
                         variants: Some(VariantsConfig {
                             ac_config_field: Some("foo.bar.var_name".to_string()),
