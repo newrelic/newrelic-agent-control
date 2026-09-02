@@ -1,13 +1,12 @@
 //! Extraction and loading of dynamic variables referenced from a sub-agent configuration.
 use std::collections::{HashMap, HashSet};
 
+use crate::agent_type::definition::VariableValues;
 use crate::{
     agent_type::{
         templates::template_re,
-        variable::{
-            Variable,
-            namespace::{Namespace, VariableName},
-        },
+        variable::namespace::{Namespace, VariableName},
+        variable_value::VariableValue,
     },
     value_provider::{Registry, ValueProvider},
 };
@@ -86,7 +85,7 @@ impl DynamicVariables {
     pub fn load_values<S: ValueProvider>(
         &self,
         value_providers_registry: &Registry<S>,
-    ) -> Result<HashMap<VariableName, Variable>, DynamicVariablesError> {
+    ) -> Result<VariableValues, DynamicVariablesError> {
         if value_providers_registry.is_empty() {
             return Ok(HashMap::new());
         }
@@ -106,7 +105,7 @@ impl DynamicVariables {
                 })?;
                 result.insert(
                     VariableName::new(*namespace, value_path),
-                    Variable::new_final_string_variable(value),
+                    VariableValue::String(value),
                 );
             }
         }
@@ -124,15 +123,15 @@ impl DynamicVariables {
 }
 
 /// Loads all environment variables present in the system.
-pub fn load_env_vars() -> HashMap<VariableName, Variable> {
+pub fn load_env_vars() -> VariableValues {
     std::env::vars_os()
         .map(|(k, v)| {
             (
                 VariableName::new(Namespace::EnvironmentVariable, k.to_string_lossy()),
-                Variable::new_final_string_variable(v.to_string_lossy().to_string()),
+                VariableValue::String(v.to_string_lossy().to_string()),
             )
         })
-        .collect::<HashMap<VariableName, Variable>>()
+        .collect()
 }
 
 #[cfg(test)]
@@ -211,7 +210,7 @@ eof"#;
                     Namespace::Vault,
                     "sourceA:my_database:admin/credentials:username"
                 ),
-                Variable::new_final_string_variable("mocked_value_D".to_string())
+                VariableValue::String("mocked_value_D".to_string())
             )])
         );
     }
