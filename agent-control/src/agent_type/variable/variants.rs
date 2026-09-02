@@ -4,63 +4,33 @@
 use serde::{Deserialize, Serialize};
 
 /// Represents a collection of supported variants for a variable.
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub struct Variants<T: PartialEq>(Vec<T>);
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Default)]
+pub struct Variants(Vec<String>);
 
 /// Defines the configuration to be set when defining [Variants] from Agent Control configuration.
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub struct VariantsConfig<T>
-where
-    T: PartialEq,
-{
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Default)]
+pub struct VariantsConfig {
     #[serde(default)]
     pub(crate) ac_config_field: Option<String>,
-    #[serde(default = "Default::default")] // See <https://github.com/serde-rs/serde/issues/1541>
-    pub(crate) values: Variants<T>,
+    #[serde(default)]
+    pub(crate) values: Variants,
 }
 
-impl<T> Variants<T>
-where
-    T: PartialEq,
-{
+impl Variants {
     /// Returns whether `value` is allowed: true if there are no restrictions, or if `value` is one
     /// of the configured variants.
-    pub fn is_valid(&self, value: &T) -> bool {
+    pub fn is_valid(&self, value: &String) -> bool {
         self.0.is_empty() || self.0.iter().any(|v| v == value)
     }
 }
 
-impl<T> From<Vec<T>> for Variants<T>
-where
-    T: PartialEq,
-{
-    fn from(value: Vec<T>) -> Self {
+impl From<Vec<String>> for Variants {
+    fn from(value: Vec<String>) -> Self {
         Self(value)
     }
 }
 
-impl<T> Default for Variants<T>
-where
-    T: PartialEq,
-{
-    fn default() -> Self {
-        Self(Vec::new())
-    }
-}
-
-impl<T> Default for VariantsConfig<T>
-where
-    T: PartialEq,
-{
-    fn default() -> Self {
-        Self {
-            ac_config_field: Default::default(),
-            values: Default::default(),
-        }
-    }
-}
-
-impl std::fmt::Display for Variants<String> {
+impl std::fmt::Display for Variants {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[{}]", self.0.join(", "))
     }
@@ -75,21 +45,18 @@ mod tests {
     #[case::default("", Default::default())]
     #[case::values_only(
         r#"{"values": ["v"]}"#,
-        VariantsConfig::<String> { values: vec!["v".to_string()].into(), ..Default::default()})
+        VariantsConfig { values: vec!["v".to_string()].into(), ..Default::default()})
     ]
     #[case::values_only(
         r#"{"ac_config_field": "some_variants"}"#,
-        VariantsConfig::<String> { ac_config_field: Some("some_variants".to_string()), ..Default::default()})
+        VariantsConfig { ac_config_field: Some("some_variants".to_string()), ..Default::default()})
     ]
     #[case::all(
         r#"{"ac_config_field": "some_variants", "values": ["v1", "v2"]}"#,
-        VariantsConfig::<String> { ac_config_field: Some("some_variants".to_string()), values: vec!["v1".to_string(), "v2".to_string()].into()})
+        VariantsConfig { ac_config_field: Some("some_variants".to_string()), values: vec!["v1".to_string(), "v2".to_string()].into()})
     ]
-    fn test_variants_config_deserialization(
-        #[case] input: &str,
-        #[case] expected: VariantsConfig<String>,
-    ) {
-        let value: VariantsConfig<String> = serde_saphyr::from_str(input).unwrap();
+    fn test_variants_config_deserialization(#[case] input: &str, #[case] expected: VariantsConfig) {
+        let value: VariantsConfig = serde_saphyr::from_str(input).unwrap();
         assert_eq!(value, expected);
     }
 }
