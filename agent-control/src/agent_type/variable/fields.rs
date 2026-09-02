@@ -1,9 +1,4 @@
 //! This module defines the fields the Agent Type supports depending on the corresponding type.
-use std::fmt::Debug;
-
-use serde::{Deserialize, Deserializer, Serialize};
-use tracing::debug;
-
 use crate::agent_type::{
     error::AgentTypeError,
     variable::{
@@ -11,6 +6,9 @@ use crate::agent_type::{
         variants::{Variants, VariantsConfig},
     },
 };
+use serde::{Deserialize, Deserializer, Serialize};
+use std::fmt::Debug;
+use tracing::debug;
 
 /// Defines the fields supported by a Variable in an Agent Type
 #[derive(Debug, PartialEq, Clone, Serialize)]
@@ -36,8 +34,8 @@ pub struct YamlFieldsDefinition {
 pub struct StringFieldsDefinition {
     #[serde(flatten)]
     pub(crate) inner: FieldsDefinition<String>,
-    #[serde(default = "Default::default")]
-    pub(crate) variants: VariantsConfig<String>,
+    #[serde(default)]
+    pub(crate) variants: VariantsConfig,
 }
 
 /// A [FieldsDefinition] including information known at runtime.
@@ -56,7 +54,7 @@ where
 pub struct StringFields {
     #[serde(flatten)]
     pub(crate) inner: Fields<String>,
-    pub(crate) variants: Variants<String>,
+    pub(crate) variants: Variants,
 }
 
 impl<T> FieldsDefinition<T>
@@ -95,7 +93,7 @@ impl StringFieldsDefinition {
     }
 
     /// Builds the set of valid variants as configured, considering the constraints configuration provided.
-    fn build_variants(&self, variants_constraints: &VariantsConstraints) -> Variants<String> {
+    fn build_variants(&self, variants_constraints: &VariantsConstraints) -> Variants {
         let Some(ac_config_field) = self.variants.ac_config_field.as_ref() else {
             return self.variants.values.clone();
         };
@@ -240,7 +238,7 @@ mod tests {
         pub(crate) fn new(
             required: bool,
             default: Option<String>,
-            variants: Variants<String>,
+            variants: Variants,
             final_value: Option<String>,
         ) -> Self {
             Self {

@@ -1,10 +1,8 @@
 //! Startup-loaded constraints that agent type variable definitions can reference (e.g. allowed
 //! variant lists).
-use std::collections::HashMap;
-
-use serde::Deserialize;
-
 use crate::agent_type::variable::variants::Variants;
+use serde::Deserialize;
+use std::collections::HashMap;
 
 /// Constraints that are loaded at startup and can be applied to agent type definitions.
 /// The definition of a variable can be modified by these constraints if the agent type
@@ -30,7 +28,7 @@ impl VariantsConstraints {
 /// Represents the collection of supported values for a particular variable
 pub struct SupportedValues(Vec<String>);
 
-impl From<&SupportedValues> for Variants<String> {
+impl From<&SupportedValues> for Variants {
     fn from(value: &SupportedValues) -> Self {
         Variants::from(value.0.clone())
     }
