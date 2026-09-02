@@ -21,6 +21,7 @@ variables:
     description: "nri-docker configuration"
     type: yaml
     required: false
+    classification: config
     default:
       integrations:
         - name: nri-docker
