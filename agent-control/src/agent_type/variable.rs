@@ -15,18 +15,16 @@ pub mod tree;
 pub mod variable_type;
 pub mod variants;
 
-use serde::{Deserialize, Serialize};
-
 use crate::agent_type::{
     error::AgentTypeError,
-    trivial_value::TrivialValue,
     variable::{
         constraints::VariableConstraints, fields::StringFields,
         variable_type::VariableTypeDefinition,
     },
+    variable_value::VariableValue,
 };
-
 use fields::Fields;
+use serde::{Deserialize, Serialize};
 use variable_type::VariableType;
 
 /// Static Variable definition defines the supported fields for a variable in an Agent Type.
@@ -77,7 +75,7 @@ impl Variable {
     }
 
     /// Returns the variable's final value (its set value, or its default), if any.
-    pub fn get_final_value(&self) -> Option<TrivialValue> {
+    pub fn get_final_value(&self) -> Option<VariableValue> {
         self.variable_type.get_final_value()
     }
 

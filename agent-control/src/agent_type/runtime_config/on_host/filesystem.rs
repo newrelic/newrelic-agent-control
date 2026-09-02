@@ -21,11 +21,11 @@ use crate::agent_type::{
     error::AgentTypeError,
     runtime_config::templateable_value::TemplateableValue,
     templates::Templateable,
-    trivial_value::TrivialValue,
     variable::{
         Variable,
         namespace::{Namespace, VariableName},
     },
+    variable_value::VariableValue,
 };
 use serde::{Deserialize, Serialize};
 
@@ -276,7 +276,7 @@ fn filesystem_agent_dir(variables: &Variables) -> Result<String, AgentTypeError>
         AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
     );
     match variables.get(&key).and_then(Variable::get_final_value) {
-        Some(TrivialValue::String(s)) => Ok(s.clone()),
+        Some(VariableValue::String(s)) => Ok(s.clone()),
         _ => Err(AgentTypeError::MissingValue(key.to_string())),
     }
 }
@@ -288,7 +288,7 @@ fn shared_filesystem_dir(variables: &Variables) -> Result<String, AgentTypeError
         AgentAttributes::NR_SUB_SHARED_FILESYSTEM_DIR,
     );
     match variables.get(&key).and_then(Variable::get_final_value) {
-        Some(TrivialValue::String(s)) => Ok(s.clone()),
+        Some(VariableValue::String(s)) => Ok(s.clone()),
         _ => Err(AgentTypeError::MissingValue(key.to_string())),
     }
 }
@@ -298,7 +298,7 @@ fn shared_filesystem_dir(variables: &Variables) -> Result<String, AgentTypeError
 fn copy_source_base(variables: &Variables) -> Result<PathBuf, AgentTypeError> {
     let key = VariableName::new(Namespace::SubAgent, AgentAttributes::NR_SUB_REMOTE_DIR);
     match variables.get(&key).and_then(Variable::get_final_value) {
-        Some(TrivialValue::String(s)) => Ok(PathBuf::from(s)),
+        Some(VariableValue::String(s)) => Ok(PathBuf::from(s)),
         _ => Err(AgentTypeError::MissingValue(key.to_string())),
     }
 }

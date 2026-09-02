@@ -11,14 +11,13 @@ use super::{
     runtime_config::{Deployment, Runtime},
     variable::{Variable, VariableDefinition, tree::Tree},
 };
-use crate::environment::Environment;
-
 use crate::agent_type::agent_attributes::AgentAttributes;
 use crate::agent_type::runtime_config::k8s::K8s;
 use crate::agent_type::runtime_config::on_host::OnHost;
 use crate::agent_type::runtime_config::on_host::rendered::RenderedPackages;
 use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::agent_type::variable::namespace::{Namespace, VariableName};
+use crate::environment::Environment;
 use crate::package::oci::package_manager::get_package_path;
 use crate::{agent_control::agent_id::AgentID, package::manager::PackageData};
 use crate::{agent_type::variable::tree::VarTree, values::yaml_config::YAMLConfig};
@@ -397,8 +396,8 @@ pub fn get_sub_agent_variable(variables: &Variables, variable_name: &str) -> Opt
 pub mod tests {
     use super::*;
     use crate::agent_type::protocol_version::SUPPORTED_PROTOCOL_VERSION;
-    use crate::agent_type::trivial_value::TrivialValue;
     use crate::agent_type::variable::constraints::VariableConstraints;
+    use crate::agent_type::variable_value::VariableValue;
     use assert_matches::assert_matches;
     use rstest::rstest;
     use serde_json::Number;
@@ -813,12 +812,12 @@ status_server_port: 8004
             input_agent_type.fill_variables(GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML);
 
         // Then, we expect the corresponding final values.
-        let expected_config_3 = TrivialValue::MapStringString(HashMap::from([
+        let expected_config_3 = VariableValue::MapStringString(HashMap::from([
             ("log_level".to_string(), "trace".to_string()),
             ("forward".to_string(), "true".to_string()),
         ]));
         // Number
-        let expected_status_server = TrivialValue::Number(Number::from(8004));
+        let expected_status_server = VariableValue::Number(Number::from(8004));
 
         assert_eq!(
             expected_config_3,

@@ -96,7 +96,7 @@ impl AgentAttributes {
 mod tests {
     use super::*;
     use crate::agent_control::defaults::AGENT_CONTROL_DATA_DIR;
-    use crate::agent_type::trivial_value::TrivialValue;
+    use crate::agent_type::variable_value::VariableValue;
 
     fn final_string(
         vars: &HashMap<VariableName, Variable>,
@@ -109,7 +109,7 @@ mod tests {
             .and_then(Variable::get_final_value)
             .unwrap_or_else(|| panic!("missing variable {key}"))
         {
-            TrivialValue::String(s) => s,
+            VariableValue::String(s) => s,
             other => panic!("expected string for {key}, got {other:?}"),
         }
     }
