@@ -15,7 +15,7 @@ variables:
     type: string
     required: true
   files:
-    description: "nri-flex additional files that can be references from configuration"
+    description: "nri-flex additional files that can be referenced from configuration"
     type: string_map
     required: false
     default: {}
