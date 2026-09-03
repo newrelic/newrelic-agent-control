@@ -60,11 +60,13 @@ jobs:
           fetch-depth: 0
 
       - name: Generate release notes MDX
+        id: generate
         env:
           VERSION: ${{ inputs.version }}
         run: |
           git show "refs/tags/${VERSION}:CHANGELOG.md" > "${RUNNER_TEMP}/CHANGELOG.md"
-          ./tools/generate_docs_release_notes/run.sh "${RUNNER_TEMP}/CHANGELOG.md" "${VERSION}"
+          mdx_file=$(./tools/generate_docs_release_notes/run.sh "${RUNNER_TEMP}/CHANGELOG.md" "${VERSION}")
+          echo "mdx_file=${mdx_file}" >> "$GITHUB_OUTPUT"
 
       # Mint a token scoped to the docs repo. The app must be installed there;
       # owner/repositories select that installation.
@@ -112,8 +114,8 @@ jobs:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           REPO: ${{ env.PUBLIC_DOCS_REPO }}
           BRANCH: ${{ steps.meta.outputs.branch_name }}
-          MDX_FILE: "agent-control-${{ inputs.version }}.mdx"
-          MDX_PATH: "src/content/docs/release-notes/agent-control-release-notes/agent-control-${{ inputs.version }}.mdx"
+          MDX_FILE: ${{ steps.generate.outputs.mdx_file }}
+          MDX_PATH: "src/content/docs/release-notes/agent-control-release-notes/${{ steps.generate.outputs.mdx_file }}"
           VERSION: ${{ inputs.version }}
           BASE_SHA: ${{ steps.base-sha.outputs.sha }}
         run: |
