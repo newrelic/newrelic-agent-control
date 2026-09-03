@@ -9,27 +9,26 @@ use super::{
     error::AgentTypeError,
     protocol_version::{self, ProtocolVersionError},
     runtime_config::{Deployment, Runtime},
-    variable::{Variable, VariableDefinition, tree::Tree},
+    variable_value::VariableValue,
 };
 use crate::agent_type::agent_attributes::AgentAttributes;
 use crate::agent_type::runtime_config::k8s::K8s;
 use crate::agent_type::runtime_config::on_host::OnHost;
 use crate::agent_type::runtime_config::on_host::rendered::RenderedPackages;
-use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::agent_type::variable::namespace::{Namespace, VariableName};
 use crate::environment::Environment;
 use crate::package::oci::package_manager::get_package_path;
 use crate::{agent_control::agent_id::AgentID, package::manager::PackageData};
-use crate::{agent_type::variable::tree::VarTree, values::yaml_config::YAMLConfig};
+pub(crate) use crate::{agent_type::variable::tree::VariableTree, values::yaml_config::YAMLConfig};
 use serde::{Deserialize, de::Error as _};
 use std::collections::HashMap;
 use std::path::Path;
 use thiserror::Error;
-use tracing::{debug, warn};
+use tracing::debug;
 
-/// The agent type as parsed from a YAML file. Variables are still in their raw
-/// `VariableDefinitionTree` form. Apply [AgentTypeDefinition::with_constraints] to materialize
-/// the [AgentType] used for rendering.
+/// The agent type as parsed from a YAML file. Variables are stored as a [`VariableTree`] of
+/// call [`VariableTree::resolve`] with the AC-wide variable constraints
+/// and the user-supplied values to obtain fully-populated [`VariableValue`]s ready for rendering.
 ///
 /// Deserialization is **platform-driven**: the custom Deserialize first reads the agent-type id
 /// (which carries the `Environment`), and then dispatches the `deployment` block to either
@@ -40,7 +39,7 @@ pub struct AgentTypeDefinition {
     /// Identity and environment metadata.
     pub metadata: AgentTypeMetadata,
     /// The variable definitions, still in their raw tree form.
-    pub variables: VariableDefinitionTree,
+    pub variables: VariableTree,
     /// The deployment/runtime configuration.
     pub runtime_config: Runtime,
 }
@@ -59,7 +58,7 @@ impl<'de> Deserialize<'de> for RawAgentTypeDefinition {
             #[serde(flatten)]
             metadata: AgentTypeMetadata,
             #[serde(default)]
-            variables: VariableDefinitionTree,
+            variables: VariableTree,
             deployment: serde_json::Value,
         }
 
@@ -128,16 +127,6 @@ impl AgentTypeDefinition {
     /// Whether this agent type declares at least one health check.
     pub(crate) fn health_check_enabled(&self) -> bool {
         self.runtime_config.deployment.health_check_enabled()
-    }
-
-    /// Materializes this definition into an [AgentType] by applying the given variable
-    /// constraints to the parsed variable tree.
-    pub fn with_constraints(self, constraints: &VariableConstraints) -> AgentType {
-        AgentType {
-            agent_type_id: self.metadata.id,
-            variables: self.variables.with_config(constraints),
-            runtime_config: self.runtime_config,
-        }
     }
 }
 
@@ -219,118 +208,8 @@ impl<'de> Deserialize<'de> for AgentTypeMetadata {
     }
 }
 
-/// The agent type after constraints have been applied to its variables. This is the form the
-/// renderer consumes: `variables` is a [VariableTree] ready to be filled with values.
-#[derive(Debug, PartialEq, Clone)]
-pub struct AgentType {
-    /// The fully-qualified agent type id.
-    pub agent_type_id: AgentTypeID,
-    /// The variable tree, ready to be filled with values.
-    pub variables: VariableTree,
-    /// The deployment/runtime configuration.
-    pub runtime_config: Runtime,
-}
-
-/// A variable tree whose leaves are runtime [`Variable`]s.
-pub type VariableTree = VarTree<Variable>;
-
-/// A variable tree whose leaves are static [`VariableDefinition`]s.
-pub type VariableDefinitionTree = VarTree<VariableDefinition>;
-
-impl VariableDefinitionTree {
-    /// Returns the corresponding [VariableTree] according to the provided configuration.
-    pub fn with_config(self, constraints: &VariableConstraints) -> VariableTree {
-        let mapping = self
-            .0
-            .into_iter()
-            .map(|(k, v)| (k, v.with_config(constraints)))
-            .collect();
-        VarTree(mapping)
-    }
-}
-
-impl Tree<VariableDefinition> {
-    /// Returns the corresponding [Tree<Variable>] according to the provided configuration.
-    fn with_config(self, constraints: &VariableConstraints) -> Tree<Variable> {
-        match self {
-            Tree::End(v) => Tree::End(v.with_config(constraints)),
-            Tree::Mapping(mapping) => {
-                let x = mapping
-                    .into_iter()
-                    .map(|(k, v)| (k, v.with_config(constraints)))
-                    .collect();
-                Tree::Mapping(x)
-            }
-        }
-    }
-}
-
-impl VariableTree {
-    /// Returns a new [VariableTree] with the provided values assigned.
-    pub fn fill_with_values(self, values: YAMLConfig) -> Result<Self, AgentTypeError> {
-        let mut vars = self.0;
-        update_specs(values.into(), &mut vars)?;
-        Ok(Self(vars))
-    }
-}
-
-fn update_specs(
-    values: HashMap<String, serde_json::Value>,
-    agent_vars: &mut HashMap<String, Tree<Variable>>,
-) -> Result<(), AgentTypeError> {
-    for (ref key, value) in values.into_iter() {
-        let Some(spec) = agent_vars.get_mut(key) else {
-            warn!(%key, "Unexpected variable in the configuration");
-            continue;
-        };
-
-        match spec {
-            Tree::End(e) => e.merge_with_yaml_value(value)?,
-            Tree::Mapping(m) => {
-                let v: HashMap<String, serde_json::Value> = serde_json::from_value(value)?;
-                update_specs(v, m)?
-            }
-        }
-    }
-    Ok(())
-}
-
-/// Represents a normalized version of [VariableTree].
-///
-/// Example of the end node in the tree:
-///
-/// ```yaml
-/// name:
-///   type: string
-///   required: false
-///   default: nrdot
-/// ```
-///
-/// The path to the end node is converted to the string with `.` as a join symbol.
-///
-/// ```yaml
-/// variables:
-///     system:
-///       logging:
-///         level:
-///           type: string
-///           required: false
-///           default: info
-/// ```
-/// Will be converted to `system.logging.level` and can be used later in the AgentType_Meta part as `${nr-var:system.logging.level}`.
-pub(crate) type Variables = HashMap<VariableName, Variable>;
-
-impl From<VariableTree> for Variables {
-    fn from(value: VariableTree) -> Self {
-        value
-            .flatten()
-            .into_iter()
-            .map(|(name, var)| (VariableName::new(Namespace::Variable, name), var))
-            .collect()
-    }
-}
-
-// TODO refactor Variables into a struct with methods
+/// Hashmap of VariableValue computed from the user_values and the definition of the variables
+pub type Variables = HashMap<VariableName, VariableValue>;
 
 /// Adds a reserved `${nr-sub:packages.<id>.dir}` variable for each rendered package, pointing at
 /// the directory where the package is stored on disk.
@@ -375,7 +254,7 @@ pub fn include_packages_variables(
 
         variables.insert(
             VariableName::new(Namespace::SubAgent, format!("packages.{}.dir", package_id)),
-            Variable::new_final_string_variable(path.to_string_lossy()),
+            VariableValue::String(path.to_string_lossy().to_string()),
         );
     }
 
@@ -385,10 +264,7 @@ pub fn include_packages_variables(
 /// Returns the final value of the sub-agent variable with the given name, if present.
 pub fn get_sub_agent_variable(variables: &Variables, variable_name: &str) -> Option<String> {
     let key = VariableName::new(Namespace::SubAgent, variable_name);
-    variables
-        .get(&key)
-        .and_then(Variable::get_final_value)
-        .map(|value| value.to_string())
+    variables.get(&key).map(|v| v.to_string())
 }
 
 #[cfg(test)]
@@ -396,8 +272,10 @@ pub fn get_sub_agent_variable(variables: &Variables, variable_name: &str) -> Opt
 pub mod tests {
     use super::*;
     use crate::agent_type::protocol_version::SUPPORTED_PROTOCOL_VERSION;
+    use crate::agent_type::variable::VariableDefinition;
     use crate::agent_type::variable::constraints::VariableConstraints;
-    use crate::agent_type::variable_value::VariableValue;
+    use crate::agent_type::variable::tree::VariableTree;
+    use crate::agent_type::variable_value::{VariableType, VariableValue};
     use assert_matches::assert_matches;
     use rstest::rstest;
     use serde_json::Number;
@@ -425,7 +303,7 @@ pub mod tests {
                     id,
                     environment: Environment::K8s,
                 },
-                variables: VariableDefinitionTree::default(),
+                variables: VariableTree::default(),
                 runtime_config: Runtime {
                     deployment: Deployment::K8s(K8s::default()),
                 },
@@ -433,36 +311,33 @@ pub mod tests {
         }
     }
 
-    impl AgentType {
-        /// Builds a testing [AgentType] from the given YAML by deserializing it as an
-        /// [AgentTypeDefinition] and applying default variable constraints.
+    impl AgentTypeDefinition {
+        /// Builds an [`AgentTypeDefinition`] from the given YAML for tests.
         ///
         /// # Panics
         ///
         /// The function will panic if the definition is not valid.
         pub fn build_for_testing(yaml_definition: &str) -> Self {
-            let definition =
-                serde_saphyr::from_str::<AgentTypeDefinition>(yaml_definition).unwrap();
-            definition.with_constraints(&VariableConstraints::default())
+            serde_saphyr::from_str::<AgentTypeDefinition>(yaml_definition).unwrap()
         }
 
-        /// Retrieve the `variables` field of the agent type at the specified key, if any.
-        pub fn get_variable(self, path: String) -> Option<Variable> {
+        /// Retrieve the variable definition at the given dotted path, if any.
+        pub fn get_variable(self, path: String) -> Option<VariableDefinition> {
             self.variables.flatten().get(&path).cloned()
         }
 
-        /// Fills the AgentType's variables with provided yaml values (helper for testing purposes).
+        /// Resolves the AgentType's variables with the provided yaml values under the default AC
+        /// constraints (helper for testing purposes).
         ///
         /// # Panics
         ///
-        /// It will panic if the yaml values are not valid or there is any error filling the variables in.
-        pub fn fill_variables(&self, yaml_values: &str) -> HashMap<String, Variable> {
+        /// It will panic if the yaml values are not valid or there is any error resolving.
+        pub fn fill_test_variables(&self, yaml_values: &str) -> Variables {
             let values = serde_saphyr::from_str::<YAMLConfig>(yaml_values).unwrap();
             self.variables
                 .clone()
-                .fill_with_values(values)
+                .resolve(&VariableConstraints::default(), values)
                 .unwrap()
-                .flatten()
         }
     }
 
@@ -542,7 +417,7 @@ deployment: {}
             raw_agent_err
                 .unwrap_err()
                 .to_string()
-                .contains("data did not match any variant of untagged enum Tree")
+                .contains("data did not match any variant of untagged enum VariableTreeNode")
         );
     }
 
@@ -736,20 +611,22 @@ deployment: {{}}
     #[test]
     fn test_normalize_agent_spec() {
         // create AgentSpec
-        let given_agent = AgentType::build_for_testing(AGENT_GIVEN_YAML);
+        let given_agent = AgentTypeDefinition::build_for_testing(AGENT_GIVEN_YAML);
 
-        let expected_map: Map<String, Variable> = Map::from([(
-            "my.name".to_string(),
-            Variable::new_string(false, Some("nrdot".to_string()), None),
-        )]);
+        let expected_def = VariableDefinition {
+            default: Some(VariableValue::String("nrdot".to_string())),
+            variants: None,
+            variable_type: VariableType::String,
+        };
+
+        let expected_map: Map<String, VariableDefinition> =
+            Map::from([("my.name".to_string(), expected_def.clone())]);
 
         // expect output to be the map
         assert_eq!(expected_map, given_agent.variables.clone().flatten());
 
-        let expected_spec = Variable::new_string(false, Some("nrdot".to_string()), None);
-
         assert_eq!(
-            expected_spec,
+            expected_def,
             given_agent.get_variable("my.name".to_string()).unwrap()
         );
     }
@@ -807,9 +684,9 @@ status_server_port: 8004
     #[test]
     fn test_fill_infra_agent_variables_in() {
         // When we fill the agent type variables with the corresponding values
-        let input_agent_type = AgentType::build_for_testing(GIVEN_NEWRELIC_INFRA_YAML);
+        let input_agent_type = AgentTypeDefinition::build_for_testing(GIVEN_NEWRELIC_INFRA_YAML);
         let filled_variables =
-            input_agent_type.fill_variables(GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML);
+            input_agent_type.fill_test_variables(GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML);
 
         // Then, we expect the corresponding final values.
         let expected_config_3 = VariableValue::MapStringString(HashMap::from([
@@ -820,27 +697,25 @@ status_server_port: 8004
         let expected_status_server = VariableValue::Number(Number::from(8004));
 
         assert_eq!(
-            expected_config_3,
+            &expected_config_3,
             filled_variables
-                .get("config3")
+                .get(&VariableName::new(Namespace::Variable, "config3"))
                 .unwrap()
-                .get_final_value()
-                .as_ref()
-                .unwrap()
-                .clone()
         );
 
         assert_eq!(
-            expected_status_server,
+            &expected_status_server,
             filled_variables
-                .get("status_server_port")
+                .get(&VariableName::new(
+                    Namespace::Variable,
+                    "status_server_port"
+                ))
                 .unwrap()
-                .get_final_value()
-                .as_ref()
-                .unwrap()
-                .clone()
         );
-        assert!(!filled_variables.contains_key("unknown_variable"))
+        assert!(
+            !filled_variables
+                .contains_key(&VariableName::new(Namespace::Variable, "unknown_variable"))
+        )
     }
 
     const AGENT_TYPE_WITH_VARIANTS: &str = r#"
@@ -877,16 +752,18 @@ restart_policy:
 
     #[test]
     fn test_variables_with_variants() {
-        let agent_type = AgentType::build_for_testing(AGENT_TYPE_WITH_VARIANTS);
+        let agent_type = AgentTypeDefinition::build_for_testing(AGENT_TYPE_WITH_VARIANTS);
 
         // Valid variant
-        let filled_variables = agent_type.fill_variables(VALUES_VALID_VARIANT);
+        let filled_variables = agent_type.fill_test_variables(VALUES_VALID_VARIANT);
 
-        let var = filled_variables.get("restart_policy.type").unwrap();
-        assert_eq!(
-            "fixed".to_string(),
-            var.get_final_value().unwrap().to_string()
-        );
+        let var = filled_variables
+            .get(&VariableName::new(
+                Namespace::Variable,
+                "restart_policy.type",
+            ))
+            .unwrap();
+        assert_eq!("fixed".to_string(), var.to_string());
 
         // Invalid variant
         let invalid_values: YAMLConfig =
@@ -894,7 +771,7 @@ restart_policy:
         let filled_variables_result = agent_type
             .variables
             .clone()
-            .fill_with_values(invalid_values);
+            .resolve(&VariableConstraints::default(), invalid_values);
         assert!(filled_variables_result.is_err());
         assert_eq!(
             filled_variables_result.unwrap_err().to_string(),
@@ -902,12 +779,14 @@ restart_policy:
         );
 
         // Default invalid variant is allowed
-        let filled_variables_default = agent_type.fill_variables("");
-        let var = filled_variables_default.get("restart_policy.type").unwrap();
-        assert_eq!(
-            "exponential".to_string(),
-            var.get_final_value().unwrap().to_string()
-        );
+        let filled_variables_default = agent_type.fill_test_variables("");
+        let var = filled_variables_default
+            .get(&VariableName::new(
+                Namespace::Variable,
+                "restart_policy.type",
+            ))
+            .unwrap();
+        assert_eq!("exponential".to_string(), var.to_string());
     }
 
     #[rstest]

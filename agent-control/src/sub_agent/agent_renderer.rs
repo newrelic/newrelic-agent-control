@@ -2,17 +2,15 @@
 //! its YAML config, resolving the agent type, variables, and dynamic values.
 
 use crate::agent_type::agent_attributes::AgentAttributes;
-use crate::agent_type::definition::VariableTree;
+use crate::agent_type::definition::{VariableTree, Variables};
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::registry::{AgentTypeRegistry, AgentTypeRegistryError};
 use crate::agent_type::runtime_config::k8s::K8s;
 use crate::agent_type::runtime_config::on_host::rendered::OnHost;
 use crate::agent_type::runtime_config::{Runtime, rendered};
 use crate::agent_type::templates::Templateable;
-use crate::agent_type::variable::Variable;
 use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::agent_type::variable::dynamic_variables::{DynamicVariables, DynamicVariablesError};
-use crate::agent_type::variable::namespace::{Namespace, VariableName};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::value_provider::{Registry, ValueProvider, ValueProviderType};
 use crate::values::yaml_config::{YAMLConfig, YAMLConfigError};
@@ -114,7 +112,7 @@ pub trait Renderer {
 }
 
 /// Implements [Renderer] and is responsible for:
-/// - Getting [`AgentType`](crate::agent_type::definition::AgentType) from [AgentTypeRegistry]
+/// - Getting [`AgentTypeDefinition`](crate::agent_type::definition::AgentTypeDefinition) from [AgentTypeRegistry]
 /// - Getting Local or Remote configs from [`ConfigRepository`](crate::values::config_repository::ConfigRepository)
 /// - Rendering the [`Runtime`] configuration of an Agent
 ///
@@ -126,7 +124,7 @@ where
     S: ValueProvider,
 {
     registry: Arc<R>,
-    ac_variables: HashMap<VariableName, Variable>,
+    ac_variables: Variables,
     variable_constraints: VariableConstraints,
     value_providers: Registry<S>,
     remote_dir: PathBuf,
@@ -141,7 +139,7 @@ where
     /// constraints, value providers, and the remote configuration directory.
     pub fn new(
         registry: Arc<R>,
-        ac_variables: HashMap<VariableName, Variable>,
+        ac_variables: Variables,
         variable_constraints: VariableConstraints,
         value_providers: Registry<S>,
         remote_dir: &Path,
@@ -160,7 +158,7 @@ where
         &self,
         runtime_config: &Runtime,
         values: YAMLConfig,
-    ) -> Result<HashMap<VariableName, Variable>, AgentRendererError> {
+    ) -> Result<Variables, AgentRendererError> {
         let user_values: String = values
             .clone()
             .try_into()
@@ -171,7 +169,7 @@ where
         let dynamic_variables_values = DynamicVariables::from(user_values.as_str());
         let dynamic_variables_runtime = DynamicVariables::from(runtime.as_str());
 
-        let mut dynamic_variables: HashMap<VariableName, Variable> = HashMap::new();
+        let mut dynamic_variables: Variables = HashMap::new();
         dynamic_variables.extend(dynamic_variables_values.load_values(&self.value_providers)?);
         dynamic_variables.extend(dynamic_variables_runtime.load_values(&self.value_providers)?);
 
@@ -187,43 +185,42 @@ where
     fn render_agent(
         &self,
         agent_identity: &AgentIdentity,
-        values: YAMLConfig,
+        user_values: YAMLConfig,
     ) -> Result<RenderedAgent, AgentRendererError> {
-        // Load the parsed definition and apply the AC-wide variable constraints to materialize
-        // an [AgentType] ready for the renderer.
-        let agent_type = self
-            .registry
-            .get(&agent_identity.agent_type_id)?
-            .with_constraints(&self.variable_constraints);
+        let agent_type = self.registry.get(&agent_identity.agent_type_id)?;
 
         let agent_attributes =
             AgentAttributes::try_new(agent_identity.id.to_owned(), self.remote_dir.to_path_buf())
                 .map_err(|e| AgentRendererError::Generic(e.to_string()))?;
 
         let dynamic_variables =
-            self.load_dynamic_variables(&agent_type.runtime_config, values.clone())?;
+            self.load_dynamic_variables(&agent_type.runtime_config, user_values.clone())?;
 
         let (variable_tree, runtime_config) = (agent_type.variables, agent_type.runtime_config);
 
         // Expand user values: raw values can themselves reference other variables (e.g.
         // ${nr-env:...}, ${nr-path:...}, ${nr-vault:...}), so resolve those before using
         // the values to fill the agent type's variable tree.
-        let user_expansion_variables: HashMap<VariableName, Variable> = dynamic_variables
+        let expansion_variables = dynamic_variables
             .clone()
             .into_iter()
             .chain(agent_attributes.nr_path_variables())
             .collect();
-        let expanded_user_variables =
-            get_expanded_user_variables(variable_tree, values, &user_expansion_variables)?;
+        let expanded_user_values = get_expanded_user_values(
+            variable_tree,
+            &self.variable_constraints,
+            user_values,
+            &expansion_variables,
+        )?;
 
         // Join all available namespaced variables into a single lookup set of namespaced
         // variables used to template the runtime config.
-        let ns_variables = expanded_user_variables
+        let ns_variables = expanded_user_values
             .into_iter()
             .chain(agent_attributes.nr_sub_variables())
             .chain(dynamic_variables)
             .chain(self.ac_variables.clone())
-            .collect::<HashMap<VariableName, Variable>>();
+            .collect();
 
         let rendered_runtime_config = runtime_config.template_with(&ns_variables)?;
 
@@ -234,37 +231,17 @@ where
     }
 }
 
-fn get_expanded_user_variables(
+fn get_expanded_user_values(
     variable_tree: VariableTree,
+    constraints: &VariableConstraints,
     values: YAMLConfig,
-    user_expansion_variables: &HashMap<VariableName, Variable>,
-) -> Result<HashMap<VariableName, Variable>, AgentTypeError> {
+    expansion_variables: &Variables,
+) -> Result<Variables, AgentTypeError> {
     // Values are expanded substituting all ${nr-env, nr-values} performing double expansions.
     // Notice that only data coming from value providers is taken into consideration (no other vars for example)
-    let values_expanded = values.template_with(user_expansion_variables)?;
+    let values_expanded = values.template_with(expansion_variables)?;
 
-    // Fill agent data in the variables tree
-    let flat_variable_tree = variable_tree.fill_with_values(values_expanded)?.flatten();
-    check_all_vars_are_populated(&flat_variable_tree)?;
-    // Set the namespaced name to variables
-    Ok(flat_variable_tree
-        .into_iter()
-        .map(|(name, var)| (VariableName::new(Namespace::Variable, &name), var))
-        .collect())
-}
-
-fn check_all_vars_are_populated(
-    variables: &HashMap<String, Variable>,
-) -> Result<(), AgentTypeError> {
-    let not_populated = variables
-        .clone()
-        .into_iter()
-        .filter_map(|(k, endspec)| endspec.get_final_value().is_none().then_some(k))
-        .collect::<Vec<_>>();
-    if !not_populated.is_empty() {
-        return Err(AgentTypeError::ValuesNotPopulated(not_populated));
-    }
-    Ok(())
+    variable_tree.resolve(constraints, values_expanded)
 }
 
 #[cfg(test)]
@@ -274,12 +251,14 @@ pub(crate) mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_type::agent_type_id::AgentTypeID;
-    use crate::agent_type::definition::{AgentType, AgentTypeDefinition};
+    use crate::agent_type::definition::AgentTypeDefinition;
     use crate::agent_type::registry::tests::MockAgentTypeRegistry;
     use crate::agent_type::runtime_config::on_host::executable::rendered as exec_rendered;
     use crate::agent_type::runtime_config::restart_policy::{
         BackoffDelay, BackoffLastRetryInterval, BackoffStrategyType, MaxRetries,
     };
+    use crate::agent_type::variable::namespace::{Namespace, VariableName};
+    use crate::agent_type::variable_value::VariableValue;
     use crate::values::yaml_config::YAMLConfig;
     use assert_matches::assert_matches;
     use fs::directory_manager::DirectoryManagerFs;
@@ -402,13 +381,9 @@ pub(crate) mod tests {
 
     #[test]
     fn test_with_constraints_k8s() {
-        let definition =
+        let agent_type =
             serde_saphyr::from_str::<AgentTypeDefinition>(K8S_AGENT_TYPE_DEFINITION).unwrap();
 
-        let agent_type = definition.with_constraints(&VariableConstraints::default());
-
-        let vars = agent_type.variables.flatten();
-        assert!(vars.contains_key("config.var"));
         assert!(matches!(
             agent_type.runtime_config.deployment,
             crate::agent_type::runtime_config::Deployment::K8s(_)
@@ -417,14 +392,10 @@ pub(crate) mod tests {
 
     #[test]
     fn test_with_constraints_host_linux() {
-        let definition =
+        let agent_type =
             serde_saphyr::from_str::<AgentTypeDefinition>(HOST_LINUX_AGENT_TYPE_DEFINITION)
                 .unwrap();
 
-        let agent_type = definition.with_constraints(&VariableConstraints::default());
-
-        let vars = agent_type.variables.flatten();
-        assert!(vars.contains_key("config.var"));
         assert!(matches!(
             agent_type.runtime_config.deployment,
             crate::agent_type::runtime_config::Deployment::Host(_)
@@ -439,7 +410,6 @@ platform: kubernetes
 variables:
   config:
     var:
-      description: "K8s var"
       type: string
       required: true
 deployment:
@@ -463,7 +433,6 @@ operating_system: linux
 variables:
   config:
     var:
-      description: "Linux var"
       type: string
       required: true
 deployment:
@@ -608,9 +577,9 @@ deployment:
 
     #[test]
     fn test_invalid_values_for_backoff_config() {
-        // This is testing agent-type definition and values, but it is included here because it its related to
+        // This is testing agent-type definition and values, but it is included here because it is related to
         // test_render_agent_type_with_backoff_config.
-        let agent_type = AgentType::build_for_testing(AGENT_TYPE_WITH_BACKOFF);
+        let agent_type = AgentTypeDefinition::build_for_testing(AGENT_TYPE_WITH_BACKOFF);
 
         let wrong_backoff_yamls = vec![
             WRONG_RETRIES_BACKOFF_CONFIG_YAML,
@@ -625,7 +594,7 @@ deployment:
                 agent_type
                     .variables
                     .clone()
-                    .fill_with_values(values)
+                    .resolve(&VariableConstraints::default(), values)
                     .is_err()
             )
         }
@@ -779,11 +748,9 @@ platform: kubernetes
 variables:
   config:
     values:
-      description: "yaml values"
       type: yaml
       required: true
     text_values:
-      description: "yaml values"
       type: yaml
       required: true
 deployment:
@@ -839,7 +806,7 @@ deployment:
 
         let agent_control_variables = HashMap::from([(
             VariableName::new(Namespace::AgentControl, "sa-fake-var"),
-            Variable::new_final_string_variable("fake_value".to_string()),
+            VariableValue::String("fake_value".to_string()),
         )]);
         let renderer = AgentRenderer::new(
             Arc::new(registry),
@@ -869,7 +836,6 @@ version: 0.0.1
 platform: kubernetes
 variables:
   my_yaml:
-    description: "yaml with double-expanded secrets"
     type: yaml
     required: true
 deployment:
@@ -950,11 +916,9 @@ platform: host
 operating_system: linux
 variables:
   config:
-    description: ""
     type: string
     required: true
   extra_configs:
-    description: ""
     type: string_map
     required: true
 deployment:
@@ -1038,11 +1002,9 @@ platform: host
 operating_system: linux
 variables:
   config_path:
-    description: "config file string"
     type: string
     required: true
   config_argument:
-    description: "config argument"
     type: string
     required: false
     default: bar
@@ -1081,22 +1043,18 @@ operating_system: linux
 variables:
   backoff:
     delay:
-      description: "Backoff delay"
       type: string
       required: false
       default: 1s
     retries:
-      description: "Backoff retries"
       type: number
       required: false
       default: 3
     interval:
-      description: "Backoff interval"
       type: string
       required: false
       default: 30s
     type:
-      description: "Backoff strategy type"
       type: string
       required: true
 deployment:
@@ -1169,11 +1127,9 @@ platform: kubernetes
 variables:
   config:
     values:
-      description: "yaml values"
       type: yaml
       required: true
     text_values:
-      description: "text values"
       type: yaml
       required: true
 deployment:
@@ -1200,11 +1156,9 @@ platform: kubernetes
 variables:
   config:
     values:
-      description: "yaml values"
       type: yaml
       required: true
     text_values:
-      description: "text values"
       type: yaml
       required: true
 deployment:

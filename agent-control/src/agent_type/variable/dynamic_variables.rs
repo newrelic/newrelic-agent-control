@@ -1,16 +1,14 @@
 //! Extraction and loading of dynamic variables referenced from a sub-agent configuration.
-use std::collections::{HashMap, HashSet};
-
+use crate::agent_type::definition::Variables;
+use crate::agent_type::variable_value::VariableValue;
 use crate::{
     agent_type::{
         templates::template_re,
-        variable::{
-            Variable,
-            namespace::{Namespace, VariableName},
-        },
+        variable::namespace::{Namespace, VariableName},
     },
     value_provider::{Registry, ValueProvider},
 };
+use std::collections::{HashMap, HashSet};
 
 /// Represents the prefix used for namespaced variables.
 /// Example: "nr-vault", "nr-var", etc.
@@ -86,7 +84,7 @@ impl DynamicVariables {
     pub fn load_values<S: ValueProvider>(
         &self,
         value_providers_registry: &Registry<S>,
-    ) -> Result<HashMap<VariableName, Variable>, DynamicVariablesError> {
+    ) -> Result<Variables, DynamicVariablesError> {
         if value_providers_registry.is_empty() {
             return Ok(HashMap::new());
         }
@@ -106,7 +104,7 @@ impl DynamicVariables {
                 })?;
                 result.insert(
                     VariableName::new(*namespace, value_path),
-                    Variable::new_final_string_variable(value),
+                    VariableValue::String(value),
                 );
             }
         }
@@ -124,26 +122,24 @@ impl DynamicVariables {
 }
 
 /// Loads all environment variables present in the system.
-pub fn load_env_vars() -> HashMap<VariableName, Variable> {
+pub fn load_env_vars() -> Variables {
     std::env::vars_os()
         .map(|(k, v)| {
             (
                 VariableName::new(Namespace::EnvironmentVariable, k.to_string_lossy()),
-                Variable::new_final_string_variable(v.to_string_lossy().to_string()),
+                VariableValue::String(v.to_string_lossy().to_string()),
             )
         })
-        .collect::<HashMap<VariableName, Variable>>()
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::value_provider::{Registry, ValueProviders, vault::tests::MockVault};
     use mockall::predicate;
     use rstest::rstest;
     use std::collections::HashSet;
-
-    use crate::value_provider::{Registry, ValueProviders, vault::tests::MockVault};
-
-    use super::*;
 
     #[test]
     fn test_extract_dynamic_variables() {
@@ -211,7 +207,7 @@ eof"#;
                     Namespace::Vault,
                     "sourceA:my_database:admin/credentials:username"
                 ),
-                Variable::new_final_string_variable("mocked_value_D".to_string())
+                VariableValue::String("mocked_value_D".to_string())
             )])
         );
     }

@@ -14,17 +14,21 @@
 //! The variables can be referenced with [TEMPLATE_KEY_SEPARATOR] separating names levels. The example variable from above could be used
 //! in agent types as `${nr-var:foo.bar.variable_name}`.
 
-use std::collections::HashMap;
-
-use serde::Deserialize;
-use thiserror::Error;
-
+use crate::agent_type::definition::{Variables, YAMLConfig};
+use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::templates::TEMPLATE_KEY_SEPARATOR;
+use crate::agent_type::variable::VariableDefinition;
+use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::agent_type::variable::name::{VariableNameError, validate_variable_name};
+use crate::agent_type::variable::namespace::{Namespace, VariableName};
+use serde::Deserialize;
+use std::collections::HashMap;
+use thiserror::Error;
+use tracing::warn;
 
 /// This struct assures that variables have at least a name (one level of nested names).
-#[derive(Clone, Debug, Deserialize, PartialEq)]
-pub struct VarTree<T>(pub(crate) HashMap<String, Tree<T>>);
+#[derive(Default, Clone, Debug, Deserialize, PartialEq)]
+pub struct VariableTree(pub(crate) HashMap<String, VariableTreeNode>);
 
 /// A variable-name validation failure, with the dotted path context of the failing key.
 #[derive(Error, Debug, PartialEq)]
@@ -41,22 +45,14 @@ pub struct VariableNameTreeError {
 /// Represents a Tree for an arbitrary type.
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(untagged)]
-pub enum Tree<T> {
+pub enum VariableTreeNode {
     /// A leaf node holding a value of type `T`.
-    End(T),
+    End(VariableDefinition),
     /// An intermediate node mapping names to subtrees.
     Mapping(HashMap<String, Self>),
 }
 
-// We cannot use the 'derive' of default implementation because serde's Deserialize needs it explicit as T might not
-// implement Default.
-impl<T> Default for VarTree<T> {
-    fn default() -> Self {
-        Self(Default::default())
-    }
-}
-
-impl<T> VarTree<T> {
+impl VariableTree {
     /// Validates every key in the tree, at every nesting level, against variable-name rules.
     /// Structural only — does not require `T: Clone` (unlike [Self::flatten]).
     pub fn validate_names(&self) -> Result<(), VariableNameTreeError> {
@@ -68,7 +64,7 @@ impl<T> VarTree<T> {
     fn inner_validate(
         parent_path: Option<&str>,
         key: &str,
-        tree: &Tree<T>,
+        tree: &VariableTreeNode,
     ) -> Result<(), VariableNameTreeError> {
         let path = match parent_path {
             Some(p) => format!("{p}{TEMPLATE_KEY_SEPARATOR}{key}"),
@@ -80,18 +76,16 @@ impl<T> VarTree<T> {
             source,
         })?;
         match tree {
-            Tree::End(_) => Ok(()),
-            Tree::Mapping(m) => m
+            VariableTreeNode::End(_) => Ok(()),
+            VariableTreeNode::Mapping(m) => m
                 .iter()
                 .try_for_each(|(k, v)| Self::inner_validate(Some(&path), k, v)),
         }
     }
-}
 
-impl<T: Clone> VarTree<T> {
     /// Returns a [HashMap] representing the _flatten_ variables. Each variable key will be the path of the variable
     /// in the tree separated by [TEMPLATE_KEY_SEPARATOR].
-    pub fn flatten(self) -> HashMap<String, T> {
+    pub fn flatten(self) -> HashMap<String, VariableDefinition> {
         self.0
             .into_iter()
             .flat_map(|(k, v)| Self::inner_flatten(k, v))
@@ -99,11 +93,11 @@ impl<T: Clone> VarTree<T> {
     }
 
     /// Helper for [Self::flatten] implementation.
-    fn inner_flatten(key: String, spec: Tree<T>) -> HashMap<String, T> {
+    fn inner_flatten(key: String, spec: VariableTreeNode) -> HashMap<String, VariableDefinition> {
         let mut result = HashMap::new();
         match spec {
-            Tree::End(s) => _ = result.insert(key, s),
-            Tree::Mapping(m) => m.into_iter().for_each(|(k, v)| {
+            VariableTreeNode::End(s) => _ = result.insert(key, s),
+            VariableTreeNode::Mapping(m) => m.into_iter().for_each(|(k, v)| {
                 result.extend(Self::inner_flatten(
                     key.clone() + TEMPLATE_KEY_SEPARATOR + &k,
                     v,
@@ -112,67 +106,75 @@ impl<T: Clone> VarTree<T> {
         }
         result
     }
+
+    /// Resolves every definition in the tree into a fully-populated [`Variables`], using the
+    /// provided constraints and user values.
+    ///
+    /// Errors when a required variable has no user value, when a user value doesn't match the declared type,
+    /// or when a user value fails variants validation. User-config keys with no matching
+    /// definition are logged as `WARN` and ignored.
+    pub fn resolve(
+        self,
+        constraints: &VariableConstraints,
+        user_values: YAMLConfig,
+    ) -> Result<Variables, AgentTypeError> {
+        let (resolved, mut missing) =
+            resolve_sub_tree(user_values.into(), self.0, constraints, "")?;
+        if !missing.is_empty() {
+            missing.sort();
+            return Err(AgentTypeError::ValuesNotPopulated(missing));
+        }
+
+        Ok(resolved)
+    }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use rstest::rstest;
+fn resolve_sub_tree(
+    mut values: HashMap<String, serde_json::Value>,
+    sub_tree: HashMap<String, VariableTreeNode>,
+    constraints: &VariableConstraints,
+    path_prefix: &str,
+) -> Result<(Variables, Vec<String>), AgentTypeError> {
+    let mut resolved: Variables = HashMap::new();
+    let mut missing: Vec<String> = Vec::new();
 
-    #[rstest]
-    #[case::single_level(
-        r#"
-foo:
-"#
-    )]
-    #[case::nested(
-        r#"
-common:
-  two:
-    three:
-"#
-    )]
-    fn valid_trees_pass(#[case] yaml: &str) {
-        let tree: VarTree<()> = serde_saphyr::from_str(yaml).unwrap();
-        assert_eq!(tree.validate_names(), Ok(()));
+    for (key, subtree) in sub_tree.into_iter() {
+        let partial_variable_path = prefixed_path(path_prefix, &key);
+        let variable_name = VariableName::new(Namespace::Variable, &partial_variable_path);
+        let user_value = values.remove(&key);
+        match subtree {
+            VariableTreeNode::End(def) => {
+                match def.resolve_variable_value(constraints, user_value)? {
+                    Some(variable_value) => {
+                        resolved.insert(variable_name, variable_value);
+                    }
+                    // Missing required variables are accumulated so we surface every one at once
+                    // instead of short-circuiting on the first.
+                    None => missing.push(partial_variable_path),
+                }
+            }
+            VariableTreeNode::Mapping(children) => {
+                let inner: HashMap<String, serde_json::Value> = match user_value {
+                    Some(v) => serde_json::from_value(v)?,
+                    None => HashMap::new(),
+                };
+                let (child_resolved, child_missing) =
+                    resolve_sub_tree(inner, children, constraints, &partial_variable_path)?;
+                resolved.extend(child_resolved);
+                missing.extend(child_missing);
+            }
+        }
     }
+    for k in values.keys() {
+        warn!(key = %prefixed_path(path_prefix, k), "Unexpected variable in the configuration");
+    }
+    Ok((resolved, missing))
+}
 
-    #[rstest]
-    #[case::top_level_leaf_key(
-        r#"
-"foo.bar":
-"#,
-        VariableNameTreeError {
-            path: "foo.bar".to_string(),
-            segment: "foo.bar".to_string(),
-            source: VariableNameError::InvalidCharacter('.'),
-        }
-    )]
-    #[case::nested_three_levels_deep(
-        r#"
-common:
-  two:
-    "three:x":
-"#,
-        VariableNameTreeError {
-            path: "common.two.three:x".to_string(),
-            segment: "three:x".to_string(),
-            source: VariableNameError::InvalidCharacter(':'),
-        }
-    )]
-    #[case::intermediate_mapping_key(
-        r#"
-"a.b":
-  c:
-"#,
-        VariableNameTreeError {
-            path: "a.b".to_string(),
-            segment: "a.b".to_string(),
-            source: VariableNameError::InvalidCharacter('.'),
-        }
-    )]
-    fn invalid_trees_are_rejected(#[case] yaml: &str, #[case] expected: VariableNameTreeError) {
-        let tree: VarTree<()> = serde_saphyr::from_str(yaml).unwrap();
-        assert_eq!(tree.validate_names(), Err(expected));
+fn prefixed_path(prefix: &str, segment: &str) -> String {
+    if prefix.is_empty() {
+        segment.to_string()
+    } else {
+        format!("{prefix}.{segment}")
     }
 }

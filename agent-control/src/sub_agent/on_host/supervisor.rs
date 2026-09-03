@@ -684,8 +684,8 @@ pub mod tests {
     use crate::agent_type::runtime_config::rendered::{Deployment, Runtime};
     use crate::agent_type::runtime_config::restart_policy::rendered::RestartPolicyConfig;
     use crate::agent_type::templates::Templateable;
-    use crate::agent_type::variable::Variable;
     use crate::agent_type::variable::namespace::{Namespace, VariableName};
+    use crate::agent_type::variable_value::VariableValue;
     use crate::checkers::health::health_checker::{
         HEALTH_CHECKER_THREAD_NAME, HealthCheckInterval, InitialDelay,
     };
@@ -926,7 +926,7 @@ declared-dir:
                 Namespace::SubAgent,
                 AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
             ),
-            Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
+            VariableValue::String(tmp_dir.path().to_string_lossy().into_owned()),
         )]);
         let filesystem = serde_saphyr::from_str::<ParsedFileSystem>(yaml)
             .unwrap()

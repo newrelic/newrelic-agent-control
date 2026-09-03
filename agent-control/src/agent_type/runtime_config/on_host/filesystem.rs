@@ -21,10 +21,7 @@ use crate::agent_type::{
     error::AgentTypeError,
     runtime_config::templateable_value::TemplateableValue,
     templates::Templateable,
-    variable::{
-        Variable,
-        namespace::{Namespace, VariableName},
-    },
+    variable::namespace::{Namespace, VariableName},
     variable_value::VariableValue,
 };
 use serde::{Deserialize, Serialize};
@@ -275,7 +272,7 @@ fn filesystem_agent_dir(variables: &Variables) -> Result<String, AgentTypeError>
         Namespace::SubAgent,
         AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
     );
-    match variables.get(&key).and_then(Variable::get_final_value) {
+    match variables.get(&key) {
         Some(VariableValue::String(s)) => Ok(s.clone()),
         _ => Err(AgentTypeError::MissingValue(key.to_string())),
     }
@@ -287,7 +284,7 @@ fn shared_filesystem_dir(variables: &Variables) -> Result<String, AgentTypeError
         Namespace::SubAgent,
         AgentAttributes::NR_SUB_SHARED_FILESYSTEM_DIR,
     );
-    match variables.get(&key).and_then(Variable::get_final_value) {
+    match variables.get(&key) {
         Some(VariableValue::String(s)) => Ok(s.clone()),
         _ => Err(AgentTypeError::MissingValue(key.to_string())),
     }
@@ -297,7 +294,7 @@ fn shared_filesystem_dir(variables: &Variables) -> Result<String, AgentTypeError
 /// (`${nr-sub:remote_dir}`), which contains packages and the per-agent and shared filesystem dirs.
 fn copy_source_base(variables: &Variables) -> Result<PathBuf, AgentTypeError> {
     let key = VariableName::new(Namespace::SubAgent, AgentAttributes::NR_SUB_REMOTE_DIR);
-    match variables.get(&key).and_then(Variable::get_final_value) {
+    match variables.get(&key) {
         Some(VariableValue::String(s)) => Ok(PathBuf::from(s)),
         _ => Err(AgentTypeError::MissingValue(key.to_string())),
     }
@@ -415,7 +412,7 @@ mod tests {
                 Namespace::SubAgent,
                 AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
             ),
-            Variable::new_final_string_variable("/base/dir"),
+            VariableValue::String("/base/dir".to_string()),
         )]);
 
         let fs_input = FileSystem(HashMap::from([(
@@ -471,11 +468,11 @@ nri-redis:
                     Namespace::SubAgent,
                     AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
                 ),
-                Variable::new_final_string_variable(agent_dir.to_string_lossy()),
+                VariableValue::String(agent_dir.to_string_lossy().into_owned()),
             ),
             (
                 VariableName::new(Namespace::SubAgent, AgentAttributes::NR_SUB_REMOTE_DIR),
-                Variable::new_final_string_variable(remote_dir.to_string_lossy()),
+                VariableValue::String(remote_dir.to_string_lossy().into_owned()),
             ),
         ])
     }
@@ -565,7 +562,7 @@ nri-redis:
                 Namespace::SubAgent,
                 AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
             ),
-            Variable::new_final_string_variable("/base/dir"),
+            VariableValue::String("/base/dir".to_string()),
         )]);
         let fs_input = FileSystem(HashMap::from([(
             PathBuf::from("f").try_into().unwrap(),
@@ -709,22 +706,18 @@ agent:
                     Namespace::SubAgent,
                     AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
                 ),
-                Variable::new_final_string_variable(base_dir),
+                VariableValue::String(base_dir.to_string()),
             ),
             (
                 VariableName::new(Namespace::Variable, "config_agent"),
-                Variable::new_final_string_variable("license_key: REDACTED\n"),
+                VariableValue::String("license_key: REDACTED\n".to_string()),
             ),
             (
                 VariableName::new(Namespace::Variable, "config_logging"),
-                Variable::new(
-                    false,
-                    None,
-                    Some(HashMap::from([(
-                        "syslog.yaml".to_string(),
-                        "logs: []".to_string(),
-                    )])),
-                ),
+                VariableValue::MapStringString(HashMap::from([(
+                    "syslog.yaml".to_string(),
+                    "logs: []".to_string(),
+                )])),
             ),
         ])
     }
@@ -845,11 +838,11 @@ projected:
                     Namespace::SubAgent,
                     AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
                 ),
-                Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
+                VariableValue::String(tmp_dir.path().to_string_lossy().into_owned()),
             ),
             (
                 VariableName::new(Namespace::Variable, "proj"),
-                Variable::new(false, None, Some(proj_first)),
+                VariableValue::MapStringString(proj_first),
             ),
         ]);
 
@@ -889,11 +882,11 @@ projected:
                     Namespace::SubAgent,
                     AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
                 ),
-                Variable::new_final_string_variable(tmp_dir.path().to_string_lossy()),
+                VariableValue::String(tmp_dir.path().to_string_lossy().into_owned()),
             ),
             (
                 VariableName::new(Namespace::Variable, "proj"),
-                Variable::new(false, None, Some(proj_second)),
+                VariableValue::MapStringString(proj_second),
             ),
         ]);
 
@@ -965,18 +958,14 @@ logging.d:
                     Namespace::SubAgent,
                     AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
                 ),
-                Variable::new_final_string_variable(base.to_string_lossy()),
+                VariableValue::String(base.to_string_lossy().into_owned()),
             ),
             (
                 VariableName::new(Namespace::Variable, "logs"),
-                Variable::new(
-                    false,
-                    None,
-                    Some(HashMap::from([(
-                        "file-1.conf".to_string(),
-                        "config-1".to_string(),
-                    )])),
-                ),
+                VariableValue::MapStringString(HashMap::from([(
+                    "file-1.conf".to_string(),
+                    "config-1".to_string(),
+                )])),
             ),
         ]);
 
@@ -999,18 +988,14 @@ logging.d:
                     Namespace::SubAgent,
                     AgentAttributes::NR_SUB_FILESYSTEM_AGENT_DIR,
                 ),
-                Variable::new_final_string_variable(base.to_string_lossy()),
+                VariableValue::String(base.to_string_lossy().into_owned()),
             ),
             (
                 VariableName::new(Namespace::Variable, "logs"),
-                Variable::new(
-                    false,
-                    None,
-                    Some(HashMap::from([(
-                        "file-2.conf".to_string(),
-                        "config-2".to_string(),
-                    )])),
-                ),
+                VariableValue::MapStringString(HashMap::from([(
+                    "file-2.conf".to_string(),
+                    "config-2".to_string(),
+                )])),
             ),
         ]);
 
@@ -1039,11 +1024,11 @@ logging.d:
                     Namespace::SubAgent,
                     AgentAttributes::NR_SUB_SHARED_FILESYSTEM_DIR,
                 ),
-                Variable::new_final_string_variable(shared_dir.to_string_lossy()),
+                VariableValue::String(shared_dir.to_string_lossy().into_owned()),
             ),
             (
                 VariableName::new(Namespace::SubAgent, AgentAttributes::NR_SUB_REMOTE_DIR),
-                Variable::new_final_string_variable(remote_dir.to_string_lossy()),
+                VariableValue::String(remote_dir.to_string_lossy().into_owned()),
             ),
         ])
     }

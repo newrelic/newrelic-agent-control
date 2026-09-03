@@ -140,8 +140,8 @@ mod tests {
     use crate::agent_type::definition::Variables;
     use crate::agent_type::runtime_config::on_host::package::rendered::Repository;
     use crate::agent_type::runtime_config::templateable_value::TemplateableValue;
-    use crate::agent_type::variable::Variable;
     use crate::agent_type::variable::namespace::{Namespace, VariableName};
+    use crate::agent_type::variable_value::VariableValue;
     use rstest::rstest;
     use url::Url;
 
@@ -158,16 +158,16 @@ mod tests {
         let mut variables = Variables::new();
         variables.insert(
             VariableName::new(Namespace::Variable, "repository"),
-            Variable::new_final_string_variable("repo".to_string()),
+            VariableValue::String("repo".to_string()),
         );
         variables.insert(
             VariableName::new(Namespace::Variable, "version"),
-            Variable::new_final_string_variable(version.clone()),
+            VariableValue::String(version.clone()),
         );
         if let Some(pk) = &public_key_url {
             variables.insert(
                 VariableName::new(Namespace::Variable, "public-key"),
-                Variable::new_final_string_variable(pk.to_string()),
+                VariableValue::String(pk.to_string()),
             );
         }
 
@@ -195,15 +195,15 @@ mod tests {
         let mut variables = Variables::new();
         variables.insert(
             VariableName::new(Namespace::Variable, "version"),
-            Variable::new_final_string_variable("1.0.0".to_string()),
+            VariableValue::String("1.0.0".to_string()),
         );
         variables.insert(
             VariableName::new(Namespace::Variable, "script-path"),
-            Variable::new_final_string_variable("/opt/install.sh".to_string()),
+            VariableValue::String("/opt/install.sh".to_string()),
         );
         variables.insert(
             VariableName::new(Namespace::Variable, "env-value"),
-            Variable::new_final_string_variable("test-value".to_string()),
+            VariableValue::String("test-value".to_string()),
         );
 
         let mut env_map = HashMap::new();
