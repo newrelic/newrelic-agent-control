@@ -3,7 +3,7 @@
 # Given a released `version` (== its prefix-less git tag), it:
 #   1. Checks out the current ref (where the generator script lives).
 #   2. Reads that version's CHANGELOG.md from the release tag and generates
-#      `agent-control-<version>.mdx` from it.
+#      `agent-control-<version-with-dashes>.mdx` from it.
 #   3. Commits the file to a branch on `newrelic/docs-website` and opens a PR
 #      against its `develop` branch.
 name: 📞 Publish public docs release notes

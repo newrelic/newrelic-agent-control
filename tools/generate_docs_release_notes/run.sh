@@ -10,8 +10,8 @@
 #                        together, so no separate partial file is needed).
 #   <VERSION>            Bare version, no `v` prefix (e.g. 1.99.0).
 #
-# Writes `agent-control-<YYYY-MM-DD>.mdx` (release date) to the current
-# directory and prints the output path on success.
+# Writes `agent-control-<version-with-dashes>.mdx` to the current directory
+# and prints the output path on success.
 #
 # Requires: python3.
 
@@ -96,31 +96,35 @@ def extract_section(text, *keywords):
     return []
 
 
+# Agent Control's changelog has no separate "new feature" bucket — its
+# "Enhancements" section covers both, so it populates `features` here.
 features = extract_section(body, 'Enhancements', 'Features')
+enhancements = []
 bugs     = extract_section(body, 'Bug fixes', 'Fixes', 'Bugfixes')
 security = extract_section(body, 'Security notices', 'Security')
 
 
 def yaml_list(items):
+    if not items:
+        return '[]'
     escaped = ["'" + item.replace("'", "''") + "'" for item in items]
     return '[' + ', '.join(escaped) + ']'
 
 
-output_file = f'agent-control-{release_date}.mdx'
+version_slug = version.replace('.', '-')
+output_file = f'agent-control-{version_slug}.mdx'
 
 lines = [
     '---',
     'subject: Agent Control',
     f"releaseDate: '{release_date}'",
     f'version: {version}',
+    f'features: {yaml_list(features)}',
+    f'enhancements: {yaml_list(enhancements)}',
+    f'bugs: {yaml_list(bugs)}',
+    f'security: {yaml_list(security)}',
+    '---',
 ]
-if features:
-    lines.append(f'features: {yaml_list(features)}')
-if bugs:
-    lines.append(f'bugs: {yaml_list(bugs)}')
-if security:
-    lines.append(f'security: {yaml_list(security)}')
-lines.append('---')
 
 release_url = (
     f'https://github.com/newrelic/newrelic-super-agent/releases/tag/{version}'
@@ -130,13 +134,14 @@ def markdown_section(title, items):
     if not items:
         return ''
     bullets = '\n'.join(f'- {item}' for item in items)
-    return f'## {title}\n\n{bullets}\n\n'
+    return f'### {title}\n\n{bullets}\n\n'
 
 
 content = '\n'.join(lines) + '\n\n'
-content += markdown_section('Features', features)
-content += markdown_section('Fixes', bugs)
-content += markdown_section('Security', security)
+content += markdown_section('New features', features)
+content += markdown_section('Improvements and enhancements', enhancements)
+content += markdown_section('Bug fixes', bugs)
+content += markdown_section('Security updates', security)
 content += (
     'For a detailed description of changes, see the '
     f'[release notes]({release_url}).\n'
