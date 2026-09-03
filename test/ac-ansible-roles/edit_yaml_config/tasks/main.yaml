@@ -9,11 +9,18 @@
 
 - name: Edit the config
   set_fact:
-    config: "{{ config | from_yaml | combine(update_config) }}"
+    config: "{{ config | combine(update_config, recursive=True) }}"
   vars:
     update_config: "{{ update_config }}"
 
-- name: Write the modified config
+- name: Write the modified config (Linux)
   copy:
-    content: '{{ config | to_nice_yaml }}'
+    content: '{{ config | to_nice_yaml(sort_keys=False) }}'
     dest: "{{ config_path }}"
+  when: ansible_os_family != "Windows"
+
+- name: Write the modified config (Windows)
+  ansible.windows.win_copy:
+    content: '{{ config | to_nice_yaml(sort_keys=False) }}'
+    dest: "{{ config_path }}"
+  when: ansible_os_family == "Windows"
