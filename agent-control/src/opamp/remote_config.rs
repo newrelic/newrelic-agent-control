@@ -2,7 +2,7 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::templates::TEMPLATE_KEY_SEPARATOR;
 use crate::agent_type::variable::VariableDefinition;
-use crate::agent_type::variable_value::VariableType;
+use crate::agent_type::variable::value::VariableType;
 use crate::opamp::remote_config::hash::ConfigState;
 use crate::opamp::remote_config::{hash::Hash, signature::SignatureData};
 use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, EffectiveConfig};

@@ -13,5 +13,4 @@ pub mod templates;
 pub mod templates_function;
 pub mod validation;
 pub mod variable;
-pub mod variable_value;
 pub mod version_config;

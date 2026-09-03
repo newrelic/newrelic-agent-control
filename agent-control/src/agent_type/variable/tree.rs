@@ -14,13 +14,14 @@
 //! The variables can be referenced with [TEMPLATE_KEY_SEPARATOR] separating names levels. The example variable from above could be used
 //! in agent types as `${nr-var:foo.bar.variable_name}`.
 
-use crate::agent_type::definition::{Variables, YAMLConfig};
+use crate::agent_type::definition::YAMLConfig;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::templates::TEMPLATE_KEY_SEPARATOR;
 use crate::agent_type::variable::VariableDefinition;
 use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::agent_type::variable::name::{VariableNameError, validate_variable_name};
 use crate::agent_type::variable::namespace::{Namespace, VariableName};
+use crate::agent_type::variable::value::VariableValues;
 use serde::Deserialize;
 use std::collections::HashMap;
 use thiserror::Error;
@@ -107,7 +108,7 @@ impl VariableTree {
         result
     }
 
-    /// Resolves every definition in the tree into a fully-populated [`Variables`], using the
+    /// Resolves every definition in the tree into a fully-populated [`VariableValues`], using the
     /// provided constraints and user values.
     ///
     /// Errors when a required variable has no user value, when a user value doesn't match the declared type,
@@ -117,7 +118,7 @@ impl VariableTree {
         self,
         constraints: &VariableConstraints,
         user_values: YAMLConfig,
-    ) -> Result<Variables, AgentTypeError> {
+    ) -> Result<VariableValues, AgentTypeError> {
         let (resolved, mut missing) =
             resolve_sub_tree(user_values.into(), self.0, constraints, "")?;
         if !missing.is_empty() {
@@ -134,8 +135,8 @@ fn resolve_sub_tree(
     sub_tree: HashMap<String, VariableTreeNode>,
     constraints: &VariableConstraints,
     path_prefix: &str,
-) -> Result<(Variables, Vec<String>), AgentTypeError> {
-    let mut resolved: Variables = HashMap::new();
+) -> Result<(VariableValues, Vec<String>), AgentTypeError> {
+    let mut resolved: VariableValues = HashMap::new();
     let mut missing: Vec<String> = Vec::new();
 
     for (key, subtree) in sub_tree.into_iter() {
@@ -144,9 +145,9 @@ fn resolve_sub_tree(
         let user_value = values.remove(&key);
         match subtree {
             VariableTreeNode::End(def) => {
-                match def.resolve_variable_value(constraints, user_value)? {
-                    Some(variable_value) => {
-                        resolved.insert(variable_name, variable_value);
+                match def.resolve_value(constraints, user_value)? {
+                    Some(value) => {
+                        resolved.insert(variable_name, value);
                     }
                     // Missing required variables are accumulated so we surface every one at once
                     // instead of short-circuiting on the first.

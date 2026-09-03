@@ -9,19 +9,19 @@ use super::{
     error::AgentTypeError,
     protocol_version::{self, ProtocolVersionError},
     runtime_config::{Deployment, Runtime},
-    variable_value::VariableValue,
+    variable::value::VariableValue,
 };
 use crate::agent_type::agent_attributes::AgentAttributes;
 use crate::agent_type::runtime_config::k8s::K8s;
 use crate::agent_type::runtime_config::on_host::OnHost;
 use crate::agent_type::runtime_config::on_host::rendered::RenderedPackages;
 use crate::agent_type::variable::namespace::{Namespace, VariableName};
+use crate::agent_type::variable::value::VariableValues;
 use crate::environment::Environment;
 use crate::package::oci::package_manager::get_package_path;
 use crate::{agent_control::agent_id::AgentID, package::manager::PackageData};
 pub(crate) use crate::{agent_type::variable::tree::VariableTree, values::yaml_config::YAMLConfig};
 use serde::{Deserialize, de::Error as _};
-use std::collections::HashMap;
 use std::path::Path;
 use thiserror::Error;
 use tracing::debug;
@@ -208,15 +208,12 @@ impl<'de> Deserialize<'de> for AgentTypeMetadata {
     }
 }
 
-/// Hashmap of VariableValue computed from the user_values and the definition of the variables
-pub type Variables = HashMap<VariableName, VariableValue>;
-
 /// Adds a reserved `${nr-sub:packages.<id>.dir}` variable for each rendered package, pointing at
 /// the directory where the package is stored on disk.
 pub fn include_packages_variables(
-    mut variables: Variables,
+    mut variables: VariableValues,
     packages: &RenderedPackages,
-) -> Result<Variables, AgentTypeError> {
+) -> Result<VariableValues, AgentTypeError> {
     // Return early if no packages to avoid retrieving the filesystem dir unnecessarily
     if packages.is_empty() {
         return Ok(variables);
@@ -262,7 +259,7 @@ pub fn include_packages_variables(
 }
 
 /// Returns the final value of the sub-agent variable with the given name, if present.
-pub fn get_sub_agent_variable(variables: &Variables, variable_name: &str) -> Option<String> {
+pub fn get_sub_agent_variable(variables: &VariableValues, variable_name: &str) -> Option<String> {
     let key = VariableName::new(Namespace::SubAgent, variable_name);
     variables.get(&key).map(|v| v.to_string())
 }
@@ -275,12 +272,12 @@ pub mod tests {
     use crate::agent_type::variable::VariableDefinition;
     use crate::agent_type::variable::constraints::VariableConstraints;
     use crate::agent_type::variable::tree::VariableTree;
-    use crate::agent_type::variable_value::{VariableType, VariableValue};
+    use crate::agent_type::variable::value::{VariableType, VariableValue};
     use assert_matches::assert_matches;
     use rstest::rstest;
     use serde_json::Number;
     use serde_saphyr::Error;
-    use std::collections::HashMap as Map;
+    use std::collections::{HashMap as Map, HashMap};
 
     /// `AgentTypeDefinition` deliberately has no production `Deserialize` impl: production code must go
     /// through the registry boundary so the `protocol_version` is always checked first. This test-only
@@ -332,7 +329,7 @@ pub mod tests {
         /// # Panics
         ///
         /// It will panic if the yaml values are not valid or there is any error resolving.
-        pub fn fill_test_variables(&self, yaml_values: &str) -> Variables {
+        pub fn fill_test_variables(&self, yaml_values: &str) -> VariableValues {
             let values = serde_saphyr::from_str::<YAMLConfig>(yaml_values).unwrap();
             self.variables
                 .clone()

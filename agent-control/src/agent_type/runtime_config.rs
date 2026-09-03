@@ -10,9 +10,9 @@ pub mod restart_policy;
 pub mod templateable_value;
 pub mod version_config;
 
-use super::definition::Variables;
 use super::error::AgentTypeError;
 use super::templates::Templateable;
+use crate::agent_type::variable::value::VariableValues;
 use k8s::K8s;
 use on_host::OnHost;
 use serde::Serialize;
@@ -49,7 +49,7 @@ impl Deployment {
 impl Templateable for Deployment {
     type Output = rendered::Deployment;
 
-    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self::Output, AgentTypeError> {
         match self {
             Deployment::Host(on_host) => Ok(rendered::Deployment::Host(
                 on_host.template_with(variables)?,
@@ -62,7 +62,7 @@ impl Templateable for Deployment {
 impl Templateable for Runtime {
     type Output = rendered::Runtime;
 
-    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self::Output, AgentTypeError> {
         Ok(Self::Output {
             deployment: self.deployment.template_with(variables)?,
         })
