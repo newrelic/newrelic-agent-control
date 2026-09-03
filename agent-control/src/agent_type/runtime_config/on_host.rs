@@ -179,7 +179,6 @@ impl Templateable for OnHost {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use crate::agent_type::agent_attributes::AgentAttributes;
     use crate::agent_type::runtime_config::on_host::executable::{Args, Env};
     use crate::agent_type::runtime_config::on_host::package::{Download, Oci};

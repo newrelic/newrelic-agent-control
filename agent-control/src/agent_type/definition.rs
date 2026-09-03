@@ -27,7 +27,7 @@ use thiserror::Error;
 use tracing::debug;
 
 /// The agent type as parsed from a YAML file. Variables are stored as a [`VariableTree`] of
-/// [`VariableDefinition`]s; call [`VariableTree::resolve`] with the AC-wide variable constraints
+/// call [`VariableTree::resolve`] with the AC-wide variable constraints
 /// and the user-supplied values to obtain fully-populated [`VariableValue`]s ready for rendering.
 ///
 /// Deserialization is **platform-driven**: the custom Deserialize first reads the agent-type id
@@ -209,7 +209,7 @@ impl<'de> Deserialize<'de> for AgentTypeMetadata {
 }
 
 /// Hashmap of VariableValue computed from the user_values and the definition of the variables
-pub(crate) type Variables = HashMap<VariableName, VariableValue>;
+pub type Variables = HashMap<VariableName, VariableValue>;
 
 /// Adds a reserved `${nr-sub:packages.<id>.dir}` variable for each rendered package, pointing at
 /// the directory where the package is stored on disk.

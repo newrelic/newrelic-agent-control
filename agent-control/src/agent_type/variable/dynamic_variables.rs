@@ -1,15 +1,14 @@
 //! Extraction and loading of dynamic variables referenced from a sub-agent configuration.
-use std::collections::{HashMap, HashSet};
-
 use crate::agent_type::definition::Variables;
+use crate::agent_type::variable_value::VariableValue;
 use crate::{
     agent_type::{
         templates::template_re,
         variable::namespace::{Namespace, VariableName},
-        variable_value::VariableValue,
     },
     value_provider::{Registry, ValueProvider},
 };
+use std::collections::{HashMap, HashSet};
 
 /// Represents the prefix used for namespaced variables.
 /// Example: "nr-vault", "nr-var", etc.
@@ -136,13 +135,11 @@ pub fn load_env_vars() -> Variables {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::value_provider::{Registry, ValueProviders, vault::tests::MockVault};
     use mockall::predicate;
     use rstest::rstest;
     use std::collections::HashSet;
-
-    use crate::value_provider::{Registry, ValueProviders, vault::tests::MockVault};
-
-    use super::*;
 
     #[test]
     fn test_extract_dynamic_variables() {

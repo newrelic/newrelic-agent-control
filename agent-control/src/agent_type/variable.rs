@@ -50,19 +50,48 @@ impl<'de> Deserialize<'de> for VariableDefinition {
 
         let raw = Raw::deserialize(deserializer)?;
 
-        let default = raw
-            .default
-            .map(|d| coerce_serde_value(&raw.variable_type, d))
-            .transpose()
+        if raw.variants.is_some() && !matches!(raw.variable_type, VariableType::String) {
+            return Err(serde::de::Error::custom(AgentTypeError::Parse(
+                "`variants` is only supported for `string`-typed variables".to_string(),
+            )));
+        }
+
+        let default = normalize_default(raw.default, raw.required, &raw.variable_type)
             .map_err(serde::de::Error::custom)?;
-        let mut def = VariableDefinition {
+
+        Ok(VariableDefinition {
             default,
             variants: raw.variants,
             variable_type: raw.variable_type,
-        };
-        def.validate_and_normalize(raw.required)
-            .map_err(serde::de::Error::custom)?;
-        Ok(def)
+        })
+    }
+}
+
+/// Validates the `required`/`default` combination and fills the implicit YAML `null` default for
+/// optional `yaml` variables that omit one.
+fn normalize_default(
+    raw_default: Option<serde_json::Value>,
+    required: bool,
+    variable_type: &VariableType,
+) -> Result<Option<VariableValue>, AgentTypeError> {
+    let coerced_default = raw_default
+        .map(|d| coerce_serde_value(variable_type, d))
+        .transpose()?;
+
+    match (required, coerced_default) {
+        (true, None) => Ok(None),
+        (false, Some(v)) => Ok(Some(v)),
+        (true, Some(_)) => Err(AgentTypeError::Parse(
+            "default value cannot be specified for a required spec key".to_string(),
+        )),
+        (false, None) => {
+            if matches!(variable_type, VariableType::Yaml) {
+                return Ok(Some(VariableValue::Yaml(serde_json::Value::Null)));
+            }
+            Err(AgentTypeError::Parse(
+                "missing default value for a non-required spec key".to_string(),
+            ))
+        }
     }
 }
 
@@ -70,32 +99,6 @@ impl VariableDefinition {
     /// Returns the variable's declared type.
     pub fn kind(&self) -> &VariableType {
         &self.variable_type
-    }
-
-    /// Validates the cross-field invariants between `required`, `default` and `variants`, and
-    /// fills the implicit YAML `null` default for optional `yaml` variables that omit one.
-    fn validate_and_normalize(&mut self, required: bool) -> Result<(), AgentTypeError> {
-        if self.variants.is_some() && !matches!(self.variable_type, VariableType::String) {
-            return Err(AgentTypeError::Parse(
-                "`variants` is only supported for `string`-typed variables".to_string(),
-            ));
-        }
-        let has_default = self.default.is_some();
-        if required && has_default {
-            return Err(AgentTypeError::Parse(
-                "default value cannot be specified for a required spec key".to_string(),
-            ));
-        }
-        if !required && !has_default {
-            if matches!(self.variable_type, VariableType::Yaml) {
-                self.default = Some(VariableValue::Yaml(serde_json::Value::Null));
-            } else {
-                return Err(AgentTypeError::Parse(
-                    "missing default value for a non-required spec key".to_string(),
-                ));
-            }
-        }
-        Ok(())
     }
 
     /// Resolves this definition into a fully-populated [`VariableValue`] using the given AC
@@ -166,6 +169,7 @@ mod tests {
         variable::{VariableDefinition, tree::VariableTreeNode, variants::VariantsConfig},
         variable_value::VariableValue,
     };
+    use rstest::rstest;
     use std::collections::HashMap;
 
     #[test]
@@ -232,6 +236,47 @@ required: true
         let def: VariableDefinition = serde_saphyr::from_str(value).unwrap();
         assert!(matches!(def.variable_type, VariableType::Yaml));
         assert_eq!(def.default, None);
+    }
+
+    #[test]
+    fn variable_definition_variants_on_string_is_accepted() {
+        let value = r#"
+type: string
+required: true
+variants:
+  values: ["a", "b"]
+"#;
+        let def: VariableDefinition = serde_saphyr::from_str(value).unwrap();
+        assert!(matches!(def.variable_type, VariableType::String));
+        assert_eq!(
+            def.variants,
+            Some(VariantsConfig {
+                ac_config_field: None,
+                values: vec!["a".to_string(), "b".to_string()].into(),
+            })
+        );
+    }
+
+    #[rstest]
+    #[case::yaml("yaml")]
+    #[case::bool("bool")]
+    #[case::number("number")]
+    #[case::string_map("string_map")]
+    fn variable_definition_variants_on_non_string_is_rejected(#[case] variable_type: &str) {
+        let value = format!(
+            r#"
+type: {variable_type}
+required: true
+variants:
+  values: ["a", "b"]
+"#
+        );
+        let err = serde_saphyr::from_str::<VariableDefinition>(&value).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("`variants` is only supported for `string`-typed variables"),
+            "unexpected error: {err}",
+        );
     }
 
     #[test]
