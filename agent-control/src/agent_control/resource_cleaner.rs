@@ -25,7 +25,7 @@ pub trait ResourceCleaner {
     /// Cleans up stale resources after a version bump (same type name, different version).
     /// The agent's identity (OpAMP instance ID) is preserved. `active_agents` is the full set of
     /// agents active after this reconciliation cycle.
-    fn on_agent_version_bumped(
+    fn on_agent_type_version_update(
         &self,
         agent_id: &AgentID,
         old_agent_type: &AgentTypeID,
@@ -45,7 +45,7 @@ pub trait ResourceCleaner {
         active_agents: &SubAgentsMap,
     ) -> Result<(), ResourceCleanerError>;
 
-    /// Dispatches to [`on_agent_version_bumped`](Self::on_agent_version_bumped) or
+    /// Dispatches to [`on_agent_type_version_update`](Self::on_agent_type_version_update) or
     /// [`on_agent_type_replaced`](Self::on_agent_type_replaced) based on whether the type name
     /// changed. Implementers override the two specific methods, not this one.
     fn on_agent_type_changed(
@@ -56,7 +56,12 @@ pub trait ResourceCleaner {
         active_agents: &SubAgentsMap,
     ) -> Result<(), ResourceCleanerError> {
         if old_agent_type.is_same_type(new_agent_type) {
-            self.on_agent_version_bumped(agent_id, old_agent_type, new_agent_type, active_agents)
+            self.on_agent_type_version_update(
+                agent_id,
+                old_agent_type,
+                new_agent_type,
+                active_agents,
+            )
         } else {
             self.on_agent_type_replaced(agent_id, old_agent_type, new_agent_type, active_agents)
         }
@@ -85,7 +90,7 @@ pub(crate) mod tests {
                 active_agents: &SubAgentsMap,
             ) -> Result<(), ResourceCleanerError>;
 
-            fn on_agent_version_bumped(
+            fn on_agent_type_version_update(
                 &self,
                 agent_id: &AgentID,
                 old_agent_type: &AgentTypeID,

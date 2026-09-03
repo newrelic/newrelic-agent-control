@@ -216,7 +216,7 @@ impl ResourceCleaner for K8sGarbageCollector {
         Ok(())
     }
 
-    fn on_agent_version_bumped(
+    fn on_agent_type_version_update(
         &self,
         agent_id: &AgentID,
         old_agent_type: &AgentTypeID,

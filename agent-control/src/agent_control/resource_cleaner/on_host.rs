@@ -368,7 +368,7 @@ where
     }
 
     #[instrument(skip_all, name = "agent_version_bump_reconcile", fields(%agent_id))]
-    fn on_agent_version_bumped(
+    fn on_agent_type_version_update(
         &self,
         agent_id: &AgentID,
         old_agent_type: &AgentTypeID,
