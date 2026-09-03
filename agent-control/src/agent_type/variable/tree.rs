@@ -212,46 +212,6 @@ mod tests {
         );
     }
 
-    // ---- resolve ---------------------------------------------------------
-
-    #[rstest]
-    #[case::user_value_wins(
-        json!({
-            "name": {"type": "string", "required": true},
-        }),
-        json!({"name": "u"}),
-        "u",
-    )]
-    #[case::default_used_when_user_value_absent(
-        json!({
-            "name": {"type": "string", "required": false, "default": "d"},
-        }),
-        json!({}),
-        "d",
-    )]
-    #[case::user_value_overrides_default(
-        json!({
-            "name": {"type": "string", "required": false, "default": "d"},
-        }),
-        json!({"name": "u"}),
-        "u",
-    )]
-    fn resolve_picks_user_value_over_default(
-        #[case] spec: serde_json::Value,
-        #[case] user: serde_json::Value,
-        #[case] expected: &str,
-    ) {
-        let tree: VariableTree = serde_json::from_value(spec).unwrap();
-        let user: YAMLConfig = serde_json::from_value(user).unwrap();
-
-        let resolved = tree.resolve(&VariableConstraints::default(), user).unwrap();
-
-        assert_eq!(
-            resolved.get(&VariableName::new(Namespace::Variable, "name")),
-            Some(&VariableValue::String(expected.to_string()))
-        );
-    }
-
     #[test]
     fn resolve_ignores_unknown_user_keys() {
         let tree: VariableTree = serde_json::from_value(json!({
@@ -265,29 +225,6 @@ mod tests {
 
         assert_eq!(resolved.len(), 1);
         assert!(resolved.contains_key(&VariableName::new(Namespace::Variable, "known")));
-    }
-
-    #[test]
-    fn resolve_collects_only_remaining_missing_required_variables_sorted() {
-        let tree: VariableTree = serde_json::from_value(json!({
-            "zed": {"type": "string", "required": true},
-            "alpha": {"type": "string", "required": true},
-            "foo": {
-                "bar": {"type": "string", "required": true},
-            },
-        }))
-        .unwrap();
-        let user: YAMLConfig = serde_json::from_value(json!({"alpha": "v"})).unwrap();
-
-        let err = tree
-            .resolve(&VariableConstraints::default(), user)
-            .unwrap_err();
-
-        assert_matches!(
-            err,
-            AgentTypeError::ValuesNotPopulated(paths)
-                if paths == vec!["foo.bar".to_string(), "zed".to_string()]
-        );
     }
 
     #[rstest]
@@ -345,5 +282,89 @@ mod tests {
         } else {
             assert_matches!(result, Err(AgentTypeError::InvalidVariant(_)));
         }
+    }
+
+    #[test]
+    fn resolve_complex_tree_populates_variables_and_reports_missing_with_dot_notation() {
+        // Multi-depth tree mixing required and optional variables with defaults.
+        let tree: VariableTree = serde_json::from_value(json!({
+            "service": {
+                "host": {"type": "string", "required": true},
+                "port": {"type": "number", "required": true},
+                "metadata": {
+                    "region": {"type": "string", "required": true},
+                    "env": {"type": "string", "required": false, "default": "prod"},
+                },
+            },
+            "logging": {
+                "level": {"type": "string", "required": false, "default": "info"},
+            },
+            "debug": {"type": "bool", "required": true},
+        }))
+        .unwrap();
+
+        // Partial values: two required variables at different depths are absent.
+        let partial: YAMLConfig = serde_json::from_value(json!({
+            "service": {"host": "example.com"},
+            "debug": true,
+        }))
+        .unwrap();
+
+        let err = tree
+            .clone()
+            .resolve(&VariableConstraints::default(), partial)
+            .unwrap_err();
+
+        assert_matches!(
+            err,
+            AgentTypeError::ValuesNotPopulated(paths)
+                if paths == vec![
+                    "service.metadata.region".to_string(),
+                    "service.port".to_string(),
+                ]
+        );
+
+        // All required provided; `logging.level` also provided, overriding its default;
+        // `service.metadata.env` omitted, so its default fires.
+        let full: YAMLConfig = serde_json::from_value(json!({
+            "service": {
+                "host": "example.com",
+                "port": 9000,
+                "metadata": {"region": "us-east-1"},
+            },
+            "logging": {"level": "debug"},
+            "debug": true,
+        }))
+        .unwrap();
+
+        let resolved = tree.resolve(&VariableConstraints::default(), full).unwrap();
+
+        let expected: VariableValues = HashMap::from([
+            (
+                VariableName::new(Namespace::Variable, "service.host"),
+                VariableValue::String("example.com".to_string()),
+            ),
+            (
+                VariableName::new(Namespace::Variable, "service.port"),
+                VariableValue::Number(9000_i64.into()),
+            ),
+            (
+                VariableName::new(Namespace::Variable, "service.metadata.region"),
+                VariableValue::String("us-east-1".to_string()),
+            ),
+            (
+                VariableName::new(Namespace::Variable, "service.metadata.env"),
+                VariableValue::String("prod".to_string()),
+            ),
+            (
+                VariableName::new(Namespace::Variable, "logging.level"),
+                VariableValue::String("debug".to_string()),
+            ),
+            (
+                VariableName::new(Namespace::Variable, "debug"),
+                VariableValue::Bool(true),
+            ),
+        ]);
+        assert_eq!(resolved, expected);
     }
 }
