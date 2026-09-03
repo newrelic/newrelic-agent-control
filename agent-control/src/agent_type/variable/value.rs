@@ -1,7 +1,8 @@
 //! A single configuration value as resolved from an agent type variable's spec.
+use crate::agent_type::variable::namespace::VariableName;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap as Map,
+    collections::HashMap,
     fmt::{Display, Formatter},
 };
 
@@ -30,6 +31,9 @@ pub enum VariableType {
     Yaml,
 }
 
+/// Hashmap of VariableValue computed from the user_values and the definition of the variables
+pub type VariableValues = HashMap<VariableName, VariableValue>;
+
 /// Represents all the allowed types for a configuration defined in the spec value.
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(untagged)]
@@ -45,7 +49,7 @@ pub enum VariableValue {
     Yaml(serde_json::Value),
     /// A map of string keys to string values.
     #[serde(skip)]
-    MapStringString(Map<String, String>),
+    MapStringString(HashMap<String, String>),
 }
 
 impl Display for VariableValue {

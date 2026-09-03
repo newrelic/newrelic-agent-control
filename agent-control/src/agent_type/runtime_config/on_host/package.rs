@@ -1,12 +1,12 @@
 //! On-host package definitions: OCI download sources and optional post-download hooks.
 use std::str::FromStr;
 
-use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::runtime_config::on_host::executable::{Args, Env};
 use crate::agent_type::runtime_config::on_host::package::rendered::{Repository, Version};
 use crate::agent_type::runtime_config::templateable_value::TemplateableValue;
 use crate::agent_type::templates::Templateable;
+use crate::agent_type::variable::value::VariableValues;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -66,7 +66,7 @@ pub struct PostDownloadHook {
 
 impl Templateable for Package {
     type Output = rendered::Package;
-    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self::Output, AgentTypeError> {
         let post_download_hook = self
             .post_download_hook
             .map(|pd| pd.template_with(variables))
@@ -81,7 +81,7 @@ impl Templateable for Package {
 
 impl Templateable for Download {
     type Output = rendered::Download;
-    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self::Output, AgentTypeError> {
         Ok(Self::Output {
             oci: self.oci.template_with(variables)?,
         })
@@ -90,7 +90,7 @@ impl Templateable for Download {
 
 impl Templateable for Oci {
     type Output = rendered::Oci;
-    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self::Output, AgentTypeError> {
         let repository =
             Repository::from_str(&self.repository.template_with(variables)?).map_err(|err| {
                 AgentTypeError::OCIReferenceParsingError(format!("invalid repository: {err}"))
@@ -123,7 +123,7 @@ impl Templateable for Oci {
 
 impl Templateable for PostDownloadHook {
     type Output = rendered::PostDownloadHook;
-    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self::Output, AgentTypeError> {
         let path = self.path.template_with(variables)?;
         let args = self.args.template_with(variables)?;
         let env = self.env.template_with(variables)?;
@@ -137,11 +137,11 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
-    use crate::agent_type::definition::Variables;
     use crate::agent_type::runtime_config::on_host::package::rendered::Repository;
     use crate::agent_type::runtime_config::templateable_value::TemplateableValue;
     use crate::agent_type::variable::namespace::{Namespace, VariableName};
-    use crate::agent_type::variable_value::VariableValue;
+    use crate::agent_type::variable::value::VariableValue;
+    use crate::agent_type::variable::value::VariableValues;
     use rstest::rstest;
     use url::Url;
 
@@ -155,7 +155,7 @@ mod tests {
             "a-tag@sha256:ec5f08ee7be8b557cd1fc5ae1a0ac985e8538da7c93f51a51eff4b277509a723"
                 .to_string();
 
-        let mut variables = Variables::new();
+        let mut variables = VariableValues::new();
         variables.insert(
             VariableName::new(Namespace::Variable, "repository"),
             VariableValue::String("repo".to_string()),
@@ -192,7 +192,7 @@ mod tests {
     fn test_post_download_hook_template_with_variables() {
         use std::collections::HashMap;
 
-        let mut variables = Variables::new();
+        let mut variables = VariableValues::new();
         variables.insert(
             VariableName::new(Namespace::Variable, "version"),
             VariableValue::String("1.0.0".to_string()),

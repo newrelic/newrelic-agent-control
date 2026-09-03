@@ -2,7 +2,7 @@
 //! its YAML config, resolving the agent type, variables, and dynamic values.
 
 use crate::agent_type::agent_attributes::AgentAttributes;
-use crate::agent_type::definition::{VariableTree, Variables};
+use crate::agent_type::definition::VariableTree;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::registry::{AgentTypeRegistry, AgentTypeRegistryError};
 use crate::agent_type::runtime_config::k8s::K8s;
@@ -11,6 +11,7 @@ use crate::agent_type::runtime_config::{Runtime, rendered};
 use crate::agent_type::templates::Templateable;
 use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::agent_type::variable::dynamic_variables::{DynamicVariables, DynamicVariablesError};
+use crate::agent_type::variable::value::VariableValues;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::value_provider::{Registry, ValueProvider, ValueProviderType};
 use crate::values::yaml_config::{YAMLConfig, YAMLConfigError};
@@ -124,7 +125,7 @@ where
     S: ValueProvider,
 {
     registry: Arc<R>,
-    ac_variables: Variables,
+    ac_variables: VariableValues,
     variable_constraints: VariableConstraints,
     value_providers: Registry<S>,
     remote_dir: PathBuf,
@@ -139,7 +140,7 @@ where
     /// constraints, value providers, and the remote configuration directory.
     pub fn new(
         registry: Arc<R>,
-        ac_variables: Variables,
+        ac_variables: VariableValues,
         variable_constraints: VariableConstraints,
         value_providers: Registry<S>,
         remote_dir: &Path,
@@ -158,7 +159,7 @@ where
         &self,
         runtime_config: &Runtime,
         values: YAMLConfig,
-    ) -> Result<Variables, AgentRendererError> {
+    ) -> Result<VariableValues, AgentRendererError> {
         let user_values: String = values
             .clone()
             .try_into()
@@ -169,7 +170,7 @@ where
         let dynamic_variables_values = DynamicVariables::from(user_values.as_str());
         let dynamic_variables_runtime = DynamicVariables::from(runtime.as_str());
 
-        let mut dynamic_variables: Variables = HashMap::new();
+        let mut dynamic_variables: VariableValues = HashMap::new();
         dynamic_variables.extend(dynamic_variables_values.load_values(&self.value_providers)?);
         dynamic_variables.extend(dynamic_variables_runtime.load_values(&self.value_providers)?);
 
@@ -235,8 +236,8 @@ fn get_expanded_user_values(
     variable_tree: VariableTree,
     constraints: &VariableConstraints,
     values: YAMLConfig,
-    expansion_variables: &Variables,
-) -> Result<Variables, AgentTypeError> {
+    expansion_variables: &VariableValues,
+) -> Result<VariableValues, AgentTypeError> {
     // Values are expanded substituting all ${nr-env, nr-values} performing double expansions.
     // Notice that only data coming from value providers is taken into consideration (no other vars for example)
     let values_expanded = values.template_with(expansion_variables)?;
@@ -258,7 +259,7 @@ pub(crate) mod tests {
         BackoffDelay, BackoffLastRetryInterval, BackoffStrategyType, MaxRetries,
     };
     use crate::agent_type::variable::namespace::{Namespace, VariableName};
-    use crate::agent_type::variable_value::VariableValue;
+    use crate::agent_type::variable::value::VariableValue;
     use crate::values::yaml_config::YAMLConfig;
     use assert_matches::assert_matches;
     use fs::directory_manager::DirectoryManagerFs;
@@ -804,7 +805,7 @@ deployment:
 "#,
         );
 
-        let agent_control_variables = HashMap::from([(
+        let agent_control_variables = VariableValues::from([(
             VariableName::new(Namespace::AgentControl, "sa-fake-var"),
             VariableValue::String("fake_value".to_string()),
         )]);

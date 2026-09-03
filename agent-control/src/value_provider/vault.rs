@@ -1,8 +1,8 @@
 //! Value provider that reads secrets from HashiCorp Vault (KV1 and KV2 engines).
 
-use super::ValueProvider;
 use crate::http::client::{HttpBuildError, HttpClient, HttpResponseError};
 use crate::http::config::{HttpConfig, ProxyConfig};
+use crate::value_provider::ValueProvider;
 use duration_str::deserialize_duration;
 use http::header::InvalidHeaderValue;
 use http::{HeaderValue, Request};
@@ -308,6 +308,7 @@ impl ValueProvider for Vault {
 #[allow(missing_docs)]
 pub mod tests {
     use super::*;
+    use crate::value_provider::ValueProvider;
     use crate::value_provider::vault::VaultConfig;
     use assert_matches::assert_matches;
     use httpmock::Method::GET;

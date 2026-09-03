@@ -2,7 +2,7 @@
 //! the corresponding functionality.
 //!
 //! A [`VariableDefinition`] is the static shape parsed from an Agent Type YAML. Once we have the
-//! AC-wide constraints and the user-supplied values, [`VariableDefinition::resolve_variable_value`] produces
+//! AC-wide constraints and the user-supplied values, [`VariableDefinition::resolve_value`] produces
 //! the resolved [`VariableValue`].
 
 pub mod constraints;
@@ -10,13 +10,14 @@ pub mod dynamic_variables;
 pub mod name;
 pub mod namespace;
 pub mod tree;
+pub mod value;
 pub mod variants;
 
 use crate::agent_type::variable::variants::Variants;
 use crate::agent_type::{
     error::AgentTypeError,
+    variable::value::{VariableType, VariableValue},
     variable::{constraints::VariableConstraints, variants::VariantsConfig},
-    variable_value::{VariableType, VariableValue},
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -104,7 +105,7 @@ impl VariableDefinition {
     /// Resolves this definition into a fully-populated [`VariableValue`] using the given AC
     /// constraints and an optional user-supplied value. Errors when the user value doesn't match
     /// the declared type/variants, or when the variable is required and no value was provided.
-    pub fn resolve_variable_value(
+    pub fn resolve_value(
         self,
         constraints: &VariableConstraints,
         user_value: Option<serde_json::Value>,
@@ -164,10 +165,10 @@ pub(super) fn parse_string_map(
 
 #[cfg(test)]
 mod tests {
-    use crate::agent_type::variable_value::VariableType;
+    use crate::agent_type::variable::value::VariableType;
     use crate::agent_type::{
+        variable::value::VariableValue,
         variable::{VariableDefinition, tree::VariableTreeNode, variants::VariantsConfig},
-        variable_value::VariableValue,
     };
     use rstest::rstest;
     use std::collections::HashMap;

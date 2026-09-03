@@ -1,8 +1,8 @@
 //! Health-check configuration for on-host agents (HTTP or file-based checks).
 use super::templateable_value::TemplateableValue;
-use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::templates::Templateable;
+use crate::agent_type::variable::value::VariableValues;
 use crate::checkers::health::health_checker::{HealthCheckInterval, InitialDelay};
 use duration_str::deserialize_duration;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -78,7 +78,7 @@ pub(crate) struct FileHealth {
 
 impl Templateable for FileHealth {
     type Output = Self;
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self, AgentTypeError> {
         let rendered = self.path.template_with(variables)?;
         Ok(Self { path: rendered })
     }
@@ -186,7 +186,7 @@ impl From<String> for HttpPath {
 impl Templateable for HttpPath {
     type Output = Self;
 
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self, AgentTypeError> {
         let templated_string = self.0.template_with(variables)?;
         Ok(Self(templated_string))
     }
@@ -195,7 +195,7 @@ impl Templateable for HttpPath {
 impl Templateable for OnHostHealthConfig {
     type Output = rendered::OnHostHealthConfig;
 
-    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self::Output, AgentTypeError> {
         Ok(Self::Output {
             checks: self
                 .checks
@@ -212,7 +212,7 @@ impl Templateable for OnHostHealthConfig {
 impl Templateable for OnHostHealthCheckDefinition {
     type Output = rendered::OnHostHealthCheckDefinition;
 
-    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self::Output, AgentTypeError> {
         Ok(match self {
             OnHostHealthCheckDefinition::Process => rendered::OnHostHealthCheckDefinition::Process,
             OnHostHealthCheckDefinition::Http(conf) => {
@@ -238,7 +238,7 @@ impl Templateable for OnHostHealthCheckDefinition {
 impl Templateable for TemplateableValue<HttpPort> {
     type Output = HttpPort;
 
-    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self::Output, AgentTypeError> {
         let templated_string = self.template.template_with(variables)?;
         let value = if templated_string.is_empty() {
             HttpPort::default()
@@ -255,7 +255,7 @@ impl Templateable for TemplateableValue<HttpPort> {
 impl Templateable for TemplateableValue<HttpHost> {
     type Output = HttpHost;
 
-    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self::Output, AgentTypeError> {
         let templated_string = self.template.template_with(variables)?;
         let value = if templated_string.is_empty() {
             HttpHost::default()
@@ -269,7 +269,7 @@ impl Templateable for TemplateableValue<HttpHost> {
 impl Templateable for TemplateableValue<HttpPath> {
     type Output = HttpPath;
 
-    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self::Output, AgentTypeError> {
         let templated_string = self.template.template_with(variables)?;
         let value = if templated_string.is_empty() {
             HttpPath::default()

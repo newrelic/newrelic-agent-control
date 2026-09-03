@@ -1,8 +1,8 @@
 //! The [`YAMLConfig`] type wrapping a YAML mapping that Agent Control can read and store.
 
-use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::templates::Templateable;
+use crate::agent_type::variable::value::VariableValues;
 use crate::{
     agent_control::config::AgentControlDynamicConfig, agent_type::templates::TEMPLATE_KEY_SEPARATOR,
 };
@@ -204,7 +204,7 @@ pub struct YAMLConfigError(
 impl Templateable for YAMLConfig {
     type Output = Self;
 
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self, AgentTypeError> {
         Ok(Self(self.0.template_with(variables)?))
     }
 }
@@ -212,7 +212,7 @@ impl Templateable for YAMLConfig {
 impl Templateable for HashMap<String, serde_json::Value> {
     type Output = Self;
 
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &VariableValues) -> Result<Self, AgentTypeError> {
         self.into_iter()
             .map(|(key, v)| Ok((key, v.template_with(variables)?)))
             .collect()
@@ -284,7 +284,7 @@ mod tests {
     use super::*;
     use crate::agent_type::variable::constraints::VariableConstraints;
     use crate::agent_type::variable::namespace::{Namespace, VariableName};
-    use crate::agent_type::{definition::AgentTypeDefinition, variable_value::VariableValue};
+    use crate::agent_type::{definition::AgentTypeDefinition, variable::value::VariableValue};
     use rstest::rstest;
     use serde_json::json;
     use serde_json::{Map, Value};
@@ -408,7 +408,7 @@ deployment: {}
         let input_structure = serde_saphyr::from_str::<YAMLConfig>(EXAMPLE_CONFIG_REPLACE).unwrap();
         let agent_type = AgentTypeDefinition::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE);
 
-        let expected: Variables = HashMap::from([
+        let expected = VariableValues::from([
             (
                 VariableName::new(Namespace::Variable, "whatever.test.path".to_string()),
                 VariableValue::String("/etc".to_string()),
