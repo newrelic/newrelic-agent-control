@@ -179,3 +179,171 @@ fn prefixed_path(prefix: &str, segment: &str) -> String {
         format!("{prefix}.{segment}")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::agent_type::variable::namespace::{Namespace, VariableName};
+    use crate::agent_type::variable::value::VariableValue;
+    use assert_matches::assert_matches;
+    use rstest::rstest;
+    use serde_json::json;
+
+    #[test]
+    fn flatten_joins_paths_with_dot_and_preserves_definitions() {
+        let tree: VariableTree = serde_json::from_value(json!({
+            "top": {"type": "string", "required": false, "default": "t"},
+            "a": {
+                "b": {
+                    "c": {"type": "bool", "required": true},
+                },
+            },
+        }))
+        .unwrap();
+
+        let flat = tree.flatten();
+
+        let mut keys: Vec<_> = flat.keys().cloned().collect();
+        keys.sort();
+        assert_eq!(keys, vec!["a.b.c".to_string(), "top".to_string()]);
+        assert_eq!(
+            flat.get("top").and_then(|d| d.default.clone()),
+            Some(VariableValue::String("t".to_string()))
+        );
+    }
+
+    // ---- resolve ---------------------------------------------------------
+
+    #[rstest]
+    #[case::user_value_wins(
+        json!({
+            "name": {"type": "string", "required": true},
+        }),
+        json!({"name": "u"}),
+        "u",
+    )]
+    #[case::default_used_when_user_value_absent(
+        json!({
+            "name": {"type": "string", "required": false, "default": "d"},
+        }),
+        json!({}),
+        "d",
+    )]
+    #[case::user_value_overrides_default(
+        json!({
+            "name": {"type": "string", "required": false, "default": "d"},
+        }),
+        json!({"name": "u"}),
+        "u",
+    )]
+    fn resolve_picks_user_value_over_default(
+        #[case] spec: serde_json::Value,
+        #[case] user: serde_json::Value,
+        #[case] expected: &str,
+    ) {
+        let tree: VariableTree = serde_json::from_value(spec).unwrap();
+        let user: YAMLConfig = serde_json::from_value(user).unwrap();
+
+        let resolved = tree.resolve(&VariableConstraints::default(), user).unwrap();
+
+        assert_eq!(
+            resolved.get(&VariableName::new(Namespace::Variable, "name")),
+            Some(&VariableValue::String(expected.to_string()))
+        );
+    }
+
+    #[test]
+    fn resolve_ignores_unknown_user_keys() {
+        let tree: VariableTree = serde_json::from_value(json!({
+            "known": {"type": "string", "required": true},
+        }))
+        .unwrap();
+        let user: YAMLConfig =
+            serde_json::from_value(json!({"known": "v", "unknown": "ignored"})).unwrap();
+
+        let resolved = tree.resolve(&VariableConstraints::default(), user).unwrap();
+
+        assert_eq!(resolved.len(), 1);
+        assert!(resolved.contains_key(&VariableName::new(Namespace::Variable, "known")));
+    }
+
+    #[test]
+    fn resolve_collects_only_remaining_missing_required_variables_sorted() {
+        let tree: VariableTree = serde_json::from_value(json!({
+            "zed": {"type": "string", "required": true},
+            "alpha": {"type": "string", "required": true},
+            "foo": {
+                "bar": {"type": "string", "required": true},
+            },
+        }))
+        .unwrap();
+        let user: YAMLConfig = serde_json::from_value(json!({"alpha": "v"})).unwrap();
+
+        let err = tree
+            .resolve(&VariableConstraints::default(), user)
+            .unwrap_err();
+
+        assert_matches!(
+            err,
+            AgentTypeError::ValuesNotPopulated(paths)
+                if paths == vec!["foo.bar".to_string(), "zed".to_string()]
+        );
+    }
+
+    #[rstest]
+    #[case::wrong_scalar_type(
+        json!({
+            "n": {"type": "bool", "required": true},
+        }),
+        json!({"n": "not a bool"}),
+    )]
+    #[case::scalar_where_mapping_expected(
+        json!({
+            "n": {
+                "child": {"type": "string", "required": true},
+            },
+        }),
+        json!({"n": "not a map"}),
+    )]
+    fn resolve_rejects_user_value_that_cannot_be_coerced(
+        #[case] spec: serde_json::Value,
+        #[case] user: serde_json::Value,
+    ) {
+        let tree: VariableTree = serde_json::from_value(spec).unwrap();
+        let user: YAMLConfig = serde_json::from_value(user).unwrap();
+
+        let err = tree
+            .resolve(&VariableConstraints::default(), user)
+            .unwrap_err();
+
+        assert_matches!(err, AgentTypeError::ValueConversion(_));
+    }
+
+    #[rstest]
+    #[case::in_variants("a", true)]
+    #[case::not_in_variants("c", false)]
+    fn resolve_enforces_configured_variants(#[case] user_value: &str, #[case] accepted: bool) {
+        let tree: VariableTree = serde_json::from_value(json!({
+            "name": {
+                "type": "string",
+                "required": true,
+                "variants": {"values": ["a", "b"]},
+            },
+        }))
+        .unwrap();
+        let user: YAMLConfig = serde_json::from_value(json!({"name": user_value})).unwrap();
+
+        let result = tree.resolve(&VariableConstraints::default(), user);
+
+        if accepted {
+            assert_eq!(
+                result
+                    .unwrap()
+                    .get(&VariableName::new(Namespace::Variable, "name")),
+                Some(&VariableValue::String(user_value.to_string()))
+            );
+        } else {
+            assert_matches!(result, Err(AgentTypeError::InvalidVariant(_)));
+        }
+    }
+}
