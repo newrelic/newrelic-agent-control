@@ -1,5 +1,6 @@
 //! Assorted internal utilities: backoff/retry scheduling, archive extraction, environment-variable
-//! loading, privilege detection, thread lifecycle management, time abstractions, and binary metadata.
+//! loading, privilege detection, thread lifecycle management, time abstractions, binary metadata,
+//! and a redacting string wrapper for sensitive values.
 
 pub mod backoff_gate;
 pub mod binary_metadata;
@@ -10,6 +11,7 @@ pub mod is_elevated;
 pub mod job_object;
 pub mod process_group;
 pub mod retry;
+pub mod sensitive_string;
 pub mod thread_context;
 pub mod threads;
 pub mod time;
