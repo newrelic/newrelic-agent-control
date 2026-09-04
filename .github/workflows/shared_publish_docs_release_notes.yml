@@ -20,7 +20,7 @@ on:
         description: Whether to remove the existing branch if it already exists.
         type: boolean
         required: false
-        default: false
+        default: true
     secrets:
       app_id:
         description: >-
