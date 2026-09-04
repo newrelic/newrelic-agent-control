@@ -70,7 +70,6 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 ### 🚀 Enhancements
 - Windows filesystem: Removed unused code and use higher-level APIs for Windows interaction.
 - Reports the `com.newrelic.remoteAgentTypeRepoReachable` OpAMP custom capability when the configured Agent Type OCI repository is reachable at startup.
-- On-host: exposed `nrjmx.jar` (now bundled inside the infra-agent OCI package) on the shared filesystem for JMX-based OHIs to consume via `NR_JMX_TOOL: "java -jar ..."`.
 
 ### 🐞 Bug fixes
 - Windows: fixed files under Agent Control's managed directories being left with permissions it could not use. Managed directories now use an inheritable Administrators ACE, and Agent Control tries to repair ACEs on startup.
