@@ -179,3 +179,205 @@ fn prefixed_path(prefix: &str, segment: &str) -> String {
         format!("{prefix}.{segment}")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::agent_type::variable::namespace::{Namespace, VariableName};
+    use crate::agent_type::variable::value::{VariableType, VariableValue};
+    use assert_matches::assert_matches;
+    use rstest::rstest;
+    use serde_json::json;
+
+    #[test]
+    fn flatten_joins_paths_with_dot_and_preserves_definitions() {
+        let tree: VariableTree = serde_json::from_value(json!({
+            "top": {"type": "string", "required": false, "default": "t"},
+            "a": {
+                "b": {
+                    "c": {"type": "bool", "required": true},
+                },
+            },
+        }))
+        .unwrap();
+
+        let flat = tree.flatten();
+
+        let mut keys: Vec<_> = flat.keys().cloned().collect();
+        keys.sort();
+
+        assert_eq!(keys, vec!["a.b.c".to_string(), "top".to_string()]);
+        assert_eq!(
+            flat.get("a.b.c"),
+            Some(&VariableDefinition {
+                default: None,
+                variants: None,
+                variable_type: VariableType::Bool,
+            })
+        );
+        assert_eq!(
+            flat.get("top"),
+            Some(&VariableDefinition {
+                default: Some(VariableValue::String("t".to_string())),
+                variants: None,
+                variable_type: VariableType::String,
+            })
+        );
+    }
+
+    #[test]
+    fn resolve_ignores_unknown_user_keys() {
+        let tree: VariableTree = serde_json::from_value(json!({
+            "known": {"type": "string", "required": true},
+        }))
+        .unwrap();
+        let user: YAMLConfig =
+            serde_json::from_value(json!({"known": "v", "unknown": "ignored"})).unwrap();
+
+        let resolved = tree.resolve(&VariableConstraints::default(), user).unwrap();
+
+        assert_eq!(resolved.len(), 1);
+        assert!(resolved.contains_key(&VariableName::new(Namespace::Variable, "known")));
+    }
+
+    #[rstest]
+    #[case::wrong_scalar_type(
+        json!({
+            "n": {"type": "bool", "required": true},
+        }),
+        json!({"n": "not a bool"}),
+    )]
+    #[case::scalar_where_mapping_expected(
+        json!({
+            "n": {
+                "child": {"type": "string", "required": true},
+            },
+        }),
+        json!({"n": "not a map"}),
+    )]
+    fn resolve_rejects_user_value_that_cannot_be_coerced(
+        #[case] spec: serde_json::Value,
+        #[case] user: serde_json::Value,
+    ) {
+        let tree: VariableTree = serde_json::from_value(spec).unwrap();
+        let user: YAMLConfig = serde_json::from_value(user).unwrap();
+
+        let err = tree
+            .resolve(&VariableConstraints::default(), user)
+            .unwrap_err();
+
+        assert_matches!(err, AgentTypeError::ValueConversion(_));
+    }
+
+    #[rstest]
+    #[case::in_variants("a", true)]
+    #[case::not_in_variants("c", false)]
+    fn resolve_enforces_configured_variants(#[case] user_value: &str, #[case] accepted: bool) {
+        let tree: VariableTree = serde_json::from_value(json!({
+            "name": {
+                "type": "string",
+                "required": true,
+                "variants": {"values": ["a", "b"]},
+            },
+        }))
+        .unwrap();
+        let user: YAMLConfig = serde_json::from_value(json!({"name": user_value})).unwrap();
+
+        let result = tree.resolve(&VariableConstraints::default(), user);
+
+        if accepted {
+            assert_eq!(
+                result
+                    .unwrap()
+                    .get(&VariableName::new(Namespace::Variable, "name")),
+                Some(&VariableValue::String(user_value.to_string()))
+            );
+        } else {
+            assert_matches!(result, Err(AgentTypeError::InvalidVariant(_)));
+        }
+    }
+
+    #[test]
+    fn resolve_complex_tree_populates_variables_and_reports_missing_with_dot_notation() {
+        // Multi-depth tree mixing required and optional variables with defaults.
+        let tree: VariableTree = serde_json::from_value(json!({
+            "service": {
+                "host": {"type": "string", "required": true},
+                "port": {"type": "number", "required": true},
+                "metadata": {
+                    "region": {"type": "string", "required": true},
+                    "env": {"type": "string", "required": false, "default": "prod"},
+                },
+            },
+            "logging": {
+                "level": {"type": "string", "required": false, "default": "info"},
+            },
+            "debug": {"type": "bool", "required": true},
+        }))
+        .unwrap();
+
+        // Partial values: two required variables at different depths are absent.
+        let partial: YAMLConfig = serde_json::from_value(json!({
+            "service": {"host": "example.com"},
+            "debug": true,
+        }))
+        .unwrap();
+
+        let err = tree
+            .clone()
+            .resolve(&VariableConstraints::default(), partial)
+            .unwrap_err();
+
+        assert_matches!(
+            err,
+            AgentTypeError::ValuesNotPopulated(paths)
+                if paths == vec![
+                    "service.metadata.region".to_string(),
+                    "service.port".to_string(),
+                ]
+        );
+
+        // All required provided; `logging.level` also provided, overriding its default;
+        // `service.metadata.env` omitted, so its default fires.
+        let full: YAMLConfig = serde_json::from_value(json!({
+            "service": {
+                "host": "example.com",
+                "port": 9000,
+                "metadata": {"region": "us-east-1"},
+            },
+            "logging": {"level": "debug"},
+            "debug": true,
+        }))
+        .unwrap();
+
+        let resolved = tree.resolve(&VariableConstraints::default(), full).unwrap();
+
+        let expected: VariableValues = HashMap::from([
+            (
+                VariableName::new(Namespace::Variable, "service.host"),
+                VariableValue::String("example.com".to_string()),
+            ),
+            (
+                VariableName::new(Namespace::Variable, "service.port"),
+                VariableValue::Number(9000_i64.into()),
+            ),
+            (
+                VariableName::new(Namespace::Variable, "service.metadata.region"),
+                VariableValue::String("us-east-1".to_string()),
+            ),
+            (
+                VariableName::new(Namespace::Variable, "service.metadata.env"),
+                VariableValue::String("prod".to_string()),
+            ),
+            (
+                VariableName::new(Namespace::Variable, "logging.level"),
+                VariableValue::String("debug".to_string()),
+            ),
+            (
+                VariableName::new(Namespace::Variable, "debug"),
+                VariableValue::Bool(true),
+            ),
+        ]);
+        assert_eq!(resolved, expected);
+    }
+}
