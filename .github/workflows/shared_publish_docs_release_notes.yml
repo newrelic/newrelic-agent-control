@@ -66,7 +66,7 @@ jobs:
           repositories: ${{ env.PUBLIC_DOCS_REPO_NAME }}
       
       - name: Delete branch
-        if: inputs.remove_existing_branch == 'true'
+        if: inputs.remove_existing_branch
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
