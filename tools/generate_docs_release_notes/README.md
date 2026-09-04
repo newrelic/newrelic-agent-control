@@ -35,7 +35,7 @@ The folder from where it's executed doesn't matter.
 | Input changelog | Golden output | Exercises |
 |---|---|---|
 | `changelog_full.md` | `expected_full.mdx` | all sections populated, PR/commit-ref stripping, extract only the target version |
-| `changelog_deps_only.md` | `expected_deps_only.mdx` | only Dependencies → all three arrays omitted |
+| `changelog_deps_only.md` | `expected_deps_only.mdx` | only Dependencies → all four arrays empty |
 
 The `changelog_*.md` files intentionally include an older version section below
 the target to prove the date/extraction picks only the requested `<VERSION>`.

@@ -139,3 +139,12 @@ jobs:
       PACKAGE_NAME: "newrelic-agent-control"
       REPO_ENDPOINT: 'https://download.newrelic.com/preview'
 
+  release-notes:
+    uses: ./.github/workflows/shared_create_pr_public_docs_release_notes.yml
+    needs: [ molecule-packaging-tests ]
+    with:
+      version: ${{ github.event.release.tag_name }}
+      remove_existing_branch: false
+    secrets:
+      app_id: ${{ secrets.AGENT_CONTROL_APP_ID }}
+      app_private_key: ${{ secrets.AGENT_CONTROL_APP_PKEY }}
