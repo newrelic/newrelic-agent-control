@@ -551,20 +551,21 @@ where
                     // Cleanup must happen between stop and build: a type replacement deletes
                     // the InstanceID so the new sub-agent starts fresh; a version bump
                     // reconciles the filesystem before the new agent writes to it.
+                    // Cleanup is best-effort: if it fails the rebuild proceeds anyway so the
+                    // host remains instrumented. The error is logged and reported but does not
+                    // block the new agent from starting.
                     running_sub_agents
                         .stop_and_remove(agent_id)
                         .map_err(AgentControlError::from)
                         .and_then(|_| {
-                            self.resource_cleaner
-                                .on_agent_type_changed(
-                                    agent_id,
-                                    &old_sub_agent_config.agent_type,
-                                    &agent_config.agent_type,
-                                    &new_dynamic_config.agents,
-                                )
-                                .map_err(AgentControlError::from)
-                        })
-                        .and_then(|_| {
+                            if let Err(err) = self.resource_cleaner.on_agent_type_changed(
+                                agent_id,
+                                &old_sub_agent_config.agent_type,
+                                &agent_config.agent_type,
+                                &new_dynamic_config.agents,
+                            ) {
+                                warn!(%agent_id, "Resource cleanup failed during agent type change, proceeding with rebuild to keep host instrumented: {err}");
+                            }
                             self.build_and_run_sub_agent(&agent_identity, running_sub_agents)
                         })
                 }
