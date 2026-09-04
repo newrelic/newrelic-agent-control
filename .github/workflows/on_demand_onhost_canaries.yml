@@ -11,8 +11,8 @@ on:
           - staging
           - production
       package_version:
-        description: "Package version (optional, leave empty for latest)"
-        required: false
+        description: "Package version (usually latest tag for production, 0.100.<run-id> on latest nightly for staging)"
+        required: true
         type: string
 
 permissions:
