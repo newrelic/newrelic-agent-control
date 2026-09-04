@@ -153,6 +153,7 @@ impl AgentControlRunner {
             yaml_config_repository.clone(),
             agent_filesystem_base,
             fleet_data_base,
+            self.base_paths.log_dir.clone(),
             dir_manager,
             agents_package_manager.clone(),
             self.agent_type_registry.clone(),
