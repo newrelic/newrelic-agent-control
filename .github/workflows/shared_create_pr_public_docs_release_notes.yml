@@ -1,0 +1,130 @@
+# Reusable workflow that publishes Agent Control release notes to the docs site.
+# Given a released `version`, it:
+#   1. Reads that version's CHANGELOG.md from the release tag and generates
+#      `agent-control-<version-with-dashes>.mdx` from it.
+#   2. Commits the file to a branch on `newrelic/docs-website` and opens a PR
+#      against its `develop` branch.
+name: 📞 Create PR for public docs release notes
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: >-
+          Released version to publish notes for, without a `v` prefix
+          (e.g. `1.19.0`). Must match an existing git tag and the version
+          in the CHANGELOG.md heading (`## v<version> - <date>`).
+        required: true
+        type: string
+      remove_existing_branch:
+        description: Whether to remove the existing branch if it already exists.
+        type: boolean
+        required: false
+        default: false
+    secrets:
+      app_id:
+        description: >-
+          GitHub App ID used to authenticate to the docs repo.
+        required: true
+      app_private_key:
+        description: GitHub App private key matching `app_id`.
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  PUBLIC_DOCS_REPO: newrelic/docs-website
+  PUBLIC_DOCS_REPO_NAME: docs-website
+
+jobs:
+  create-pr:
+    name: Create PR for public docs release notes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Compute branch name
+        id: metadata
+        run: |
+          dashed_version=$(echo "${{ inputs.version }}" | sed 's/\./-/g')
+          echo dashed_version=${dashed_version} >> "$GITHUB_OUTPUT"
+
+          branch_name=chore/agent-control-release-notes-${dashed_version}
+          echo "branch_name=${branch_name}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate docs app token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.app_id }}
+          private-key: ${{ secrets.app_private_key }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ env.PUBLIC_DOCS_REPO_NAME }}
+      
+      - name: Delete branch
+        if: inputs.remove_existing_branch
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh api -X DELETE "repos/${{ env.PUBLIC_DOCS_REPO }}/git/refs/heads/${{ steps.metadata.outputs.branch_name }}" || true
+  
+      - name: Generate public docs release notes
+        id: generate
+        run: |
+          git show "refs/tags/${{ inputs.version }}:CHANGELOG.md" > "${RUNNER_TEMP}/CHANGELOG.md"
+          release_notes=$(./tools/generate_docs_release_notes/run.sh "${RUNNER_TEMP}/CHANGELOG.md" "${{ inputs.version }}")
+          echo "release_notes=${release_notes}" >> "$GITHUB_OUTPUT"
+
+      # Commits are created via the GraphQL `createCommitOnBranch` mutation so GitHub signs them automatically.
+      - name: Commit release notes to docs-website branch (signed via API)
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          BASE_SHA=$(gh api "repos/${{ env.PUBLIC_DOCS_REPO }}/commits/develop" --jq '.sha')
+
+          # Create the branch ref on the docs repo at that commit.
+          # Fails with 422 "Reference already exists" if the branch is present.
+          gh api -X POST "repos/${{ env.PUBLIC_DOCS_REPO }}/git/refs" \
+            -f ref="refs/heads/${{ steps.metadata.outputs.branch_name }}" \
+            -f sha="$BASE_SHA"
+
+          # Write the mutation to a file and feed it to gh via --input <file>.
+          jq -n \
+            --rawfile mdx "${{ steps.generate.outputs.release_notes }}" \
+            --arg repo "${{ env.PUBLIC_DOCS_REPO }}" \
+            --arg branch "${{ steps.metadata.outputs.branch_name }}" \
+            --arg msg "chore(agent control): add release notes for v${{ inputs.version }}" \
+            --arg oid "$BASE_SHA" \
+            --arg mdx_path "src/content/docs/release-notes/agent-control-release-notes/${{ steps.generate.outputs.release_notes }}" \
+            '{
+              query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid url } } }",
+              variables: {
+                input: {
+                  branch: {repositoryNameWithOwner: $repo, branchName: $branch},
+                  message: {headline: $msg},
+                  expectedHeadOid: $oid,
+                  fileChanges: {
+                    additions: [
+                      {path: $mdx_path, contents: ($mdx | @base64)}
+                    ]
+                  }
+                }
+              }
+            }' > "$RUNNER_TEMP/mutation.json"
+
+          gh api graphql --input "$RUNNER_TEMP/mutation.json"
+
+      - name: Create docs-website PR
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh pr create \
+            --base "develop" \
+            --repo "https://github.com/${{ env.PUBLIC_DOCS_REPO }}" \
+            --head "${{ steps.metadata.outputs.branch_name }}" \
+            --title "Agent Control release notes for v${{ inputs.version }}" \
+            --body "Automated PR: Agent Control release notes for v${{ inputs.version }}."
