@@ -65,6 +65,9 @@ pub fn run_linux_e2e() {
         LinuxScenarios::AllOhisNoService(args) => {
             scenarios::all_ohis_no_service::test_all_ohis_no_service(args);
         }
+        LinuxScenarios::PackageUpgrade(args) => {
+            scenarios::package_upgrade::test_package_manager_upgrade_keeps_service_enabled(args);
+        }
         LinuxScenarios::Uninstall(args) => {
             scenarios::uninstall::test_uninstall_script(args);
         }
