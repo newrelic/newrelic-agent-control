@@ -211,11 +211,11 @@ where
         Ok(all_shared_paths)
     }
 
-    /// Reconciles both the per-agent and shared filesystems when an agent type changes.
+    /// Reconciles both the per-agent and shared filesystems when an agent type version changes.
     /// Per-agent filesystem: paths declared by `old_type` but absent in `new_type` are deleted.
     /// Shared filesystem: only paths that no currently active agent still declares are deleted.
     /// This prevents removing paths that are co-owned by another agent.
-    fn reconcile_filesystems_on_type_change(
+    fn reconcile_filesystems_on_version_bump(
         &self,
         agent_id: &AgentID,
         old_type: &AgentTypeID,
@@ -367,20 +367,33 @@ where
         Ok(())
     }
 
-    #[instrument(skip_all, name = "agent_type_change_reconcile", fields(%agent_id))]
-    fn on_agent_type_changed(
+    #[instrument(skip_all, name = "agent_version_bump_reconcile", fields(%agent_id))]
+    fn on_agent_type_version_update(
         &self,
         agent_id: &AgentID,
         old_agent_type: &AgentTypeID,
         new_agent_type: &AgentTypeID,
         active_agents: &SubAgentsMap,
     ) -> Result<(), ResourceCleanerError> {
-        self.reconcile_filesystems_on_type_change(
+        self.reconcile_filesystems_on_version_bump(
             agent_id,
             old_agent_type,
             new_agent_type,
             active_agents,
         )?;
+        Ok(())
+    }
+
+    #[instrument(skip_all, name = "agent_type_replaced_cleanup", fields(%agent_id))]
+    fn on_agent_type_replaced(
+        &self,
+        agent_id: &AgentID,
+        old_agent_type: &AgentTypeID,
+        _new_agent_type: &AgentTypeID,
+        active_agents: &SubAgentsMap,
+    ) -> Result<(), ResourceCleanerError> {
+        self.remove_agent_resources(agent_id)?;
+        self.remove_orphaned_shared_paths(old_agent_type, active_agents)?;
         Ok(())
     }
 }
@@ -1111,7 +1124,7 @@ mod tests {
         // active_agents contains this agent at its new type, mirroring what production passes.
         let active = configured(&[(agent.as_str(), "test/newagent:0.0.2")]);
         agent_filesystem_cleaner(registry, fs_base.clone())
-            .reconcile_filesystems_on_type_change(&agent, &old_type_id, &new_type_id, &active)
+            .reconcile_filesystems_on_version_bump(&agent, &old_type_id, &new_type_id, &active)
             .expect("reconcile must succeed");
 
         assert!(
@@ -1161,7 +1174,7 @@ mod tests {
 
         let active = configured(&[(agent.as_str(), "test/newagent:0.0.2")]);
         agent_filesystem_cleaner(registry, fs_base.clone())
-            .reconcile_filesystems_on_type_change(&agent, &old_type_id, &new_type_id, &active)
+            .reconcile_filesystems_on_version_bump(&agent, &old_type_id, &new_type_id, &active)
             .expect("reconcile must succeed");
 
         assert!(
@@ -1215,12 +1228,13 @@ mod tests {
         registry.should_get(new_type_id.clone(), &new_definition);
         registry.should_get(new_type_id.clone(), &new_definition);
 
-        let result = shared_cleaner(registry, shared.clone()).reconcile_filesystems_on_type_change(
-            &agent_id("test-agent"),
-            &old_type_id,
-            &new_type_id,
-            &configured(&[("test-agent", "test/newagent:0.0.2")]),
-        );
+        let result = shared_cleaner(registry, shared.clone())
+            .reconcile_filesystems_on_version_bump(
+                &agent_id("test-agent"),
+                &old_type_id,
+                &new_type_id,
+                &configured(&[("test-agent", "test/newagent:0.0.2")]),
+            );
 
         assert!(result.is_ok(), "reconcile must succeed: {result:?}");
         assert!(
@@ -1272,7 +1286,7 @@ mod tests {
         registry.should_get(new_type_id.clone(), &new_definition);
 
         shared_cleaner(registry, shared.clone())
-            .reconcile_filesystems_on_type_change(
+            .reconcile_filesystems_on_version_bump(
                 &agent_id("test-agent"),
                 &old_type_id,
                 &new_type_id,
@@ -1325,7 +1339,7 @@ mod tests {
         ]);
 
         shared_cleaner(registry, shared.clone())
-            .reconcile_filesystems_on_type_change(
+            .reconcile_filesystems_on_version_bump(
                 &agent_id("test-agent"),
                 &old_type_id,
                 &new_type_id,
@@ -1341,5 +1355,60 @@ mod tests {
             !shared.join("exclusive.yaml").exists(),
             "path not declared by any active agent must be deleted"
         );
+    }
+
+    #[test]
+    fn type_change_wipes_all_per_agent_resources() {
+        let old_type = AgentTypeID::try_from("test/old_agent:0.1.0").unwrap();
+        let new_type = AgentTypeID::try_from("test/new_agent:0.1.0").unwrap();
+        let id = agent_id("my-agent");
+
+        let mut instance_id_storer = MockInstanceIDStorer::new();
+        instance_id_storer
+            .expect_delete()
+            .once()
+            .with(predicate::eq(id.clone()))
+            .returning(|_| Ok(()));
+
+        let mut config_repo = MockConfigRepository::new();
+        config_repo
+            .expect_delete_remote()
+            .once()
+            .with(predicate::eq(id.clone()))
+            .returning(|_| Ok(()));
+
+        let expected_fs_dir = fs_base().join(id.as_str());
+        let mut dir_manager = MockDirectoryManager::new();
+        dir_manager
+            .expect_delete()
+            .once()
+            .with(predicate::eq(expected_fs_dir))
+            .returning(|_| Ok(()));
+        dir_manager.expect_list().returning(|_| Ok(vec![]));
+
+        let mut package_remover = MockAgentPackagesRemover::new();
+        package_remover
+            .expect_remove()
+            .once()
+            .with(predicate::eq(id.clone()))
+            .returning(|_| Ok(()));
+
+        let mut registry = MockAgentTypeRegistry::new();
+        registry
+            .expect_get()
+            .returning(|id| Ok(AgentTypeDefinition::empty_with_metadata(id.clone())));
+
+        OnHostCleaner::new(
+            Arc::new(instance_id_storer),
+            Arc::new(config_repo),
+            fs_base(),
+            fleet_base(),
+            Arc::new(dir_manager),
+            Arc::new(package_remover),
+            Arc::new(registry),
+            shared_base(),
+        )
+        .on_agent_type_changed(&id, &old_type, &new_type, &SubAgentsMap::default())
+        .expect("type change must succeed");
     }
 }

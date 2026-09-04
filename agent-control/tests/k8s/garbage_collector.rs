@@ -14,16 +14,17 @@ use newrelic_agent_control::opamp::remote_config::hash::ConfigState;
 use newrelic_agent_control::sub_agent::k8s::supervisor::NotStartedSupervisorK8s;
 use newrelic_agent_control::values::config::RemoteConfig;
 use newrelic_agent_control::{
+    agent_control::config::SubAgentsMap, agent_control::resource_cleaner::ResourceCleaner,
+    agent_control::resource_cleaner::k8s_garbage_collector::K8sGarbageCollector,
+    opamp::instance_id::k8s::identifiers::Identifiers,
+};
+use newrelic_agent_control::{
     agent_control::config::{configmap_type_meta, default_group_version_kinds},
     agent_type::agent_type_id::AgentTypeID,
 };
 use newrelic_agent_control::{
     agent_control::config_repository::repository::AgentControlDynamicConfigRepository,
     opamp::instance_id::storer::Storer,
-};
-use newrelic_agent_control::{
-    agent_control::resource_cleaner::k8s_garbage_collector::K8sGarbageCollector,
-    opamp::instance_id::k8s::identifiers::Identifiers,
 };
 use newrelic_agent_control::{
     agent_control::{agent_id::AgentID, defaults::AGENT_CONTROL_ID},
@@ -421,4 +422,120 @@ agents:
 
     block_on(api.get("old-fqn")).expect_err("CR should not exist");
     block_on(api.get("id-unknown")).expect_err("CR should not exist");
+}
+
+/// When the agent type changes only in version (same namespace/name), `on_agent_type_changed`
+/// must delete the old-version sub-agent CR but must NOT touch the fleet-data ConfigMap.
+/// The InstanceID read after the call must therefore be identical to the one read before it.
+#[test]
+#[ignore = "needs k8s cluster"]
+fn k8s_on_agent_type_changed_version_bump_preserves_instance_id() {
+    let mut test = block_on(K8sEnv::new());
+    let test_ns = block_on(test.test_namespace());
+
+    let agent_id = AgentID::try_from("foo-agent").unwrap();
+    let old_type = AgentTypeID::try_from("ns/test:0.0.1").unwrap();
+    let new_type = AgentTypeID::try_from("ns/test:0.0.2").unwrap();
+
+    // Create a sub-agent CR labelled for this agent and annotated with the old type.
+    block_on(create_foo_cr(
+        test.client.clone(),
+        &test_ns,
+        "foo-cr-version-bump",
+        Some(Labels::new(&agent_id).get()),
+        Some(Annotations::new_sub_agent_owned_with_type(&old_type).get()),
+    ));
+
+    let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime()).unwrap());
+    let store = Arc::new(ConfigMapStore::new(k8s_client.clone(), test_ns.clone()));
+    let getter =
+        InstanceIDWithIdentifiersGetter::new(Arc::new(Storer::from(store)), Identifiers::default());
+
+    // Calling get() persists the InstanceID in the fleet-data ConfigMap.
+    let id_before = getter.get(&agent_id).unwrap();
+
+    let gc = K8sGarbageCollector {
+        k8s_client,
+        namespace: test_ns.clone(),
+        namespace_agents: test_ns.clone(),
+        cr_type_meta: vec![foo_type_meta()],
+    };
+
+    gc.on_agent_type_changed(&agent_id, &old_type, &new_type, &SubAgentsMap::new())
+        .unwrap();
+
+    // The old-version sub-agent CR must be gone.
+    let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
+    retry(120, Duration::from_secs(1), || {
+        if block_on(api.get("foo-cr-version-bump")).is_ok() {
+            Err("old-version CR should have been removed".into())
+        } else {
+            Ok(())
+        }
+    });
+
+    // The fleet-data ConfigMap was not touched, so the InstanceID must be unchanged.
+    assert_eq!(
+        id_before,
+        getter.get(&agent_id).unwrap(),
+        "InstanceID must not change after a version bump"
+    );
+}
+
+/// When the agent type changes to a completely different type (different name), `on_agent_type_changed`
+/// must delete the old-type sub-agent CR AND the fleet-data ConfigMap so the next `get()` call
+/// produces a fresh InstanceID.
+#[test]
+#[ignore = "needs k8s cluster"]
+fn k8s_on_agent_type_changed_new_type_changes_instance_id() {
+    let mut test = block_on(K8sEnv::new());
+    let test_ns = block_on(test.test_namespace());
+
+    let agent_id = AgentID::try_from("foo-agent").unwrap();
+    let old_type = AgentTypeID::try_from("ns/foo:0.0.1").unwrap();
+    let new_type = AgentTypeID::try_from("ns/bar:0.0.1").unwrap();
+
+    // Create a sub-agent CR labelled for this agent and annotated with the old type.
+    block_on(create_foo_cr(
+        test.client.clone(),
+        &test_ns,
+        "foo-cr-type-change",
+        Some(Labels::new(&agent_id).get()),
+        Some(Annotations::new_sub_agent_owned_with_type(&old_type).get()),
+    ));
+
+    let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime()).unwrap());
+    let store = Arc::new(ConfigMapStore::new(k8s_client.clone(), test_ns.clone()));
+    let getter =
+        InstanceIDWithIdentifiersGetter::new(Arc::new(Storer::from(store)), Identifiers::default());
+
+    // Calling get() persists the InstanceID in the fleet-data ConfigMap.
+    let id_before = getter.get(&agent_id).unwrap();
+
+    let gc = K8sGarbageCollector {
+        k8s_client,
+        namespace: test_ns.clone(),
+        namespace_agents: test_ns.clone(),
+        cr_type_meta: vec![foo_type_meta()],
+    };
+
+    gc.on_agent_type_changed(&agent_id, &old_type, &new_type, &SubAgentsMap::new())
+        .unwrap();
+
+    // The old-type sub-agent CR must be gone.
+    let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
+    retry(120, Duration::from_secs(1), || {
+        if block_on(api.get("foo-cr-type-change")).is_ok() {
+            Err("old-type CR should have been removed".into())
+        } else {
+            Ok(())
+        }
+    });
+
+    // The fleet-data ConfigMap was deleted by the GC, so the getter must produce a new InstanceID.
+    assert_ne!(
+        id_before,
+        getter.get(&agent_id).unwrap(),
+        "InstanceID must change after a full type swap"
+    );
 }

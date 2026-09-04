@@ -44,7 +44,7 @@ use opamp_client::StartedClient;
 use resource_cleaner::ResourceCleaner;
 use std::sync::Arc;
 use std::time::SystemTime;
-use tracing::{debug, error, info, info_span, instrument, trace, warn};
+use tracing::{debug, error, info, info_span, trace, warn};
 use uptime_report::UptimeReporter;
 use version_updater::updater::{UpdateOutcome, VersionUpdater};
 
@@ -208,21 +208,6 @@ where
 
         info!("AgentControl finished");
         Ok(shutdown_reason)
-    }
-
-    // Recreates a Sub Agent by its agent_id meaning:
-    //  * Remove and stop the existing running Sub Agent from the Running Sub Agents
-    //  * Recreate the Final Agent using the Agent Type and the latest persisted config
-    //  * Build a Stopped Sub Agent
-    //  * Run the Sub Agent and add it to the Running Sub Agents
-    #[instrument(skip_all)]
-    fn recreate_sub_agent(
-        &self,
-        agent_identity: &AgentIdentity,
-        running_sub_agents: &mut StartedSubAgents<BuilderStartedSubAgent<S>>,
-    ) -> Result<(), AgentControlError> {
-        running_sub_agents.stop_and_remove(&agent_identity.id)?;
-        self.build_and_run_sub_agent(agent_identity, running_sub_agents)
     }
 
     /// Returns a tuple containing a collection of started sub-agents and a Result containing information about the
@@ -562,16 +547,26 @@ where
                 }
                 Some(old_sub_agent_config) => {
                     info!(%agent_id, "Recreating SubAgent");
-                    self.recreate_sub_agent(&agent_identity, running_sub_agents)
+                    // Stop first, clean up old resources, then build with the new type.
+                    // Cleanup must happen between stop and build: a type replacement deletes
+                    // the InstanceID so the new sub-agent starts fresh; a version bump
+                    // reconciles the filesystem before the new agent writes to it.
+                    // Cleanup is best-effort: if it fails the rebuild proceeds anyway so the
+                    // host remains instrumented. The error is logged and reported but does not
+                    // block the new agent from starting.
+                    running_sub_agents
+                        .stop_and_remove(agent_id)
+                        .map_err(AgentControlError::from)
                         .and_then(|_| {
-                            self.resource_cleaner
-                                .on_agent_type_changed(
-                                    agent_id,
-                                    &old_sub_agent_config.agent_type,
-                                    &agent_config.agent_type,
-                                    &new_dynamic_config.agents,
-                                )
-                                .map_err(AgentControlError::from)
+                            if let Err(err) = self.resource_cleaner.on_agent_type_changed(
+                                agent_id,
+                                &old_sub_agent_config.agent_type,
+                                &agent_config.agent_type,
+                                &new_dynamic_config.agents,
+                            ) {
+                                warn!(%agent_id, "Resource cleanup failed during agent type change, proceeding with rebuild to keep host instrumented: {err}");
+                            }
+                            self.build_and_run_sub_agent(&agent_identity, running_sub_agents)
                         })
                 }
                 None => {

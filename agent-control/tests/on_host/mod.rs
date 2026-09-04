@@ -9,6 +9,7 @@ mod logging;
 mod oci_artifact_downloader;
 mod oci_package_manager;
 mod opamp_auth;
+mod resource_cleaner;
 mod scenarios;
 pub mod tools;
 mod verify_executor;

@@ -28,6 +28,8 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 ### bugfix
 - On-host: fix false "already running" startup error when a stale PID file held a PID reused by an unrelated process.
 - Suppress `Health` reporting (OpAMP and status server) for sub-agents whose agent type defines no `health:` block, including on initial supervisor start failure.
+- On-host: when an agent type is upgraded to a new version, stale filesystem entries declared by the old version are now removed via a diff instead of a full agent directory wipe; the sub-agent's OpAMP instance ID is preserved across version bumps.
+- K8s: when a sub-agent type is upgraded to a new version, the OpAMP instance ID is now preserved across the upgrade; previously the fleet-data ConfigMap was deleted on every type change regardless of whether the agent name changed, causing a new instance ID to be generated on the next start.
 
 ## v1.23.0 - 2026-08-25
 
