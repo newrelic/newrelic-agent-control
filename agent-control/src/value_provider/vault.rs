@@ -2,6 +2,7 @@
 
 use crate::http::client::{HttpBuildError, HttpClient, HttpResponseError};
 use crate::http::config::{HttpConfig, ProxyConfig};
+use crate::utils::sensitive_string::SensitiveString;
 use crate::value_provider::ValueProvider;
 use duration_str::deserialize_duration;
 use http::header::InvalidHeaderValue;
@@ -146,7 +147,7 @@ impl SecretEngine {
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct VaultSourceConfig {
     url: Url,
-    token: String,
+    token: SensitiveString,
     engine: SecretEngine,
 }
 
@@ -190,7 +191,7 @@ impl VaultSource {
 
         Self {
             url,
-            token: config.token,
+            token: config.token.expose_secret().to_string(),
             engine: config.engine,
         }
     }
@@ -534,7 +535,7 @@ sources:
                     "bad_source".to_string(),
                     VaultSourceConfig {
                         url: Url::parse("http://127.0.0.1:1").unwrap(),
-                        token: "foo".to_string(),
+                        token: "foo".into(),
                         engine: SecretEngine::Kv1,
                     },
                 );
@@ -553,7 +554,7 @@ sources:
     fn test_vault_source_trailing_slash_logic() {
         let config = VaultSourceConfig {
             url: Url::parse("http://localhost:8200/v1").unwrap(),
-            token: "tok".to_string(),
+            token: "tok".into(),
             engine: SecretEngine::Kv1,
         };
 

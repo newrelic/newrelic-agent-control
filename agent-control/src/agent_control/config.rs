@@ -18,6 +18,7 @@ use crate::opamp::client_builder::PollInterval;
 use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidatorConfig;
 use crate::utils::retry::BackoffPolicy;
+use crate::utils::sensitive_string::SensitiveString;
 use crate::value_provider::ValueProvidersConfig;
 use crate::values::yaml_config::YAMLConfig;
 use crate::{
@@ -286,7 +287,7 @@ pub struct PackagesConfig {
 }
 
 /// OCI registry configuration shared by Agent Control and agent package pulls.
-#[derive(Debug, Default, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Default, Deserialize, Clone, PartialEq)]
 pub struct OciConfig {
     /// Registry host (defaults to the public registry).
     #[serde(default)]
@@ -330,7 +331,7 @@ impl FromStr for Registry {
 }
 
 /// Authentication method for an OCI registry.
-#[derive(Debug, Serialize, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum OciAuth {
     /// HTTP basic authentication.
     Basic(BasicAuth),
@@ -360,28 +361,31 @@ impl<'de> Deserialize<'de> for OciAuth {
 }
 
 /// Username/password credentials for basic OCI authentication.
-#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct BasicAuth {
     /// Registry username.
     pub username: String,
     /// Registry password.
-    pub password: String,
+    pub password: SensitiveString,
 }
 
 /// Bearer-token credentials for OCI authentication.
-#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct BearerAuth {
     /// Bearer token.
-    pub token: String,
+    pub token: SensitiveString,
 }
 
 impl From<&OciAuth> for RegistryAuth {
     fn from(auth: &OciAuth) -> Self {
         match auth {
-            OciAuth::Bearer(bearer) => RegistryAuth::Bearer(bearer.token.clone()),
-            OciAuth::Basic(basic) => {
-                RegistryAuth::Basic(basic.username.clone(), basic.password.clone())
+            OciAuth::Bearer(bearer) => {
+                RegistryAuth::Bearer(bearer.token.expose_secret().to_string())
             }
+            OciAuth::Basic(basic) => RegistryAuth::Basic(
+                basic.username.clone(),
+                basic.password.expose_secret().to_string(),
+            ),
         }
     }
 }
@@ -641,7 +645,7 @@ pub struct AuthSecret {
 }
 
 /// Configuration for the OpAMP (Fleet Control) client.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(PartialEq, Clone)]
 pub struct OpAMPClientConfig {
     /// OpAMP server endpoint.
     pub endpoint: Url,
@@ -655,6 +659,20 @@ pub struct OpAMPClientConfig {
     pub fleet_id: String,
     /// Contains the signature_validation configuration
     pub signature_validation: SignatureValidatorConfig,
+}
+
+impl std::fmt::Debug for OpAMPClientConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OpAMPClientConfig")
+            .field("endpoint", &self.endpoint)
+            .field("poll_interval", &self.poll_interval)
+            // headers could contain credentials
+            .field("headers", &self.headers.keys().collect::<Vec<_>>())
+            .field("auth_config", &self.auth_config)
+            .field("fleet_id", &self.fleet_id)
+            .field("signature_validation", &self.signature_validation)
+            .finish()
+    }
 }
 
 impl<'de> Deserialize<'de> for OpAMPClientConfig {
@@ -1813,11 +1831,11 @@ agent_types:
 
     #[rstest]
     #[case::basic_when_set(
-        OciAuth::Basic(BasicAuth { username: "user".to_string(), password: "pass".to_string() }),
+        OciAuth::Basic(BasicAuth { username: "user".to_string(), password: "pass".into() }),
         RegistryAuth::Basic("user".to_string(), "pass".to_string())
     )]
     #[case::bearer_when_set(
-        OciAuth::Bearer(BearerAuth { token: "my-token".to_string() }),
+        OciAuth::Bearer(BearerAuth { token: "my-token".into() }),
         RegistryAuth::Bearer("my-token".to_string())
     )]
     fn test_oci_auth_into_registry_auth(#[case] auth: OciAuth, #[case] expected: RegistryAuth) {
