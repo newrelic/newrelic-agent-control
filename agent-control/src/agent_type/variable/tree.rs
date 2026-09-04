@@ -184,7 +184,7 @@ fn prefixed_path(prefix: &str, segment: &str) -> String {
 mod tests {
     use super::*;
     use crate::agent_type::variable::namespace::{Namespace, VariableName};
-    use crate::agent_type::variable::value::VariableValue;
+    use crate::agent_type::variable::value::{VariableType, VariableValue};
     use assert_matches::assert_matches;
     use rstest::rstest;
     use serde_json::json;
@@ -205,10 +205,23 @@ mod tests {
 
         let mut keys: Vec<_> = flat.keys().cloned().collect();
         keys.sort();
+
         assert_eq!(keys, vec!["a.b.c".to_string(), "top".to_string()]);
         assert_eq!(
-            flat.get("top").and_then(|d| d.default.clone()),
-            Some(VariableValue::String("t".to_string()))
+            flat.get("a.b.c"),
+            Some(&VariableDefinition {
+                default: None,
+                variants: None,
+                variable_type: VariableType::Bool,
+            })
+        );
+        assert_eq!(
+            flat.get("top"),
+            Some(&VariableDefinition {
+                default: Some(VariableValue::String("t".to_string())),
+                variants: None,
+                variable_type: VariableType::String,
+            })
         );
     }
 
