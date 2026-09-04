@@ -1,12 +1,10 @@
 # Reusable workflow that publishes Agent Control release notes to the docs site.
-#
-# Given a released `version` (== its prefix-less git tag), it:
-#   1. Checks out the current ref (where the generator script lives).
-#   2. Reads that version's CHANGELOG.md from the release tag and generates
+# Given a released `version`, it:
+#   1. Reads that version's CHANGELOG.md from the release tag and generates
 #      `agent-control-<version-with-dashes>.mdx` from it.
-#   3. Commits the file to a branch on `newrelic/docs-website` and opens a PR
+#   2. Commits the file to a branch on `newrelic/docs-website` and opens a PR
 #      against its `develop` branch.
-name: 📞 Publish public docs release notes
+name: 📞 Create PR for public docs release notes
 
 on:
   workflow_call:
@@ -21,10 +19,7 @@ on:
     secrets:
       app_id:
         description: >-
-          GitHub App ID used to authenticate to the docs repo (via
-          actions/create-github-app-token). The app must be installed on the docs
-          repo with `contents: write` and `pull_requests: write`. Optional: when
-          unset, publishing is skipped.
+          GitHub App ID used to authenticate to the docs repo.
         required: true
       app_private_key:
         description: GitHub App private key matching `app_id`.
@@ -46,7 +41,7 @@ jobs:
       # job knows whether a branch may need removing.
       docs-branch: ${{ steps.meta.outputs.branch_name || '' }}
     steps:
-      - name: Prepare
+      - name: Set branch name
         id: meta
         env:
           VERSION: ${{ inputs.version }}
@@ -59,7 +54,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Generate release notes MDX
+      - name: Generate public docs release notes
         id: generate
         env:
           VERSION: ${{ inputs.version }}
@@ -68,8 +63,6 @@ jobs:
           mdx_file=$(./tools/generate_docs_release_notes/run.sh "${RUNNER_TEMP}/CHANGELOG.md" "${VERSION}")
           echo "mdx_file=${mdx_file}" >> "$GITHUB_OUTPUT"
 
-      # Mint a token scoped to the docs repo. The app must be installed there;
-      # owner/repositories select that installation.
       - name: Generate docs app token
         id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
@@ -79,46 +72,26 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: ${{ env.PUBLIC_DOCS_REPO_NAME }}
 
-      # Commit the .mdx onto a new branch in the docs repo via the GraphQL
-      # `createCommitOnBranch` mutation (same approach as the pre-release PR
-      # workflow) so the commit is signed automatically and we avoid a
-      # third-party action. Targets the docs repo, based on its `develop` tip.
-      #
-      # Split into separate steps (rather than one script) so a failure points
-      # at exactly which `gh api` call was rejected, instead of an opaque
-      # "Commit MDX..." step failure.
-      - name: Get docs-website develop SHA
-        id: base-sha
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          REPO: ${{ env.PUBLIC_DOCS_REPO }}
-        run: |
-          sha=$(gh api "repos/$REPO/commits/develop" --jq '.sha')
-          echo "develop is at $sha"
-          echo "sha=$sha" >> "$GITHUB_OUTPUT"
-
-      - name: Create docs-website branch
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          REPO: ${{ env.PUBLIC_DOCS_REPO }}
-          BRANCH: ${{ steps.meta.outputs.branch_name }}
-          BASE_SHA: ${{ steps.base-sha.outputs.sha }}
-        run: |
-          # Fails with 422 "Reference already exists" if the branch is present.
-          gh api -X POST "repos/$REPO/git/refs" \
-            -f ref="refs/heads/$BRANCH" \
-            -f sha="$BASE_SHA"
-      
+      # Commits are created via the GraphQL `createCommitOnBranch` mutation so GitHub signs them automatically.
       - name: Commit MDX to docs-website branch (signed via API)
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           REPO: ${{ env.PUBLIC_DOCS_REPO }}
           BRANCH: ${{ steps.meta.outputs.branch_name }}
-          MDX_FILE: ${{ steps.generate.outputs.mdx_file }}
-          MDX_PATH: "src/content/docs/release-notes/agent-control-release-notes/${{ steps.generate.outputs.mdx_file }}"
+          MDX_FILE: "agent-control-${{ inputs.version }}.mdx"
+          MDX_PATH: "src/content/docs/release-notes/agent-control-release-notes/agent-control-${{ inputs.version }}.mdx"
           VERSION: ${{ inputs.version }}
-          BASE_SHA: ${{ steps.base-sha.outputs.sha }}
         run: |
+          # Base the branch on the current tip of the docs repo's default target
+          # branch (`develop`), not our checkout.
+          BASE_SHA=$(gh api "repos/$REPO/commits/develop" --jq '.sha')
+
+          # Create the branch ref on the docs repo at that commit.
+          # Fails with 422 "Reference already exists" if the branch is present.
+          gh api -X POST "repos/$REPO/git/refs" \
+            -f ref="refs/heads/$BRANCH" \
+            -f sha="$BASE_SHA"
+
           # Write the mutation to a file and feed it to gh via --input <file>.
           jq -n \
             --rawfile mdx "$MDX_FILE" \
@@ -160,8 +133,7 @@ jobs:
             --title "$TITLE" \
             --body "$BODY"
 
-  # Remove the orphaned docs branch if publishing failed after the branch was
-  # pushed. Runs only when publishing was attempted (docs-branch non-empty).
+  # If the branch already exists, it will delete it
   delete-docs-branch-on-fail:
     name: Delete docs branch on fail
     needs: [publish]
