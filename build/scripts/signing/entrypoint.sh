@@ -49,23 +49,15 @@ prepare() {
     echo "===> Importing GPG private key from GHA secrets..."
     printf %s ${GPG_PRIVATE_KEY_BASE64} | base64 -d | gpg --batch --import -
 
-    echo "===> Importing GPG public key, needed from Goreleaser to verify signature"
-    # rpm on trixie verifies certificates via librpm-sequoia, which rejects our own export of this
-    # key: its only self-signature was made in 2016 with SHA-1, which the policy no longer accepts.
-    # OHAI already re-certified the same key (same fingerprint) with a SHA-256 self-signature and
-    # publishes it here for RHEL 10; fetch that instead of deriving our own export.
-    curl -fsSL --retry 3 --retry-delay 2 https://download.newrelic.com/infrastructure_agent/keys/newrelic_rpm_key_sha256.gpg -o /tmp/RPM-GPG-KEY-${GPG_MAIL}
+    echo "===> Adding a SHA-256 self-signature to the signing key"
+    # rpm on trixie verifies certificates via librpm-sequoia, which rejects our key's only
+    # self-signature (made in 2016 with SHA-1) as having no valid binding signature. We hold
+    # the private key, so we can add a fresh, policy-valid self-signature ourselves rather than
+    # depending on a network fetch of someone else's re-certified export.
+    gpg --batch --yes --pinentry-mode loopback --passphrase "${GPG_PASSPHRASE}" --default-cert-level 3 --cert-digest-algo SHA256 --sign-key "${GPG_MAIL}"
 
-    # Verify the fetched key matches the one we're actually signing with, so a substituted
-    # download (compromised host, DNS/cert issue) fails loudly instead of being silently
-    # imported into rpm's trust store.
-    expected_fingerprint="$(gpg --with-colons --list-keys "${GPG_MAIL}" | awk -F: '$1=="fpr" {print $10; exit}')"
-    actual_fingerprint="$(gpg --with-colons --import-options show-only --import /tmp/RPM-GPG-KEY-${GPG_MAIL} | awk -F: '$1=="fpr" {print $10; exit}')"
-    if [ "${actual_fingerprint}" != "${expected_fingerprint}" ]; then
-        echo "Fetched GPG key fingerprint ${actual_fingerprint} does not match expected ${expected_fingerprint}" >&2
-        exit 1
-    fi
-
+    echo "===> Importing GPG signature, needed from Goreleaser to verify signature"
+    gpg --export -a ${GPG_MAIL} > /tmp/RPM-GPG-KEY-${GPG_MAIL}
     rpm --import /tmp/RPM-GPG-KEY-${GPG_MAIL}
 
     # prepare DEB's

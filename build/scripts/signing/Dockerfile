@@ -5,8 +5,7 @@ RUN apt-get update \
         rpm \
         gnupg2 \
         gpg-agent \
-        debsigs \
-        curl
+        debsigs
 
 ADD entrypoint.sh /entrypoint.sh
 
