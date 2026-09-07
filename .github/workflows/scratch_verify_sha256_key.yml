@@ -1,0 +1,52 @@
+name: Scratch - verify OHAI SHA256 key
+# Throwaway, one-off check: is OHAI_GPG_PRIVATE_SHA256 a re-certified version of
+# the key we already use? Only ever prints public metadata (fingerprint, UID,
+# signature dates/digest algo) — never key material. To be removed once validated.
+
+on:
+  push:
+    branches:
+      - chore/update-debian-images
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Import current OHAI key (baseline) and show fingerprint
+        env:
+          GPG_PRIVATE_KEY_BASE64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }}
+        run: |
+          mkdir -p /tmp/gnupg-old && chmod 700 /tmp/gnupg-old
+          export GNUPGHOME=/tmp/gnupg-old
+          printf %s "$GPG_PRIVATE_KEY_BASE64" | base64 -d | gpg --batch --import
+          echo "=== Current key (OHAI_GPG_PRIVATE_KEY_BASE64) ==="
+          gpg --list-signatures --with-fingerprint --keyid-format long
+
+      - name: Import candidate SHA-256 key and show fingerprint + self-sig digest
+        env:
+          GPG_PRIVATE_KEY_SHA256: ${{ secrets.OHAI_GPG_PRIVATE_SHA256 }}
+        run: |
+          mkdir -p /tmp/gnupg-new && chmod 700 /tmp/gnupg-new
+          export GNUPGHOME=/tmp/gnupg-new
+          printf %s "$GPG_PRIVATE_KEY_SHA256" | base64 -d | gpg --batch --import
+          echo "=== Candidate key (OHAI_GPG_PRIVATE_SHA256) ==="
+          gpg --list-signatures --with-fingerprint --keyid-format long
+          echo "=== Self-signature packet detail (digest algo) ==="
+          gpg --export -a infrastructure-eng@newrelic.com > /tmp/candidate.asc
+          gpg --list-packets /tmp/candidate.asc
+
+      - name: Verify rpm --import succeeds on trixie WITHOUT the Sequoia policy override
+        env:
+          GPG_PRIVATE_KEY_SHA256: ${{ secrets.OHAI_GPG_PRIVATE_SHA256 }}
+        run: |
+          docker run --rm -e GPG_PRIVATE_KEY_SHA256="$GPG_PRIVATE_KEY_SHA256" debian:trixie-slim bash -c '
+            set -e
+            apt-get update -qq && apt-get install -y -qq rpm gnupg2 >/dev/null
+            printf %s "$GPG_PRIVATE_KEY_SHA256" | base64 -d | gpg --batch --import
+            gpg --export -a infrastructure-eng@newrelic.com > /tmp/key.asc
+            echo "=== rpm --import (no RPM_SEQUOIA_CRYPTO_POLICY override set) ==="
+            rpm --import /tmp/key.asc && echo "SUCCESS: rpm accepted the key without any policy override"
+          '
