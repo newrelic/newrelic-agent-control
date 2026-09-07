@@ -39,7 +39,6 @@ echo "arch: ${ARCH}, target: ${TARGET_TUPLE}, profile: ${BUILD_MODE}, out_dir: $
 # Binary metadata
 GIT_COMMIT=$( git rev-parse HEAD )
 export GIT_COMMIT
-export AGENT_CONTROL_VERSION=${AGENT_CONTROL_VERSION}
 
 export RUSTFLAGS="-C target-feature=+crt-static"
 
