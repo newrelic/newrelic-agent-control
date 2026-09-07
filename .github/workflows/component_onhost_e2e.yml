@@ -67,6 +67,7 @@ jobs:
           - nri-redis
           - nri-flex
           - all-ohis-no-service
+          - package-upgrade
           - uninstall
     steps:
       - name: Record job start time
