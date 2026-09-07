@@ -55,6 +55,16 @@ prepare() {
     # OHAI already re-certified the same key (same fingerprint) with a SHA-256 self-signature and
     # publishes it here for RHEL 10; fetch that instead of deriving our own export.
     curl -fsSL --retry 3 --retry-delay 2 https://download.newrelic.com/infrastructure_agent/keys/newrelic_rpm_key_sha256.gpg -o /tmp/RPM-GPG-KEY-${GPG_MAIL}
+
+    # Pin the fingerprint so a substituted key (compromised host, DNS/cert issue) fails loudly
+    # here instead of being silently imported into rpm's trust store.
+    expected_fingerprint="A758B3FBCD43BE8D123A3476BB29EE038ECCE87C"
+    actual_fingerprint="$(gpg --with-colons --import-options show-only --import /tmp/RPM-GPG-KEY-${GPG_MAIL} | awk -F: '$1=="fpr" {print $10; exit}')"
+    if [ "${actual_fingerprint}" != "${expected_fingerprint}" ]; then
+        echo "Fetched GPG key fingerprint ${actual_fingerprint} does not match expected ${expected_fingerprint}" >&2
+        exit 1
+    fi
+
     rpm --import /tmp/RPM-GPG-KEY-${GPG_MAIL}
 
     # prepare DEB's
