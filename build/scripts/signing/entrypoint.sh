@@ -44,7 +44,7 @@ prepare() {
     echo "%_signature gpg" >> ~/.rpmmacros
     echo "%_gpg_path /root/.gnupg" >> ~/.rpmmacros
     echo "%_gpgbin /usr/bin/gpg" >> ~/.rpmmacros
-    echo "%__gpg_sign_cmd   %{__gpg} gpg --no-verbose --no-armor --batch --pinentry-mode loopback --passphrase ${GPG_PASSPHRASE} --no-secmem-warning -u "%{_gpg_name}" -sbo %{__signature_filename} %{__plaintext_filename}" >> ~/.rpmmacros
+    echo "%__gpg_sign_cmd   %{__gpg} gpg --no-verbose --no-armor --batch --pinentry-mode loopback --passphrase ${GPG_PASSPHRASE} --no-secmem-warning --digest-algo sha256 -u "%{_gpg_name}" -sbo %{__signature_filename} %{__plaintext_filename}" >> ~/.rpmmacros
 
     echo "===> Importing GPG private key from GHA secrets..."
     printf %s ${GPG_PRIVATE_KEY_BASE64} | base64 -d | gpg --batch --import -
@@ -56,9 +56,10 @@ prepare() {
     # publishes it here for RHEL 10; fetch that instead of deriving our own export.
     curl -fsSL --retry 3 --retry-delay 2 https://download.newrelic.com/infrastructure_agent/keys/newrelic_rpm_key_sha256.gpg -o /tmp/RPM-GPG-KEY-${GPG_MAIL}
 
-    # Pin the fingerprint so a substituted key (compromised host, DNS/cert issue) fails loudly
-    # here instead of being silently imported into rpm's trust store.
-    expected_fingerprint="A758B3FBCD43BE8D123A3476BB29EE038ECCE87C"
+    # Verify the fetched key matches the one we're actually signing with, so a substituted
+    # download (compromised host, DNS/cert issue) fails loudly instead of being silently
+    # imported into rpm's trust store.
+    expected_fingerprint="$(gpg --with-colons --list-keys "${GPG_MAIL}" | awk -F: '$1=="fpr" {print $10; exit}')"
     actual_fingerprint="$(gpg --with-colons --import-options show-only --import /tmp/RPM-GPG-KEY-${GPG_MAIL} | awk -F: '$1=="fpr" {print $10; exit}')"
     if [ "${actual_fingerprint}" != "${expected_fingerprint}" ]; then
         echo "Fetched GPG key fingerprint ${actual_fingerprint} does not match expected ${expected_fingerprint}" >&2
