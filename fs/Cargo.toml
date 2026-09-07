@@ -20,7 +20,7 @@ windows = { workspace = true, features = [
   "Win32_Security_Authorization",
   "Win32_Storage_FileSystem",
 ] }
-encoding_rs = "0.8.35"
+encoding_rs = "0.8.40"
 
 [dev-dependencies]
 tempfile = { workspace = true }
