@@ -24,12 +24,14 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 - Renamed the `secrets_providers` config key to `value_providers`, the old key is kept for backwards compatibility.
 - K8s: add a new `nr-kubecm` value provider to resolve variables from Kubernetes ConfigMaps.
 - `chart_values.global` is still supported in agentTypes, but deprecated. You can still configure globals via `chart_values.[chart-name].global`
+- Linux: added `uninstall.sh` script bundled in the package that auto-detects the package manager (apt, yum, zypper) and removes `newrelic-agent-control`.
 
 ### bugfix
 - On-host: fix false "already running" startup error when a stale PID file held a PID reused by an unrelated process.
 - Suppress `Health` reporting (OpAMP and status server) for sub-agents whose agent type defines no `health:` block, including on initial supervisor start failure.
 - On-host: when an agent type is upgraded to a new version, stale filesystem entries declared by the old version are now removed via a diff instead of a full agent directory wipe; the sub-agent's OpAMP instance ID is preserved across version bumps.
 - K8s: when a sub-agent type is upgraded to a new version, the OpAMP instance ID is now preserved across the upgrade; previously the fleet-data ConfigMap was deleted on every type change regardless of whether the agent name changed, causing a new instance ID to be generated on the next start.
+- Linux: `postremove` script now correctly removes `newrelic-agent-control` directories on any uninstall (not only on `apt purge`), and targets the right paths (`/etc/newrelic-agent-control`, `/var/lib/newrelic-agent-control`, `/var/run/newrelic-infra`) instead of the old infra-agent ones.
 
 ## v1.23.0 - 2026-08-25
 
@@ -37,13 +39,11 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 - Add support for variables override through `variable.agentConfig` syntax in Remote Configuration keys.
 - Add support for a single entry of a `string_map` variable override through `variable.agentConfig.<variable>:<map-key>` syntax in Remote Configuration keys.
 - On-host infrastructure agent type (linux): expose the `nri-docker` integration configuration through a new `config_docker` variable.
-- Linux: added `uninstall.sh` script bundled in the package that auto-detects the package manager (apt, yum, zypper) and removes `newrelic-agent-control`.
 
 ### 🐞 Bug fixes
 - K8s supervisor: force a Flux reconciliation on stalled HelmReleases (e.g. after exhausting install/upgrade retries) when a new remote config
 - On-host: report the actual last failure (launch error or non-zero exit) in the `lastErrorMessage` of the unhealthy status once the restart policy is exceeded, instead of the generic "Restart policy exceeded" message.
 - On-host: persist fluent-bit's home directory (`fb.db`) across infra-agent package updates instead of storing it in the replaced package directory
-- Linux: `postremove` script now correctly removes `newrelic-agent-control` directories on any uninstall (not only on `apt purge`), and targets the right paths (`/etc/newrelic-agent-control`, `/var/lib/newrelic-agent-control`, `/var/run/newrelic-infra`) instead of the old infra-agent ones.
 
 ### ⛓️ Dependencies
 - Updated rust crate either to 1.18.0
