@@ -20,6 +20,7 @@ use crate::agent_type::runtime_config::on_host::filesystem::DeclaredPaths;
 use crate::opamp::instance_id::storer::{InstanceIDStorer, StorerError};
 use crate::package::manager::AgentPackagesRemover;
 use crate::package::oci::package_manager::OCIPackageManagerError;
+use crate::sub_agent::on_host::command::logging::file_logger::agent_log_dir;
 use crate::values::config_repository::{ConfigRepository, ConfigRepositoryError};
 
 use super::{ResourceCleaner, ResourceCleanerError};
@@ -101,7 +102,7 @@ where
 
         self.delete_agent_dir(&self.fleet_data_base, agent_id)?;
         self.delete_agent_dir(&self.agent_filesystem_base, agent_id)?;
-        self.delete_agent_dir(&self.log_dir, agent_id)?;
+        self.delete_dir(agent_log_dir(&self.log_dir, agent_id))?;
 
         debug!(%agent_id, "Cleaning agent packages");
         self.package_remover
@@ -112,10 +113,14 @@ where
     }
 
     /// Deletes `base.join(agent_id)`, one of the fixed per-agent directories (filesystem,
-    /// fleet-data, log).
+    /// fleet-data).
     fn delete_agent_dir(&self, base: &Path, agent_id: &AgentID) -> Result<(), OnHostCleanerError> {
-        let dir = base.join(agent_id);
-        debug!(%agent_id, path = ?dir, "Cleaning agent directory");
+        self.delete_dir(base.join(agent_id))
+    }
+
+    /// Deletes `dir`, logging and wrapping any failure with the path for context.
+    fn delete_dir(&self, dir: PathBuf) -> Result<(), OnHostCleanerError> {
+        debug!(path = ?dir, "Cleaning agent directory");
         self.dir_manager
             .delete(&dir)
             .map_err(|source| OnHostCleanerError::Filesystem { path: dir, source })
@@ -470,7 +475,10 @@ impl From<OnHostCleanerError> for ResourceCleanerError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_control::defaults::AGENT_CONTROL_ID;
+    use crate::agent_control::defaults::{
+        AGENT_CONTROL_ID, AGENT_FILESYSTEM_FOLDER_NAME, FOLDER_NAME_FLEET_DATA,
+        SHARED_FILESYSTEM_FOLDER_NAME,
+    };
     use crate::agent_type::definition::AgentTypeDefinition;
     use crate::agent_type::registry::tests::MockAgentTypeRegistry;
     use crate::opamp::instance_id::storer::tests::MockInstanceIDStorer;
@@ -495,20 +503,26 @@ mod tests {
         AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap()
     }
 
+    /// Root for the fake bases below. Under the OS temp dir so a test that accidentally exercises
+    /// a real `DirectoryManager` instead of a mock can never touch a real system path.
+    fn fake_root() -> PathBuf {
+        std::env::temp_dir().join("newrelic-agent-control-test")
+    }
+
     fn fs_base() -> PathBuf {
-        PathBuf::from("/var/lib/newrelic-agent-control/filesystem")
+        fake_root().join(AGENT_FILESYSTEM_FOLDER_NAME)
     }
 
     fn fleet_base() -> PathBuf {
-        PathBuf::from("/var/lib/newrelic-agent-control/fleet-data")
+        fake_root().join(FOLDER_NAME_FLEET_DATA)
     }
 
     fn shared_base() -> PathBuf {
-        PathBuf::from("/var/lib/newrelic-agent-control/shared-filesystem")
+        fake_root().join(SHARED_FILESYSTEM_FOLDER_NAME)
     }
 
     fn log_base() -> PathBuf {
-        PathBuf::from("/var/log/newrelic-agent-control")
+        fake_root().join("log")
     }
 
     /// A registry whose types declare no shared filesystem (empty/k8s definitions), so shared-path
@@ -1392,7 +1406,7 @@ mod tests {
     }
 
     #[test]
-    fn type_change_wipes_all_per_agent_resources() {
+    fn type_replaced_wipes_all_per_agent_resources() {
         let old_type = AgentTypeID::try_from("test/old_agent:0.1.0").unwrap();
         let new_type = AgentTypeID::try_from("test/new_agent:0.1.0").unwrap();
         let id = agent_id("my-agent");
@@ -1412,12 +1426,12 @@ mod tests {
             .returning(|_| Ok(()));
 
         let expected_fs_dir = fs_base().join(id.as_str());
+        let expected_fleet_data_dir = fleet_base().join(id.as_str());
+        let expected_log_dir = log_base().join(id.as_str());
         let mut dir_manager = MockDirectoryManager::new();
-        dir_manager
-            .expect_delete()
-            .once()
-            .with(predicate::eq(expected_fs_dir))
-            .returning(|_| Ok(()));
+        dir_manager.should_delete(&expected_fs_dir);
+        dir_manager.should_delete(&expected_fleet_data_dir);
+        dir_manager.should_delete(&expected_log_dir);
         dir_manager.expect_list().returning(|_| Ok(vec![]));
 
         let mut package_remover = MockAgentPackagesRemover::new();
@@ -1437,12 +1451,13 @@ mod tests {
             Arc::new(config_repo),
             fs_base(),
             fleet_base(),
+            log_base(),
             Arc::new(dir_manager),
             Arc::new(package_remover),
             Arc::new(registry),
             shared_base(),
         )
-        .on_agent_type_changed(&id, &old_type, &new_type, &SubAgentsMap::default())
-        .expect("type change must succeed");
+        .on_agent_type_replaced(&id, &old_type, &new_type, &SubAgentsMap::default())
+        .expect("type replacement must succeed");
     }
 }
