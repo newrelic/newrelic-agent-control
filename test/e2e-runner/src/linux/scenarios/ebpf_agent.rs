@@ -8,12 +8,19 @@ use crate::{
     common::{config, nrql},
     linux::{
         self,
+        bash::exec_bash_command,
         install::{install_agent_control_from_recipe, tear_down_test},
     },
 };
 use config::DEBUG_LOGGING_CONFIG;
 use std::time::Duration;
 use tracing::info;
+
+// Regression check for the eBPF agent's own status-log write: it must land under the AC managed
+// filesystem directory (via NEW_RELIC_LOG_FILE_PATH), not fall back to its hardcoded default.
+const EBPF_STATUS_LOG: &str =
+    "/var/lib/newrelic-agent-control/filesystem/nr-ebpf/logs/ebpf-agent-status.log";
+const EBPF_DEFAULT_STATUS_LOG: &str = "/etc/newrelic-ebpf-agent/ebpf-agent-status.log";
 
 pub fn test_ebpf_agent(args: InstallationArgs) {
     let infra_agent_version = args
@@ -90,4 +97,18 @@ version: {infra_agent_version}
     retry_panic(retries, Duration::from_secs(10), "nrql assertion", || {
         nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
     });
+
+    info!(
+        path = EBPF_STATUS_LOG,
+        "Asserting the eBPF agent's status log is under the AC managed filesystem directory"
+    );
+    // The agent's own snapshot timer only fires every 120s, so the file may not exist yet.
+    retry_panic(
+        15,
+        Duration::from_secs(10),
+        "ebpf status log written under the AC managed filesystem directory",
+        || exec_bash_command(&format!("test -f '{EBPF_STATUS_LOG}'")),
+    );
+    exec_bash_command(&format!("test ! -f '{EBPF_DEFAULT_STATUS_LOG}'"))
+        .expect("eBPF status log should not fall back to /etc/newrelic-ebpf-agent");
 }

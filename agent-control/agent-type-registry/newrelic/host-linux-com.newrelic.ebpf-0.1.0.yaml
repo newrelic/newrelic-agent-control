@@ -57,12 +57,15 @@ deployment:
       kind: file
       text: |
         ${nr-var:config}
+    logs:
+      kind: dir
   executables:
     - id: nr-ebpf-agent
       path: ${nr-sub:packages.ebpf-agent.dir}/nr-ebpf-agent
       env:
         NEW_RELIC_LICENSE_KEY: "${nr-env:NEW_RELIC_LICENSE_KEY}"
         NEW_RELIC_CONFIG_PATH: "${nr-sub:filesystem_agent_dir}/newrelic-ebpf-agent.yaml"
+        NEW_RELIC_LOG_FILE_PATH: "${nr-sub:filesystem_agent_dir}/logs"
       restart_policy:
         backoff_strategy:
           type: fixed
