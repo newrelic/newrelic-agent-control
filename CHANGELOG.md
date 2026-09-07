@@ -26,6 +26,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 - `chart_values.global` is still supported in agentTypes, but deprecated. You can still configure globals via `chart_values.[chart-name].global`
 
 ### bugfix
+- On-host/K8s: fix service stopping permanently when the first OpAMP poll fails at startup (e.g. host clock skew causing JWT auth rejection). AC now keeps running and retries on subsequent polls, consistent with sub-agent behaviour.
 - On-host: fix false "already running" startup error when a stale PID file held a PID reused by an unrelated process.
 - Suppress `Health` reporting (OpAMP and status server) for sub-agents whose agent type defines no `health:` block, including on initial supervisor start failure.
 - On-host: when an agent type is upgraded to a new version, stale filesystem entries declared by the old version are now removed via a diff instead of a full agent directory wipe; the sub-agent's OpAMP instance ID is preserved across version bumps.

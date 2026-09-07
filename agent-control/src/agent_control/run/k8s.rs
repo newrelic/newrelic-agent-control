@@ -108,17 +108,19 @@ impl AgentControlRunner {
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers.clone());
 
-        let opamp_client_builder = maybe_opamp.map(|config| {
-            OpAMPClientBuilder::new(
-                config.poll_interval,
-                OpAMPHttpClientBuilder::new(
-                    config,
-                    self.bootstrap_config.proxy.clone(),
-                    secret_retriever,
-                ),
-                EffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
-            )
-        });
+        let opamp_client_builder = maybe_opamp
+            .map(|config| {
+                OpAMPClientBuilder::new(
+                    config.poll_interval,
+                    OpAMPHttpClientBuilder::new(
+                        config,
+                        self.bootstrap_config.proxy.clone(),
+                        secret_retriever,
+                    ),
+                    EffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
+                )
+            })
+            .map(|builder| builder.with_startup_check_disabled());
 
         let agent_identity = AgentIdentity::new_agent_control_identity();
         let agent_description = agent_description(
@@ -198,8 +200,7 @@ impl AgentControlRunner {
             self.agent_type_registry.clone(),
         );
 
-        let opamp_builder =
-            opamp_client_builder.map(|builder| builder.with_startup_check_disabled());
+        let opamp_builder = opamp_client_builder;
 
         let sub_agent_builder = K8sSubAgentBuilder {
             opamp_builder,

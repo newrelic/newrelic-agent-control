@@ -161,14 +161,16 @@ impl AgentControlRunner {
         debug!("Cleaning up resources of agents removed while Agent Control was stopped");
         resource_cleaner.cleanup_stale_agents(&agent_control_config.dynamic.agents);
 
-        let opamp_client_builder = maybe_opamp.map(|config| {
-            opamp_client_builder(
-                local_dir.clone(),
-                config,
-                self.bootstrap_config.proxy,
-                yaml_config_repository.clone(),
-            )
-        });
+        let opamp_client_builder = maybe_opamp
+            .map(|config| {
+                opamp_client_builder(
+                    local_dir.clone(),
+                    config,
+                    self.bootstrap_config.proxy,
+                    yaml_config_repository.clone(),
+                )
+            })
+            .map(|builder| builder.with_startup_check_disabled());
 
         let agent_identity = AgentIdentity::new_agent_control_identity();
         let agent_description =
@@ -226,8 +228,7 @@ impl AgentControlRunner {
             self.agent_type_registry.clone(),
         );
 
-        let opamp_builder =
-            opamp_client_builder.map(|builder| builder.with_startup_check_disabled());
+        let opamp_builder = opamp_client_builder;
 
         let sub_agent_builder = OnHostSubAgentBuilder {
             opamp_builder,

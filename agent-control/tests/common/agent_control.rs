@@ -98,6 +98,14 @@ impl StartedAgentControl {
         }
         false
     }
+
+    /// Returns `true` while the agent-control thread is still alive.
+    ///
+    /// Use this to assert the service has not exited unexpectedly — for example,
+    /// after a transient connection failure that it should survive and retry.
+    pub fn is_still_running(&self) -> bool {
+        self.handle.as_ref().is_some_and(|h| !h.is_finished())
+    }
 }
 
 impl Drop for StartedAgentControl {

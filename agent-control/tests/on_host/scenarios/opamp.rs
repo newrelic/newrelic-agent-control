@@ -12,6 +12,8 @@ use crate::on_host::tools::config::{create_remote_config, load_remote_config_con
 use crate::on_host::tools::custom_agent_type::OnHostCustomAgentTypeBuilder;
 use crate::on_host::tools::instance_id::get_instance_id;
 use fake_opamp_server::FakeServer;
+use httpmock::Method::POST;
+use httpmock::MockServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_ID, FOLDER_NAME_FLEET_DATA, STORE_KEY_OPAMP_DATA_CONFIG,
@@ -443,4 +445,36 @@ status_time_unix_nano: 1725444001
         }
         check_latest_health_status_was_healthy(&opamp_server, &sub_agent_instance_id)
     });
+}
+
+/// When the first OpAMP poll fails (e.g. server rejects the request with HTTP 400),
+/// AC must keep running and retry on subsequent polls, not stop the service.
+#[test]
+fn ac_keeps_running_when_first_opamp_poll_fails() {
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
+
+    let failing_opamp = MockServer::start();
+    let _ = failing_opamp.mock(|when, then| {
+        when.method(POST).any_request();
+        then.status(400);
+    });
+
+    let dirs = TempBasePaths::default();
+    OnHostAgentControlConfigBuilder::new(failing_opamp.url("/"), opamp_server.jwks_endpoint())
+        .write(dirs.local_dir());
+
+    let agent_control =
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
+
+    // Give the first poll enough time to have been attempted and failed.
+    std::thread::sleep(Duration::from_secs(2));
+
+    assert!(
+        agent_control.is_still_running(),
+        "AC stopped after first OpAMP poll failure; it should keep running and retry"
+    );
+
+    // Sending StopRequested and joining must succeed cleanly.
+    // Drop panics if AC had already exited with an error, which would also catch regressions.
+    drop(agent_control);
 }

@@ -11,7 +11,6 @@ use newrelic_agent_control::agent_control::defaults::{
 use newrelic_agent_control::on_host::file_store::build_config_name;
 use nr_auth::authenticator::{AuthCredential, TokenRetrievalRequest, TokenRetrievalResponse};
 use nr_auth::jwt::claims::Claims;
-use predicates::prelude::predicate;
 use std::path::Path;
 use std::time::Duration;
 use tempfile::TempDir;
@@ -223,20 +222,37 @@ agents: {{}}
     let remote_dir = TempDir::new().unwrap();
     let log_dir = TempDir::new().unwrap();
     let mut cmd = cmd_agent_control(dir.path(), remote_dir.path().into(), log_dir.path().into());
-    // This timeout has been added so we can discriminate if the agent-control has crashed or not.
-    // if timed out means that the agent-control haven't crashed and that's not expected.
-    // This is checked on the assert.
     cmd.timeout(Duration::from_secs(30));
 
-    let assert = cmd.assert();
-
-    // the agent-control stops the execution.
-    assert
+    // AC must NOT stop when auth fails. It should keep running and retry until the
+    // auth server becomes healthy (e.g. once clock skew is corrected). The test
+    // lets AC run until the timeout and checks that it was killed by the timeout,
+    // not that it exited by itself.
+    #[cfg(target_family = "unix")]
+    let output = cmd
+        .assert()
         .try_interrupted()
-        .expect_err("should have failure before timeout")
+        .expect("AC should keep running when auth fails, not stop before timeout")
+        .get_output()
+        .to_owned();
+
+    #[cfg(target_family = "windows")]
+    let output = cmd
+        .assert()
+        .try_interrupted()
+        .expect_err("should have failure because of interruption on windows")
         .assert()
         .failure()
-        .stderr(predicate::str::is_match(r".*ERROR.*could not build auth headers.*").unwrap());
+        .get_output()
+        .to_owned();
+
+    // The auth error must still be visible in logs — AC retries, not silently swallows it.
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(
+        stderr.contains("could not build auth headers")
+            || stderr.contains("OpAMP HTTP connection error"),
+        "expected auth error in stderr, got: {stderr}"
+    );
 }
 
 fn cmd_agent_control(
