@@ -49,18 +49,12 @@ prepare() {
     echo "===> Importing GPG private key from GHA secrets..."
     printf %s ${GPG_PRIVATE_KEY_BASE64} | base64 -d | gpg --batch --import -
 
-    echo "===> Relaxing rpm's Sequoia OpenPGP policy for the SHA-1 self-signature on the signing key"
-    # rpm on trixie verifies certificates via librpm-sequoia, which rejects the signing key's
-    # UID self-signature (made in 2016 with SHA-1) as having no valid binding signature. Allow
-    # SHA-1 for second-preimage resistance, the property Sequoia checks for self-signatures.
-    cat > /tmp/rpm-sequoia-policy.toml <<'POLICY'
-[hash_algorithms]
-sha1.second_preimage_resistance = "always"
-POLICY
-    export RPM_SEQUOIA_CRYPTO_POLICY=/tmp/rpm-sequoia-policy.toml
-
-    echo "===> Importing GPG signature, needed from Goreleaser to verify signature"
-    gpg --export -a ${GPG_MAIL} > /tmp/RPM-GPG-KEY-${GPG_MAIL}
+    echo "===> Importing GPG public key, needed from Goreleaser to verify signature"
+    # rpm on trixie verifies certificates via librpm-sequoia, which rejects our own export of this
+    # key: its only self-signature was made in 2016 with SHA-1, which the policy no longer accepts.
+    # OHAI already re-certified the same key (same fingerprint) with a SHA-256 self-signature and
+    # publishes it here for RHEL 10; fetch that instead of deriving our own export.
+    curl -fsSL --retry 3 --retry-delay 2 https://download.newrelic.com/infrastructure_agent/keys/newrelic_rpm_key_sha256.gpg -o /tmp/RPM-GPG-KEY-${GPG_MAIL}
     rpm --import /tmp/RPM-GPG-KEY-${GPG_MAIL}
 
     # prepare DEB's
