@@ -49,12 +49,14 @@ prepare() {
     echo "===> Importing GPG private key from GHA secrets..."
     printf %s ${GPG_PRIVATE_KEY_BASE64} | base64 -d | gpg --batch --import -
 
-    echo "===> Adding a SHA-256 self-signature to the signing key"
+    echo "===> Refreshing the signing key's self-signature with SHA-256"
     # rpm on trixie verifies certificates via librpm-sequoia, which rejects our key's only
-    # self-signature (made in 2016 with SHA-1) as having no valid binding signature. We hold
-    # the private key, so we can add a fresh, policy-valid self-signature ourselves rather than
-    # depending on a network fetch of someone else's re-certified export.
-    gpg --batch --yes --pinentry-mode loopback --passphrase "${GPG_PASSPHRASE}" --default-cert-level 3 --cert-digest-algo SHA256 --sign-key "${GPG_MAIL}"
+    # self-signature (made in 2016 with SHA-1) as having no valid binding signature. `--sign-key`
+    # is a no-op here since gpg treats any existing self-signature as sufficient regardless of its
+    # digest algorithm; `--quick-set-expire` (re-setting the same "never expires" value) is what
+    # actually forces a fresh, policy-valid self-signature using the private key we already hold.
+    key_fingerprint="$(gpg --with-colons --list-keys "${GPG_MAIL}" | awk -F: '$1=="fpr" {print $10; exit}')"
+    gpg --batch --pinentry-mode loopback --passphrase "${GPG_PASSPHRASE}" --cert-digest-algo SHA256 --quick-set-expire "${key_fingerprint}" 0
 
     echo "===> Importing GPG signature, needed from Goreleaser to verify signature"
     gpg --export -a ${GPG_MAIL} > /tmp/RPM-GPG-KEY-${GPG_MAIL}
