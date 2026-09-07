@@ -50,7 +50,7 @@ jobs:
         with:
           version: 0.15.2
 
-      - uses: taiki-e/install-action@1ed6d7be6168f6c9046541087ff549b6bc581fdf # v2.87.2
+      - uses: taiki-e/install-action@84f5ac3124727fb3d284d4d22ee9ab3654fd09a6 # v2.87.7
         with:
           tool: cargo-zigbuild@0.23.0
 
@@ -63,11 +63,11 @@ jobs:
           make build-agent-control-k8s ARCH=arm64 PKG=newrelic_agent_control
           make build-agent-control-k8s ARCH=amd64 PKG=newrelic_agent_control
 
-      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
+      - uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4
 
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
         with:
-          version: v0.36.1
+          version: v0.37.0
 
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
