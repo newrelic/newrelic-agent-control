@@ -47,10 +47,6 @@ prepare() {
     echo "%__gpg_sign_cmd   %{__gpg} gpg --no-verbose --no-armor --batch --pinentry-mode loopback --passphrase ${GPG_PASSPHRASE} --no-secmem-warning -u "%{_gpg_name}" -sbo %{__signature_filename} %{__plaintext_filename}" >> ~/.rpmmacros
 
     echo "===> Importing GPG private key from GHA secrets..."
-    # Newer GnuPG rejects the signing key's binding signature as expired/out-of-policy;
-    # ignore-time-conflict skips that check so the existing key keeps working.
-    mkdir -p ~/.gnupg && chmod 700 ~/.gnupg
-    echo 'ignore-time-conflict' >> ~/.gnupg/gpg.conf
     printf %s ${GPG_PRIVATE_KEY_BASE64} | base64 -d | gpg --batch --import -
 
     echo "===> Relaxing rpm's Sequoia OpenPGP policy for the SHA-1 self-signature on the signing key"
