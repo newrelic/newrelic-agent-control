@@ -49,15 +49,14 @@ prepare() {
     echo "===> Importing GPG private key from GHA secrets..."
     printf %s ${GPG_PRIVATE_KEY_BASE64} | base64 -d | gpg --batch --import -
 
-    echo "===> Relaxing rpm's Sequoia OpenPGP policy for the SHA-1 self-signature on the signing key"
-    # rpm on trixie verifies certificates via librpm-sequoia, which rejects the signing key's
-    # UID self-signature (made in 2016 with SHA-1) as having no valid binding signature. Allow
-    # SHA-1 for second-preimage resistance, the property Sequoia checks for self-signatures.
-    cat > /tmp/rpm-sequoia-policy.toml <<'POLICY'
-[hash_algorithms]
-sha1.second_preimage_resistance = "always"
-POLICY
-    export RPM_SEQUOIA_CRYPTO_POLICY=/tmp/rpm-sequoia-policy.toml
+    echo "===> Refreshing the signing key's self-signature with SHA-256"
+    # rpm on trixie verifies certificates via librpm-sequoia, which rejects our key's only
+    # self-signature (made in 2016 with SHA-1) as having no valid binding signature. `--sign-key`
+    # is a no-op here since gpg treats any existing self-signature as sufficient regardless of its
+    # digest algorithm; `--quick-set-expire` (re-setting the same "never expires" value) is what
+    # actually forces a fresh, policy-valid self-signature using the private key we already hold.
+    key_fingerprint="$(gpg --with-colons --list-keys "${GPG_MAIL}" | awk -F: '$1=="fpr" {print $10; exit}')"
+    gpg --batch --pinentry-mode loopback --passphrase "${GPG_PASSPHRASE}" --cert-digest-algo SHA256 --quick-set-expire "${key_fingerprint}" 0
 
     echo "===> Importing GPG signature, needed from Goreleaser to verify signature"
     gpg --export -a ${GPG_MAIL} > /tmp/RPM-GPG-KEY-${GPG_MAIL}
