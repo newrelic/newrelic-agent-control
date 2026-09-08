@@ -20,6 +20,12 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ## Unreleased
 
+### 🚀 Enhancements
+- Linux: added Debian 13 (trixie) as a supported/published platform.
+
+### 🛑 Breaking changes
+- Linux: dropped Debian 11 (bullseye) as a supported/published platform; its LTS window ended 2026-08-31.
+
 ## v1.24.0 - 2026-09-08
 
 ### 🚀 Enhancements

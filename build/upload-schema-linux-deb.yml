@@ -14,8 +14,8 @@
         - focal
         - bionic
         - xenial
-        - bullseye
         - bookworm
+        - trixie
 
 #########################
   # UPLOAD CHECKSUMS #
