@@ -27,6 +27,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 - Linux: added `uninstall.sh` script bundled in the package that auto-detects the package manager (apt, yum, zypper) and removes `newrelic-agent-control`.
 
 ### bugfix
+- On-host: the eBPF agent now writes its status log under the AC managed filesystem directory instead of `/etc/newrelic-ebpf-agent`.
 - On-host: fix false "already running" startup error when a stale PID file held a PID reused by an unrelated process.
 - Suppress `Health` reporting (OpAMP and status server) for sub-agents whose agent type defines no `health:` block, including on initial supervisor start failure.
 - On-host: when an agent type is upgraded to a new version, stale filesystem entries declared by the old version are now removed via a diff instead of a full agent directory wipe; the sub-agent's OpAMP instance ID is preserved across version bumps.
