@@ -71,5 +71,8 @@ pub fn run_linux_e2e() {
         LinuxScenarios::Uninstall(args) => {
             scenarios::uninstall::test_uninstall_script(args);
         }
+        LinuxScenarios::ServiceRestartPolicy(args) => {
+            scenarios::service_restart_policy::test_service_restarts_indefinitely_on_failure(args);
+        }
     };
 }

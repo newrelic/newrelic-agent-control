@@ -34,6 +34,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 - On-host: when an agent type is upgraded to a new version, stale filesystem entries declared by the old version are now removed via a diff instead of a full agent directory wipe; the sub-agent's OpAMP instance ID is preserved across version bumps.
 - K8s: when a sub-agent type is upgraded to a new version, the OpAMP instance ID is now preserved across the upgrade; previously the fleet-data ConfigMap was deleted on every type change regardless of whether the agent name changed, causing a new instance ID to be generated on the next start.
 - Linux: `postremove` script now correctly removes `newrelic-agent-control` directories on any uninstall (not only on `apt purge`), and targets the right paths (`/etc/newrelic-agent-control`, `/var/lib/newrelic-agent-control`, `/var/run/newrelic-infra`) instead of the old infra-agent ones.
+- On-host: the service now retries indefinitely on failure (20 s delay) instead of stopping after 5 rapid restarts; applies to both the Linux systemd unit and the Windows SCM failure actions.
 
 ## v1.23.0 - 2026-08-25
 

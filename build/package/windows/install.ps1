@@ -195,11 +195,8 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-# Configure failure actions to prevent crash-looping from saturating CPU.
-# After 5 failures within 60 seconds, the service will stop and requires manual intervention.
-#
-# NOTE: The empty action (//) means "take no action" - this stops the restart cycle.
-sc.exe failure $serviceName reset= 60 actions= restart/5000/restart/5000/restart/5000/restart/5000/restart/5000//0 | Out-Null
+# Restart on every failure with a 20-second delay.
+sc.exe failure $serviceName reset= 0 actions= restart/20000 | Out-Null
 # Ensure failure flag is set to enable the configured actions
 sc.exe failureflag $serviceName 1 | Out-Null
 

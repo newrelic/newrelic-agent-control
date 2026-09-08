@@ -66,6 +66,10 @@ enum LinuxScenarios {
     /// Installs Agent Control and runs the bundled uninstall.sh script, then asserts that
     /// the binary, service unit, static config and runtime data are fully removed.
     Uninstall(InstallationArgs),
+    /// Verifies the service restarts indefinitely on failure (no burst-limit ceiling).
+    /// Breaks the config to force immediate exits, then asserts systemd auto-restarted
+    /// ≥5 times without setting StartLimitHit.
+    ServiceRestartPolicy(InstallationArgs),
 }
 
 #[derive(Debug, clap::Subcommand)]
@@ -112,6 +116,10 @@ enum WindowsScenarios {
     /// Installs Agent Control and runs the bundled uninstall.ps1 script, then asserts that
     /// the service, install directory, and runtime data directory are fully removed.
     Uninstall(InstallationArgs),
+    /// Verifies the service restarts indefinitely on failure.
+    /// Breaks the config to force immediate exits, then asserts the SCM restarted the
+    /// service ≥5 times via Event ID 7031 entries.
+    ServiceRestartPolicy(InstallationArgs),
 }
 
 #[derive(Parser)]

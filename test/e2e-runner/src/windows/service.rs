@@ -61,6 +61,25 @@ pub fn restart_service(service_name: &str, expected_service_status: &str) {
     );
 }
 
+/// Returns the total count of Windows Event Log entries recording that the SCM took a
+/// restart recovery action for the service (Event ID 7031: "service terminated unexpectedly").
+/// Call this before and after inducing failures; the delta is the number of restarts.
+pub fn get_scm_restart_count(service_name: &str) -> u32 {
+    let cmd = format!(
+        r#"(Get-WinEvent -FilterHashtable @{{LogName='System'; Id=7031}} -ErrorAction SilentlyContinue | Where-Object {{$_.Properties.Value -like '*{service_name}*'}} | Measure-Object).Count"#
+    );
+    exec_ps(&cmd)
+        .ok()
+        .and_then(|out| {
+            out.lines()
+                .find(|l| l.starts_with("Stdout"))
+                .map(|l| l.to_owned())
+        })
+        .and_then(|l| l.split(':').next_back().map(|s| s.trim().to_owned()))
+        .and_then(|s| s.parse().ok())
+        .expect("could not read Event 7031 count from PowerShell output")
+}
+
 /// Stops a Windows service using PowerShell.
 pub fn stop_service(service_name: &str) {
     let cmd = format!("Stop-Service -Name '{}' -Force", service_name);

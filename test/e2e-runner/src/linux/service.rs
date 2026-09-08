@@ -66,36 +66,44 @@ pub fn restart_service_and_wait(service_name: &str, expected_status: &str) {
     );
 }
 
+/// Reads a single systemd unit property via `systemctl show --property=<prop>`.
+/// Returns `None` if the command fails or the output is malformed.
+fn get_systemctl_property(service_name: &str, property: &str) -> Option<String> {
+    let cmd = format!("systemctl show --property={property} {service_name} | cut -d= -f2");
+    exec_bash_command(&cmd)
+        .ok()
+        .and_then(|out| {
+            out.lines()
+                .find(|l| l.starts_with("Stdout: "))
+                .map(|l| l.to_owned())
+        })
+        .and_then(|l| l.strip_prefix("Stdout: ").map(|s| s.trim().to_owned()))
+}
+
 /// Gets the current status of a service using systemctl
 pub fn get_service_status(service_name: &str) -> String {
-    let cmd = format!("systemctl show --property=ActiveState {service_name} | cut -d= -f2");
-    let output = exec_bash_command(&cmd)
-        .unwrap_or_else(|err| panic!("could not get status of '{service_name}' service: {err}"));
-
-    // Extract stdout from the formatted output
-    output
-        .lines()
-        .find(|line| line.starts_with("Stdout: "))
-        .and_then(|line| line.strip_prefix("Stdout: "))
-        .unwrap_or("")
-        .trim()
-        .to_string()
+    get_systemctl_property(service_name, "ActiveState").unwrap_or_default()
 }
 
 pub const ENABLED: &str = "enabled";
 
+/// Returns the number of times systemd has automatically restarted the service since it was
+/// last manually started. Resets to 0 on `systemctl start` / `systemctl restart`.
+pub fn get_auto_restart_count(service_name: &str) -> u32 {
+    get_systemctl_property(service_name, "NRestarts")
+        .and_then(|s| s.parse().ok())
+        .expect("could not read NRestarts from systemctl output")
+}
+
+/// Returns `true` if systemd stopped restarting the service because the burst rate limit
+/// was reached (`StartLimitHit=yes`). Always `false` when `StartLimitIntervalSec=0`.
+pub fn is_start_limit_hit(service_name: &str) -> bool {
+    get_systemctl_property(service_name, "StartLimitHit")
+        .map(|s| s == "yes")
+        .expect("could not read StartLimitHit from systemctl output")
+}
+
 /// Gets whether a service is enabled to start on boot (`systemctl show --property=UnitFileState`).
 pub fn get_unit_file_state(service_name: &str) -> String {
-    let cmd = format!("systemctl show --property=UnitFileState {service_name} | cut -d= -f2");
-    let output = exec_bash_command(&cmd).unwrap_or_else(|err| {
-        panic!("could not get unit file state of '{service_name}' service: {err}")
-    });
-
-    output
-        .lines()
-        .find(|line| line.starts_with("Stdout: "))
-        .and_then(|line| line.strip_prefix("Stdout: "))
-        .unwrap_or("")
-        .trim()
-        .to_string()
+    get_systemctl_property(service_name, "UnitFileState").unwrap_or_default()
 }
