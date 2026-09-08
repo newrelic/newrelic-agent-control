@@ -20,19 +20,38 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ## Unreleased
 
-### enhancement
+## v1.24.0 - 2026-09-08
+
+### 🚀 Enhancements
 - Renamed the `secrets_providers` config key to `value_providers`, the old key is kept for backwards compatibility.
 - K8s: add a new `nr-kubecm` value provider to resolve variables from Kubernetes ConfigMaps.
 - `chart_values.global` is still supported in agentTypes, but deprecated. You can still configure globals via `chart_values.[chart-name].global`
 - Linux: added `uninstall.sh` script bundled in the package that auto-detects the package manager (apt, yum, zypper) and removes `newrelic-agent-control`.
 
-### bugfix
+### 🐞 Bug fixes
 - On-host: the eBPF agent now writes its status log under the AC managed filesystem directory instead of `/etc/newrelic-ebpf-agent`.
 - On-host: fix false "already running" startup error when a stale PID file held a PID reused by an unrelated process.
 - Suppress `Health` reporting (OpAMP and status server) for sub-agents whose agent type defines no `health:` block, including on initial supervisor start failure.
 - On-host: when an agent type is upgraded to a new version, stale filesystem entries declared by the old version are now removed via a diff instead of a full agent directory wipe; the sub-agent's OpAMP instance ID is preserved across version bumps.
 - K8s: when a sub-agent type is upgraded to a new version, the OpAMP instance ID is now preserved across the upgrade; previously the fleet-data ConfigMap was deleted on every type change regardless of whether the agent name changed, causing a new instance ID to be generated on the next start.
 - Linux: `postremove` script now correctly removes `newrelic-agent-control` directories on any uninstall (not only on `apt purge`), and targets the right paths (`/etc/newrelic-agent-control`, `/var/lib/newrelic-agent-control`, `/var/run/newrelic-infra`) instead of the old infra-agent ones.
+
+### ⛓️ Dependencies
+- Updated rust crate nr-auth to v0.5.2
+- Updated rust crate opamp-client to v0.0.42
+- Updated rust crate flate2 to 1.1.10
+- Updated rust crate rcgen to 0.14.10
+- Updated rust crate serde-saphyr to 1.2.0
+- Updated alpine/kubectl to v1.37.0
+- Updated rust crate aws-lc-rs to 1.18.1
+- Updated rust crate toml to 1.1.5
+- Updated rust to v1.98.1
+- Updated rust crate windows-link to 0.100.0
+- Updated rust crate windows-registry to 0.100.0
+- Updated rust crate syn to 3.0.5
+- Updated rust crate crossbeam to 0.8.5
+- Updated rust crate rstest to 0.27.0
+- Updated rust crate encoding_rs to 0.8.40
 
 ## v1.23.0 - 2026-08-25
 

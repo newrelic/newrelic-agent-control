@@ -499,6 +499,13 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## core_detect <https://crates.io/crates/core_detect>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## cpubits <https://crates.io/crates/cpubits>
 
 Distributed under the following license(s):
@@ -1539,6 +1546,27 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## multiversion <https://crates.io/crates/multiversion>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## multiversion-macros <https://crates.io/crates/multiversion-macros>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## multiversion_no_op <https://crates.io/crates/multiversion_no_op>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+* MIT
+
 ## nix <https://crates.io/crates/nix>
 
 Distributed under the following license(s):
@@ -2440,6 +2468,13 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## target-features <https://crates.io/crates/target-features>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## tempfile <https://crates.io/crates/tempfile>
 
 Distributed under the following license(s):
@@ -3209,12 +3244,10 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 
-* MIT
-* Apache-2.0
+* BSD-3-Clause
 
 ## zstd-sys <https://crates.io/crates/zstd-sys>
 
 Distributed under the following license(s):
 
-* MIT
-* Apache-2.0
+* BSD-3-Clause
