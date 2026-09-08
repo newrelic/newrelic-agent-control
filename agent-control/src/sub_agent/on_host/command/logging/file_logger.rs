@@ -3,7 +3,7 @@
 use crate::agent_control::agent_id::AgentID;
 use serde::Deserialize;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tracing::{level_filters::LevelFilter, subscriber::DefaultGuard};
 use tracing_appender::{
@@ -29,6 +29,12 @@ pub struct SubAgentFileLoggingConfig {
     pub base_path: PathBuf,
 }
 
+/// Per-agent log directory: `base_path/<agent_id>`. Shared with `OnHostCleaner` so the path a
+/// sub-agent's file logger writes to and the path deleted on agent removal never drift apart.
+pub fn agent_log_dir(base_path: &Path, agent_id: &AgentID) -> PathBuf {
+    base_path.join(agent_id)
+}
+
 /// Creates a new file logger writing to a file in the provided directory with the provided suffix.
 /// The file will be rotated daily and the file name will be in the format `<timestamp>.<suffix>`
 /// e.g. `2027-12-01.stdout.log`. Only the MAX_LOG_FILES_SUB_AGENT most recent rotated files are retained.
@@ -37,7 +43,7 @@ pub fn file_logger(
     file_logging_config: SubAgentFileLoggingConfig,
     file_name_suffix: &str,
 ) -> Result<FileLogger, FileLoggerError> {
-    let file_dir = file_logging_config.base_path.join(agent_id);
+    let file_dir = agent_log_dir(&file_logging_config.base_path, agent_id);
 
     let file_appender = RollingFileAppender::builder()
         .rotation(Rotation::DAILY)

@@ -1,4 +1,4 @@
-//! On-host resource cleaner that wipes a removed sub-agent's fleet data and OpAMP instance id.
+//! On-host resource cleaner that wipes a removed sub-agent's fleet data, logs and OpAMP instance id
 
 use fs::directory_manager::DirectoryManager;
 use std::collections::HashSet;
@@ -20,15 +20,16 @@ use crate::agent_type::runtime_config::on_host::filesystem::DeclaredPaths;
 use crate::opamp::instance_id::storer::{InstanceIDStorer, StorerError};
 use crate::package::manager::AgentPackagesRemover;
 use crate::package::oci::package_manager::OCIPackageManagerError;
+use crate::sub_agent::on_host::command::logging::file_logger::agent_log_dir;
 use crate::values::config_repository::{ConfigRepository, ConfigRepositoryError};
 
 use super::{ResourceCleaner, ResourceCleanerError};
 
 /// On-host implementation of [`ResourceCleaner`] that wipes a sub-agent's fleet data by
 /// delegating to the same storers that wrote it, also recursively deletes the sub-agent's
-/// dedicated filesystem directory and its installed packages (via the [`AgentPackagesRemover`],
-/// which owns the on-disk package layout), regardless of what it contains, because the agent has
-/// been removed from the fleet.
+/// dedicated filesystem and log directories and its installed packages (via the
+/// [`AgentPackagesRemover`], which owns the on-disk package layout), regardless of what it
+/// contains, because the agent has been removed from the fleet.
 /// The same removal logic is reused at startup by [`Self::cleanup_stale_agents`] to reclaim the
 /// resources of agents removed from the fleet config while Agent Control was stopped.
 pub struct OnHostCleaner<S, C, D, P, R>
@@ -43,6 +44,7 @@ where
     config_repo: Arc<C>,
     agent_filesystem_base: PathBuf,
     fleet_data_base: PathBuf,
+    log_dir: PathBuf,
     dir_manager: Arc<D>,
     package_remover: Arc<P>,
     registry: Arc<R>,
@@ -65,6 +67,7 @@ where
         config_repo: Arc<C>,
         agent_filesystem_base: PathBuf,
         fleet_data_base: PathBuf,
+        log_dir: PathBuf,
         dir_manager: Arc<D>,
         package_remover: Arc<P>,
         registry: Arc<R>,
@@ -75,6 +78,7 @@ where
             config_repo,
             agent_filesystem_base,
             fleet_data_base,
+            log_dir,
             dir_manager,
             package_remover,
             registry,
@@ -83,7 +87,8 @@ where
     }
 
     /// Deletes all on-disk resources Agent Control owns for `agent_id`: its stored remote config,
-    /// its OpAMP instance id, its dedicated filesystem directory and its installed packages.
+    /// its OpAMP instance id, its dedicated filesystem and fleet-data and log directories, and its
+    /// installed packages.
     fn remove_agent_resources(&self, agent_id: &AgentID) -> Result<(), OnHostCleanerError> {
         debug!(%agent_id, "Cleaning remote config data");
         self.config_repo
@@ -95,14 +100,9 @@ where
             .delete(agent_id)
             .map_err(OnHostCleanerError::InstanceId)?;
 
-        let fs_dir = self.agent_filesystem_base.join(agent_id);
-        debug!(%agent_id, path = ?fs_dir, "Cleaning agent filesystem directory");
-        self.dir_manager
-            .delete(&fs_dir)
-            .map_err(|err| OnHostCleanerError::Filesystem {
-                path: fs_dir,
-                source: err,
-            })?;
+        self.delete_agent_dir(&self.fleet_data_base, agent_id)?;
+        self.delete_agent_dir(&self.agent_filesystem_base, agent_id)?;
+        self.delete_dir(agent_log_dir(&self.log_dir, agent_id))?;
 
         debug!(%agent_id, "Cleaning agent packages");
         self.package_remover
@@ -110,6 +110,20 @@ where
             .map_err(OnHostCleanerError::Packages)?;
 
         Ok(())
+    }
+
+    /// Deletes `base.join(agent_id)`, one of the fixed per-agent directories (filesystem,
+    /// fleet-data).
+    fn delete_agent_dir(&self, base: &Path, agent_id: &AgentID) -> Result<(), OnHostCleanerError> {
+        self.delete_dir(base.join(agent_id))
+    }
+
+    /// Deletes `dir`, logging and wrapping any failure with the path for context.
+    fn delete_dir(&self, dir: PathBuf) -> Result<(), OnHostCleanerError> {
+        debug!(path = ?dir, "Cleaning agent directory");
+        self.dir_manager
+            .delete(&dir)
+            .map_err(|source| OnHostCleanerError::Filesystem { path: dir, source })
     }
 
     /// Cleans up everything left behind by agents that are not present in the provided [SubAgentsMap].
@@ -410,8 +424,9 @@ pub enum OnHostCleanerError {
     /// Failed to delete the stored remote configuration.
     #[error("failed to delete stored remote config: {0}")]
     RemoteConfig(#[source] ConfigRepositoryError),
-    /// Failed to delete agent filesystem directory.
-    #[error("failed to delete agent filesystem directory {path:?}: {source}")]
+    /// Failed to delete one of the agent's fixed per-agent directories (filesystem, fleet-data or
+    /// log).
+    #[error("failed to delete agent directory {path:?}: {source}")]
     Filesystem {
         /// The path in the filesystem that couldn't be deleted.
         path: PathBuf,
@@ -460,7 +475,10 @@ impl From<OnHostCleanerError> for ResourceCleanerError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_control::defaults::AGENT_CONTROL_ID;
+    use crate::agent_control::defaults::{
+        AGENT_CONTROL_ID, AGENT_FILESYSTEM_FOLDER_NAME, FOLDER_NAME_FLEET_DATA,
+        SHARED_FILESYSTEM_FOLDER_NAME,
+    };
     use crate::agent_type::definition::AgentTypeDefinition;
     use crate::agent_type::registry::tests::MockAgentTypeRegistry;
     use crate::opamp::instance_id::storer::tests::MockInstanceIDStorer;
@@ -485,16 +503,26 @@ mod tests {
         AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap()
     }
 
+    /// Root for the fake bases below. Under the OS temp dir so a test that accidentally exercises
+    /// a real `DirectoryManager` instead of a mock can never touch a real system path.
+    fn fake_root() -> PathBuf {
+        std::env::temp_dir().join("newrelic-agent-control-test")
+    }
+
     fn fs_base() -> PathBuf {
-        PathBuf::from("/var/lib/newrelic-agent-control/filesystem")
+        fake_root().join(AGENT_FILESYSTEM_FOLDER_NAME)
     }
 
     fn fleet_base() -> PathBuf {
-        PathBuf::from("/var/lib/newrelic-agent-control/fleet-data")
+        fake_root().join(FOLDER_NAME_FLEET_DATA)
     }
 
     fn shared_base() -> PathBuf {
-        PathBuf::from("/var/lib/newrelic-agent-control/shared-filesystem")
+        fake_root().join(SHARED_FILESYSTEM_FOLDER_NAME)
+    }
+
+    fn log_base() -> PathBuf {
+        fake_root().join("log")
     }
 
     /// A registry whose types declare no shared filesystem (empty/k8s definitions), so shared-path
@@ -525,6 +553,7 @@ mod tests {
             Arc::new(MockConfigRepository::new()),
             fs_base(),
             fleet_base(),
+            log_base(),
             Arc::new(MockDirectoryManager::new()),
             Arc::new(MockAgentPackagesRemover::new()),
             Arc::new(registry),
@@ -565,6 +594,7 @@ mod tests {
             Arc::new(MockConfigRepository::new()),
             agent_filesystem_base,
             fleet_base(),
+            log_base(),
             Arc::new(MockDirectoryManager::new()),
             Arc::new(MockAgentPackagesRemover::new()),
             Arc::new(registry),
@@ -617,6 +647,7 @@ mod tests {
             Arc::new(config_repo),
             fs_base(),
             fleet_base(),
+            log_base(),
             Arc::new(dir_manager),
             Arc::new(package_remover),
             Arc::new(no_shared_registry()),
@@ -628,6 +659,8 @@ mod tests {
     fn clean_deletes_instance_id_remote_config_and_agent_filesystem_dir() {
         let id = agent_id("foo-agent");
         let expected_fs_dir = fs_base().join(id.as_str());
+        let expected_fleet_data_dir = fleet_base().join(id.as_str());
+        let expected_log_dir = log_base().join(id.as_str());
 
         let mut instance_id_storer = MockInstanceIDStorer::new();
         instance_id_storer
@@ -645,6 +678,8 @@ mod tests {
 
         let mut dir_manager = MockDirectoryManager::new();
         dir_manager.should_delete(&expected_fs_dir);
+        dir_manager.should_delete(&expected_fleet_data_dir);
+        dir_manager.should_delete(&expected_log_dir);
 
         let cleaner = cleaner(
             instance_id_storer,
@@ -666,12 +701,14 @@ mod tests {
     fn clean_propagates_directory_manager_delete_error() {
         let id = agent_id("foo-agent");
         let expected_fs_dir = fs_base().join(id.as_str());
+        let expected_fleet_data_dir = fleet_base().join(id.as_str());
 
         let mut instance_id_storer = MockInstanceIDStorer::new();
         instance_id_storer.expect_delete().returning(|_| Ok(()));
         let mut config_repo = MockConfigRepository::new();
         config_repo.expect_delete_remote().returning(|_| Ok(()));
         let mut dir_manager = MockDirectoryManager::new();
+        dir_manager.should_delete(&expected_fleet_data_dir);
         dir_manager.should_not_delete(
             &expected_fs_dir,
             std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"),
@@ -687,13 +724,16 @@ mod tests {
         let err = cleaner
             .on_agent_removed(&id, &any_type_id(), &configured(&[]))
             .unwrap_err();
-        assert!(err.0.contains("agent filesystem directory"));
+        assert!(err.0.contains("failed to delete agent directory"));
+        assert!(err.0.contains(&format!("{expected_fs_dir:?}")));
     }
 
     #[test]
     fn clean_propagates_package_removal_error() {
         let id = agent_id("foo-agent");
         let expected_fs_dir = fs_base().join(id.as_str());
+        let expected_fleet_data_dir = fleet_base().join(id.as_str());
+        let expected_log_dir = log_base().join(id.as_str());
 
         let mut instance_id_storer = MockInstanceIDStorer::new();
         instance_id_storer.expect_delete().returning(|_| Ok(()));
@@ -701,6 +741,8 @@ mod tests {
         config_repo.expect_delete_remote().returning(|_| Ok(()));
         let mut dir_manager = MockDirectoryManager::new();
         dir_manager.should_delete(&expected_fs_dir);
+        dir_manager.should_delete(&expected_fleet_data_dir);
+        dir_manager.should_delete(&expected_log_dir);
 
         let mut package_remover = MockAgentPackagesRemover::new();
         package_remover
@@ -766,6 +808,8 @@ mod tests {
         // regardless of which base the orphan was discovered from.
         for orphan in [&orphan_fs, &orphan_fleet] {
             dir_manager.should_delete(&fs_base().join(orphan.as_str()));
+            dir_manager.should_delete(&fleet_base().join(orphan.as_str()));
+            dir_manager.should_delete(&log_base().join(orphan.as_str()));
             config_repo
                 .expect_delete_remote()
                 .with(predicate::eq(orphan.clone()))
@@ -805,6 +849,8 @@ mod tests {
             ],
         );
         dir_manager.should_delete(&fs_base().join("orphan"));
+        dir_manager.should_delete(&fleet_base().join("orphan"));
+        dir_manager.should_delete(&log_base().join("orphan"));
 
         let mut config_repo = MockConfigRepository::new();
         config_repo
@@ -866,6 +912,8 @@ mod tests {
             .return_once(|_: &Path| Err(std::io::Error::other("boom")));
         dir_manager.should_list(&fleet_base(), vec![fleet_base().join("orphan")]);
         dir_manager.should_delete(&fs_base().join("orphan"));
+        dir_manager.should_delete(&fleet_base().join("orphan"));
+        dir_manager.should_delete(&log_base().join("orphan"));
 
         let mut config_repo = MockConfigRepository::new();
         config_repo
@@ -1358,7 +1406,7 @@ mod tests {
     }
 
     #[test]
-    fn type_change_wipes_all_per_agent_resources() {
+    fn type_replaced_wipes_all_per_agent_resources() {
         let old_type = AgentTypeID::try_from("test/old_agent:0.1.0").unwrap();
         let new_type = AgentTypeID::try_from("test/new_agent:0.1.0").unwrap();
         let id = agent_id("my-agent");
@@ -1378,12 +1426,12 @@ mod tests {
             .returning(|_| Ok(()));
 
         let expected_fs_dir = fs_base().join(id.as_str());
+        let expected_fleet_data_dir = fleet_base().join(id.as_str());
+        let expected_log_dir = log_base().join(id.as_str());
         let mut dir_manager = MockDirectoryManager::new();
-        dir_manager
-            .expect_delete()
-            .once()
-            .with(predicate::eq(expected_fs_dir))
-            .returning(|_| Ok(()));
+        dir_manager.should_delete(&expected_fs_dir);
+        dir_manager.should_delete(&expected_fleet_data_dir);
+        dir_manager.should_delete(&expected_log_dir);
         dir_manager.expect_list().returning(|_| Ok(vec![]));
 
         let mut package_remover = MockAgentPackagesRemover::new();
@@ -1403,12 +1451,13 @@ mod tests {
             Arc::new(config_repo),
             fs_base(),
             fleet_base(),
+            log_base(),
             Arc::new(dir_manager),
             Arc::new(package_remover),
             Arc::new(registry),
             shared_base(),
         )
-        .on_agent_type_changed(&id, &old_type, &new_type, &SubAgentsMap::default())
-        .expect("type change must succeed");
+        .on_agent_type_replaced(&id, &old_type, &new_type, &SubAgentsMap::default())
+        .expect("type replacement must succeed");
     }
 }
