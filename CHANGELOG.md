@@ -20,7 +20,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ## Unreleased
 
-### 🚀 Enhancements
+### enhancement
 - Linux: added Debian 13 (trixie) as a supported/published platform.
 
 ## v1.24.0 - 2026-09-08
