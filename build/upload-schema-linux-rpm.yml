@@ -10,6 +10,7 @@
         - 7
         - 8
         - 9
+        - 10
 
 - src: "newrelic-agent-control_{version}_linux_{arch}.rpm"
   arch:
@@ -52,6 +53,7 @@
         - 7
         - 8
         - 9
+        - 10
 
 - src: "newrelic-agent-control_{version}_linux_{arch}.rpm.sum"
   arch:
@@ -63,6 +65,7 @@
         - 7
         - 8
         - 9
+        - 10
 
 - src: "newrelic-agent-control_{version}_linux_{arch}.rpm.sum"
   arch:

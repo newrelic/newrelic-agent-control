@@ -22,6 +22,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ### enhancement
 - Renamed the `secrets_providers` config key to `value_providers`, the old key is kept for backwards compatibility.
+- OnHost: added support for RedHat 10
 - K8s: add a new `nr-kubecm` value provider to resolve variables from Kubernetes ConfigMaps.
 - `chart_values.global` is still supported in agentTypes, but deprecated. You can still configure globals via `chart_values.[chart-name].global`
 - Linux: added `uninstall.sh` script bundled in the package that auto-detects the package manager (apt, yum, zypper) and removes `newrelic-agent-control`.
