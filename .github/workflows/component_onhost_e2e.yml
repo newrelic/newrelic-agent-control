@@ -69,6 +69,7 @@ jobs:
           - all-ohis-no-service
           - package-upgrade
           - uninstall
+          - service-restart-policy
     steps:
       - name: Record job start time
         run: echo "JOB_START_TIME=$(date +%s)" >> "$GITHUB_ENV"
@@ -144,6 +145,7 @@ jobs:
           - nri-flex
           - all-ohis-no-service
           - uninstall
+          - service-restart-policy
     steps:
       - name: Record job start time
         shell: bash

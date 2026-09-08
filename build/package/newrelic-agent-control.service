@@ -9,7 +9,10 @@ ExecStart=/usr/bin/newrelic-agent-control
 KillMode=mixed
 Restart=always
 RestartSec=20
-StartLimitIntervalSec=0 # 0 removes the burst rate limit so systemd retries indefinitely.
+# Both directives set the same value: StartLimitInterval= is the pre-230 name,
+# StartLimitIntervalSec= is the 230+ canonical name. Keeping both to for compatibility.
+StartLimitInterval=0
+StartLimitIntervalSec=0
 Type=simple
 # Hard memory limit for the entire Agent Control process tree (AC + all child agents).
 # Breakdown:

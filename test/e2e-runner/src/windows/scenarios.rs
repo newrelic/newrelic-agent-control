@@ -7,6 +7,7 @@ pub mod nri_redis;
 pub mod proxy;
 pub mod remote_config;
 pub mod self_update;
+pub mod service_restart_policy;
 pub mod service_wrong_config;
 pub mod switch_infra_agent_version;
 pub mod uninstall;

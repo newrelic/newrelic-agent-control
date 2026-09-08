@@ -79,5 +79,8 @@ pub fn run_windows_e2e() {
         WindowsScenarios::Uninstall(args) => {
             scenarios::uninstall::test_uninstall_script(args);
         }
+        WindowsScenarios::ServiceRestartPolicy(args) => {
+            scenarios::service_restart_policy::test_service_restarts_indefinitely_on_failure(args);
+        }
     }
 }
