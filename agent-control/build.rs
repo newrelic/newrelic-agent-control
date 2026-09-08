@@ -46,12 +46,18 @@ fn main() {
 }
 
 fn set_version() {
-    // If present NR_RELEASE_TAG env var will define the AC version, if not it will be taken from
-    // the agent-contro/cargo.toml version.
-    // This is useful to build identify nightly releases and perform e2e testing.
-    println!("cargo:rerun-if-env-changed=NR_RELEASE_TAG");
-    let version = env::var("NR_RELEASE_TAG")
-        .unwrap_or_else(|_| env::var("CARGO_PKG_VERSION").expect("CARGO_PKG_VERSION not set"));
+    // If present, the AGENT_CONTROL_VERSION env var will define the AC version, if not
+    // it will be taken from the agent-control/Cargo.toml version.
+    println!("cargo:rerun-if-env-changed=AGENT_CONTROL_VERSION");
+    let version = match env::var("AGENT_CONTROL_VERSION") {
+        Ok(version) if version.is_empty() => {
+            panic!(
+                "AGENT_CONTROL_VERSION is set but empty, unset it to use the Cargo.toml version instead"
+            )
+        }
+        Ok(version) => version,
+        Err(_) => env::var("CARGO_PKG_VERSION").expect("CARGO_PKG_VERSION not set"),
+    };
     println!("cargo:rustc-env=AGENT_CONTROL_VERSION={version}");
 }
 

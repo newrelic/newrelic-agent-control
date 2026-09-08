@@ -40,7 +40,7 @@ arch = os.getenv('ARCH','arm64')
 local_resource(
   'build-binary',
   dir="../../../",
-  cmd="make BUILD_MODE=debug ARCH=%s build-agent-control-k8s" % arch,
+  cmd="AGENT_CONTROL_VERSION=0.0.0-dev make BUILD_MODE=debug ARCH=%s build-agent-control-k8s" % (arch),
   deps=['./agent-control'],
 )
 

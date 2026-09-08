@@ -7,7 +7,7 @@ scenarios:
     before:
       - echo The cluster name of the test is ${SCENARIO_TAG}
       # Build AC binary and load image directly into minikube's docker registry
-      - cd ../../../ && make BUILD_MODE=release ARCH=amd64 build-agent-control-k8s
+      - cd ../../../ && AGENT_CONTROL_VERSION=0.0.0-e2e-configmap-agent make BUILD_MODE=release ARCH=amd64 build-agent-control-k8s
       - cd ../../../ && eval $(minikube docker-env) && docker build -f Dockerfiles/Dockerfile_agent_control -t agent-control-dev:e2e-test .
       # Setup auth secret
       - kubectl get secret sys-identity || kubectl create secret generic sys-identity --from-literal=CLIENT_ID="${NR_SYSTEM_IDENTITY_CLIENT_ID}" --from-literal=private_key="${NR_SYSTEM_IDENTITY_PRIVATE_KEY}"

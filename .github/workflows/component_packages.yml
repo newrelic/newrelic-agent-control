@@ -135,7 +135,6 @@ jobs:
           PFX_CERTIFICATE_BASE64: ${{ secrets.pfx_certificate_base64 }} # base64 encoded
           PFX_PASSPHRASE: ${{ secrets.pfx_passphrase }}
           GPG_MAIL: 'infrastructure-eng@newrelic.com'
-          NR_RELEASE_TAG: ${{ inputs.tag_name }}
           GORELEASER_CURRENT_TAG: ${{ inputs.tag_name }}
           SKIP_WINDOWS_SIGN: ${{ env.SKIP_WINDOWS_SIGN }}
 
