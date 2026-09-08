@@ -16,6 +16,7 @@
         - xenial
         - bullseye
         - bookworm
+        - trixie
 
 #########################
   # UPLOAD CHECKSUMS #
