@@ -14,7 +14,6 @@
         - focal
         - bionic
         - xenial
-        - bullseye
         - bookworm
         - trixie
 
