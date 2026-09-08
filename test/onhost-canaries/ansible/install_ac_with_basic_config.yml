@@ -25,10 +25,6 @@
       include_role:
         name: caos.ansible_roles.hostname
 
-    - name: Set infra version matching an existing one in the Github oci package repo
-      ansible.builtin.set_fact:
-        infra_version: "1.72.1"
-
     - name: Install Agent Control
       vars:
         repo_endpoint: "{{ repo_endpoint }}"
@@ -80,28 +76,6 @@
           # Disabled to use the unreleased local package and not downgrade when a remote config sends the current one.
           self_update:
             enabled: false
-          agents:
-            infra:
-              agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
-
-    - name: Infra Agent config folder
-      file:
-        path: /etc/newrelic-agent-control/local-data/infra/
-        state: directory
-
-    - name: Infra Agent config file
-      copy:
-        dest: /etc/newrelic-agent-control/local-data/infra/local_config.yaml
-        content: |
-          {% raw %}
-          config_agent:
-            staging: {% endraw -%} {{ infra_staging }} {%- raw %}
-            enable_process_metrics: true
-            status_server_enabled: true
-            status_server_port: 18003
-            license_key: '{{NEW_RELIC_LICENSE_KEY}}'
-          version: {% endraw -%} {{ infra_version }} {%- raw %}
-          {% endraw %}
 
     - name: Env file
       copy:
@@ -145,30 +119,6 @@
     - name: Configure hostname
       include_role:
         name: caos.ansible_roles.hostname
-
-    #    At the moment there is no publishing of the last infra-agent package to a public repository, and we use the Github
-    #    package repository that can't be on constant sync with the latest infra-agent version.
-    #    We may use this commented code to gather the latest infra-agent version once Fleet creates an infra-agent oci repo
-    #    and the agent-type points to it.
-    #
-    #    - name: Get Infra Agent release info from GitHub API
-    #      ansible.windows.win_uri:
-    #        url: https://api.github.com/repos/newrelic/infrastructure-agent/releases/latest
-    #        method: GET
-    #        return_content: yes
-    #      register: github_api_response
-    #
-    #    - name: Extract version from API response
-    #      ansible.builtin.set_fact:
-    #        infra_version: "v{{ github_api_response.json.tag_name }}"
-
-    - name: Set infra version matching an existing one in the Github oci package repo
-      ansible.builtin.set_fact:
-        infra_version: "1.72.1"
-
-    - name: Display the infra-agent version
-      ansible.builtin.debug:
-        msg: "The latest infra-agent version is {{ infra_version }}"
 
     - name: Ensure temp directory exists
       ansible.windows.win_file:
@@ -249,28 +199,6 @@
                 host.name: "{{ inventory_hostname }}"
           self_update:
             enabled: false
-          agents:
-            nr-infra:
-              agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
-
-    - name: Ensure temp directory exists
-      ansible.windows.win_file:
-        path: "C:\\Program Files\\New Relic\\newrelic-agent-control\\local-data\\nr-infra"
-        state: directory
-
-    - name: Infra Agent config file
-      copy:
-        dest: "C:\\Program Files\\New Relic\\newrelic-agent-control\\local-data\\nr-infra\\local_config.yaml"
-        content: |
-          {% raw %}
-          config_agent:
-            staging: {% endraw -%} {{ infra_staging }} {%- raw %}
-            enable_process_metrics: true
-            status_server_enabled: true
-            status_server_port: 18003
-            license_key: '{{NEW_RELIC_LICENSE_KEY}}'
-          version: {% endraw -%} {{ infra_version }} {%- raw %}
-          {% endraw %}
 
     - name: Restart New Relic Agent Control service
       ansible.windows.win_service:
