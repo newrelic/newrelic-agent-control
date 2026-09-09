@@ -25,7 +25,7 @@ permissions:
 
 env:
   # AC Staging Account `k8s-canaries-staging-1` fleet. Single source of truth for these GUIDs: the
-  # K8S_FLEET_ID_* repo variables, also consumed by the fleet-canary-alerts terraform plan/apply.
+  # K8S_FLEET_ID_* repo variables.
   FLEET_ID_STAGING: "${{ vars.K8S_FLEET_ID_STAGING }}"
   # AC US Production Account `k8s-canaries-production` fleet
   FLEET_ID_PRODUCTION: "${{ vars.K8S_FLEET_ID_PRODUCTION }}"
