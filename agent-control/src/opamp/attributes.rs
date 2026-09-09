@@ -1,12 +1,29 @@
 //! Helpers to update and publish OpAMP agent attributes (the agent description).
+use std::collections::HashMap;
 use std::fmt::Debug;
 
 use opamp_client::opamp::proto::{AgentDescription as ProtoAgentDescription, KeyValue};
-use opamp_client::operation::settings::AgentDescription;
+use opamp_client::operation::settings::{AgentDescription, DescriptionValueType};
 use opamp_client::{ClientError, StartedClient};
 use tracing::error;
 
+use crate::agent_control::defaults::{OS_NAME_ATTRIBUTE_KEY, OS_VERSION_ATTRIBUTE_KEY};
 use crate::event::channel::EventPublisher;
+
+/// Adds `os.name`/`os.version` non-identifying attributes when they're available.
+///
+/// Best-effort and Linux-only today: on other targets, or if `/etc/os-release` is
+/// missing or unparseable, this leaves `attributes` untouched.
+pub fn insert_os_release_attributes(attributes: &mut HashMap<String, DescriptionValueType>) {
+    if let Some(os_release) = resource_detection::system::os_release::detect_os_release() {
+        if let Some(name) = os_release.name {
+            attributes.insert(OS_NAME_ATTRIBUTE_KEY.to_string(), name.into());
+        }
+        if let Some(version_id) = os_release.version_id {
+            attributes.insert(OS_VERSION_ATTRIBUTE_KEY.to_string(), version_id.into());
+        }
+    }
+}
 
 /// Event message type for updating OpAMP agent attributes
 pub type UpdatedAttributesMessage = AgentDescription;

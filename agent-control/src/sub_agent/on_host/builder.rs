@@ -7,6 +7,7 @@ use crate::agent_type::registry::AgentTypeRegistry;
 use crate::event::SubAgentEvent;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::pub_sub;
+use crate::opamp::attributes::insert_os_release_attributes;
 use crate::opamp::client_builder::BuildOpAMPClient;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::sub_agent_start_settings;
@@ -76,6 +77,15 @@ where
             .map_err(|e| SubAgentBuilderError::OpampClientBuilderError(e.to_string()))?
             .into();
 
+        let mut non_identifying_attributes = HashMap::from([
+            (HOST_NAME_ATTRIBUTE_KEY.to_string(), hostname),
+            (
+                OS_ATTRIBUTE_KEY.to_string(),
+                DescriptionValueType::String(OS_ATTRIBUTE_VALUE.to_string()),
+            ),
+        ]);
+        insert_os_release_attributes(&mut non_identifying_attributes);
+
         let opamp_start_settings = sub_agent_start_settings(
             &self.instance_id_getter,
             agent_identity,
@@ -83,13 +93,7 @@ where
                 OPAMP_SERVICE_VERSION.to_string(),
                 agent_identity.agent_type_id.version().to_string().into(),
             )]),
-            HashMap::from([
-                (HOST_NAME_ATTRIBUTE_KEY.to_string(), hostname),
-                (
-                    OS_ATTRIBUTE_KEY.to_string(),
-                    DescriptionValueType::String(OS_ATTRIBUTE_VALUE.to_string()),
-                ),
-            ]),
+            non_identifying_attributes,
         )
         .map_err(|e| SubAgentBuilderError::OpampClientBuilderError(e.to_string()))?;
         self.sub_agent_publisher
@@ -291,23 +295,28 @@ mod tests {
                 agent_identity.agent_type_id.version().to_string().into(),
             ),
         ]);
+        let mut non_identifying_attributes = HashMap::from([
+            (
+                HOST_NAME_ATTRIBUTE_KEY.to_string(),
+                DescriptionValueType::String(hostname.to_string()),
+            ),
+            (
+                PARENT_AGENT_ID_ATTRIBUTE_KEY.to_string(),
+                DescriptionValueType::Bytes(agent_control_instance_id.into()),
+            ),
+            (OS_ATTRIBUTE_KEY.to_string(), OS_ATTRIBUTE_VALUE.into()),
+        ]);
+        // Mirrors the real build() path so this expectation matches regardless of
+        // which distro the test happens to run on.
+        insert_os_release_attributes(&mut non_identifying_attributes);
+
         StartSettings {
             instance_uid: sub_agent_instance_id.into(),
             capabilities: default_capabilities(),
             custom_capabilities: Some(default_custom_capabilities().into()),
             agent_description: AgentDescription {
                 identifying_attributes,
-                non_identifying_attributes: HashMap::from([
-                    (
-                        HOST_NAME_ATTRIBUTE_KEY.to_string(),
-                        DescriptionValueType::String(hostname.to_string()),
-                    ),
-                    (
-                        PARENT_AGENT_ID_ATTRIBUTE_KEY.to_string(),
-                        DescriptionValueType::Bytes(agent_control_instance_id.into()),
-                    ),
-                    (OS_ATTRIBUTE_KEY.to_string(), OS_ATTRIBUTE_VALUE.into()),
-                ]),
+                non_identifying_attributes,
             },
         }
     }

@@ -27,6 +27,7 @@ use crate::event::channel::{EventConsumer, pub_sub};
 use crate::event::{AgentControlEvent, OpAMPEvent};
 use crate::http::config::ProxyConfig;
 use crate::on_host::file_store::FileStore;
+use crate::opamp::attributes::insert_os_release_attributes;
 use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
 use crate::opamp::callbacks::AgentCallbacks;
 use crate::opamp::client_builder::BuildOpAMPClient;
@@ -400,6 +401,8 @@ fn ac_non_identifying_attributes(
             OS_ATTRIBUTE_VALUE.to_string().into(),
         ),
     ]);
+
+    insert_os_release_attributes(&mut attributes);
 
     // Only add execution mode attribute in verify mode
     if running_mode == RunningMode::Verify {
