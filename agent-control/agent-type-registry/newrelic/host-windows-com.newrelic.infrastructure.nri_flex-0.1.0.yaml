@@ -26,9 +26,6 @@ variables:
       type: string
       required: false
       default: newrelic/nri-flex-artifacts
-      variants:
-        ac_config_field: "oci_repository_urls"
-        values: [ "newrelic/nri-flex-artifacts" ]
 deployment:
   packages:
     nri-flex:

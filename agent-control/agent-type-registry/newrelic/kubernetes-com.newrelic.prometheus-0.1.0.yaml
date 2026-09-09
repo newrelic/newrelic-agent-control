@@ -32,9 +32,6 @@ variables:
       type: string
       required: false
       default: "https://newrelic.github.io/newrelic-prometheus-configurator"
-      variants:
-        ac_config_field: "chart_repository_urls"
-        values: [ "https://newrelic.github.io/newrelic-prometheus-configurator" ]
     secret_reference:
       description: "HelmRepository secret reference (secretRef)"
       type: yaml

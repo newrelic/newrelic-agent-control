@@ -26,9 +26,6 @@ variables:
       type: string
       required: false
       default: newrelic/nri-postgresql-artifacts
-      variants:
-        ac_config_field: "oci_repository_urls"
-        values: [ "newrelic/nri-postgresql-artifacts" ]
 deployment:
   packages:
     nri-postgresql:

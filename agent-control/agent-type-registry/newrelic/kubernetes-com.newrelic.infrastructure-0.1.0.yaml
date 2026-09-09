@@ -28,9 +28,6 @@ variables:
       required: false
       default: "https://helm-charts.newrelic.com"
       # For security reasons, the chart repository URL must be allow-listed.
-      variants:
-        ac_config_field: "chart_repository_urls"
-        values: [ "https://helm-charts.newrelic.com" ]
     secret_reference:
       description: "HelmRepository secret reference (secretRef)"
       type: yaml
