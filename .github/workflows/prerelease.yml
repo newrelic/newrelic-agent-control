@@ -202,6 +202,8 @@ jobs:
     with:
       canary_dir: production
       apply: true
+      fleet_id: ${{ vars.K8S_FLEET_ID_PRODUCTION }}
+      data_account_id: ${{ vars.FLEET_DATA_ACCOUNT_ID_PRODUCTION }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
@@ -243,6 +245,9 @@ jobs:
     with:
       environment: production
       operation: apply
+      fleet_id: ${{ vars.ONHOST_FLEET_ID_PRODUCTION }}
+      windows_fleet_id: ${{ vars.ONHOST_WINDOWS_FLEET_ID_PRODUCTION }}
+      data_account_id: ${{ vars.FLEET_DATA_ACCOUNT_ID_PRODUCTION }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}

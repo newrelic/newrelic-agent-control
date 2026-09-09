@@ -1,14 +1,10 @@
 name: 🔁🐤 Scheduled on host canary config rotation
 
-# Every 6 hours, alternate between two states for the canary fleet:
-#   add    → NRInfra + NRIFlex
-#   remove → NRInfra only (NRIFlex absent, Fleet Control reconciles removal)
-# NRInfra is always present so process and infra metrics keep flowing.
+# On schedule add/remove Flex, always keep Infra Agent
 
 on:
   schedule:
-    # Every 6 hours (UTC). Minute offset from :00 to dodge the top-of-hour
-    # scheduler backlog that delays cron workflows on GitHub-hosted runners.
+    # Every 6 hours
     - cron: "17 */6 * * *"
 
 permissions:
