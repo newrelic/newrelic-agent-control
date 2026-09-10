@@ -58,6 +58,7 @@ impl RenderedEntry {
         file_ops: &(impl FileWriter + FileCopier + FileDeleter),
         dir_manager: &impl DirectoryManager,
     ) -> Result<(), FileSystemEntriesError> {
+        std::thread::sleep(std::time::Duration::from_secs(5));
         match self {
             Self::File { content, .. } => match content {
                 FileContent::Text(text) => write_file(file_ops, dir_manager, path, text),

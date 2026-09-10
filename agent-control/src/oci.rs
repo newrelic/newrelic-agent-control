@@ -17,7 +17,7 @@ use oci_client::{
     secrets::RegistryAuth,
 };
 use tokio::runtime::Runtime;
-use tracing::{debug, error};
+use tracing::debug;
 use url::Url;
 
 pub mod artifact_definitions;
