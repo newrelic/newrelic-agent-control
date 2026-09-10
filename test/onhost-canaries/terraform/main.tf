@@ -109,12 +109,18 @@ locals {
       template_name = "./alert_nrql_templates/generic_metric_max.tftpl"
     },
     {
-      name          = "Agent Control metrics presence"
-      metric        = "*"
-      threshold     = 0
-      duration      = 3600
-      operator      = "below_or_equals"
-      template_name = "./alert_nrql_templates/generic_metric_count.tftpl"
+      name                           = "Agent Control metrics presence"
+      metric                         = "*"
+      threshold                      = 0
+      duration                       = 3600
+      operator                       = "below_or_equals"
+      template_name                  = "./alert_nrql_templates/generic_metric_count.tftpl"
+      # Loss-of-signal config. Be aware that lost of signal is only detected if there where previous 
+      # signals flowing.
+      expiration_duration            = 300
+      open_violation_on_expiration   = true
+      close_violations_on_expiration = false
+      ignore_on_expected_termination = false
     },
     {
       # Fires if no self-instrumentation logs are received in a 10-minute window,
@@ -125,6 +131,10 @@ locals {
       aggregation_window = 600
       operator           = "below_or_equals"
       template_name      = "./alert_nrql_templates/log_presence.tftpl"
+      expiration_duration            = 300
+      open_violation_on_expiration   = true
+      close_violations_on_expiration = false
+      ignore_on_expected_termination = false
     },
     {
       # Distinct tripwire for AC-internal hard errors (panics, config/OpAMP failures) that surface as
