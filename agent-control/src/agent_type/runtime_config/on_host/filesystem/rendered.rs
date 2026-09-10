@@ -262,12 +262,15 @@ fn copy_file(
         .map_err(|err| FileSystemEntriesError(format!("copying {source:?} to {path:?}: {err}")))
 }
 
-/// Opens `path` and issues `sync_all` so the file's bytes and metadata are on disk before the
-/// caller proceeds. Called once at the end of `RenderedEntry::write`'s File arm so every
-/// materialized file gets flushed at a single point, providing a barrier against readers
-/// observing a later file appear before an earlier one is durable.
+/// Opens `path` for write and issues `sync_all` so the file's bytes and metadata are on disk
+/// before the caller proceeds. Called once at the end of `RenderedEntry::write`'s File arm so
+/// every materialized file gets flushed at a single point, providing a barrier against readers
+/// observing a later file appear before an earlier one is durable. Opened with write access
+/// because `sync_all` on Windows calls `FlushFileBuffers`, which requires `GENERIC_WRITE`.
 fn sync_file_to_disk(path: &Path) -> Result<(), FileSystemEntriesError> {
-    let file = std::fs::File::open(path)
+    let file = std::fs::OpenOptions::new()
+        .write(true)
+        .open(path)
         .map_err(|err| FileSystemEntriesError(format!("opening {path:?} for sync: {err}")))?;
     file.sync_all()
         .map_err(|err| FileSystemEntriesError(format!("syncing {path:?}: {err}")))
