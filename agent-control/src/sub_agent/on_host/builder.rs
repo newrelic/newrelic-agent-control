@@ -7,7 +7,7 @@ use crate::agent_type::registry::AgentTypeRegistry;
 use crate::event::SubAgentEvent;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::pub_sub;
-use crate::opamp::attributes::insert_os_release_attributes;
+use crate::opamp::attributes::insert_os_version_attribute;
 use crate::opamp::client_builder::BuildOpAMPClient;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::sub_agent_start_settings;
@@ -84,7 +84,7 @@ where
                 DescriptionValueType::String(OS_ATTRIBUTE_VALUE.to_string()),
             ),
         ]);
-        insert_os_release_attributes(&mut non_identifying_attributes);
+        insert_os_version_attribute(&mut non_identifying_attributes);
 
         let opamp_start_settings = sub_agent_start_settings(
             &self.instance_id_getter,
@@ -308,7 +308,7 @@ mod tests {
         ]);
         // Mirrors the real build() path so this expectation matches regardless of
         // which distro the test happens to run on.
-        insert_os_release_attributes(&mut non_identifying_attributes);
+        insert_os_version_attribute(&mut non_identifying_attributes);
 
         StartSettings {
             instance_uid: sub_agent_instance_id.into(),

@@ -7,21 +7,16 @@ use opamp_client::operation::settings::{AgentDescription, DescriptionValueType};
 use opamp_client::{ClientError, StartedClient};
 use tracing::error;
 
-use crate::agent_control::defaults::{OS_NAME_ATTRIBUTE_KEY, OS_VERSION_ATTRIBUTE_KEY};
+use crate::agent_control::defaults::OS_VERSION_ATTRIBUTE_KEY;
 use crate::event::channel::EventPublisher;
 
-/// Adds `os.name`/`os.version` non-identifying attributes when they're available.
+/// Adds the `os.version` non-identifying attribute when it's available.
 ///
 /// Best-effort and Linux-only today: on other targets, or if `/etc/os-release` is
-/// missing or unparseable, this leaves `attributes` untouched.
-pub fn insert_os_release_attributes(attributes: &mut HashMap<String, DescriptionValueType>) {
-    if let Some(os_release) = resource_detection::system::os_release::detect_os_release() {
-        if let Some(name) = os_release.name {
-            attributes.insert(OS_NAME_ATTRIBUTE_KEY.to_string(), name.into());
-        }
-        if let Some(version_id) = os_release.version_id {
-            attributes.insert(OS_VERSION_ATTRIBUTE_KEY.to_string(), version_id.into());
-        }
+/// missing or has no `VERSION_ID`, this leaves `attributes` untouched.
+pub fn insert_os_version_attribute(attributes: &mut HashMap<String, DescriptionValueType>) {
+    if let Some(version_id) = resource_detection::system::os_release::detect_os_version() {
+        attributes.insert(OS_VERSION_ATTRIBUTE_KEY.to_string(), version_id.into());
     }
 }
 

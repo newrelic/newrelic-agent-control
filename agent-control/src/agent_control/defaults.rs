@@ -98,9 +98,6 @@ pub const OS_ATTRIBUTE_VALUE: &str = "linux";
 #[cfg(target_os = "windows")]
 pub const OS_ATTRIBUTE_VALUE: &str = "windows";
 
-/// OpAMP attribute key for the OS distro/product name (e.g. "Debian GNU/Linux").
-/// Linux only today; populated from `/etc/os-release`.
-pub const OS_NAME_ATTRIBUTE_KEY: &str = "os.name";
 /// OpAMP attribute key for the OS version (e.g. "11"). Linux only today;
 /// populated from `/etc/os-release`.
 pub const OS_VERSION_ATTRIBUTE_KEY: &str = "os.version";
