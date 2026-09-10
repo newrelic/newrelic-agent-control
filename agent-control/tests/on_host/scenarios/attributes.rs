@@ -28,10 +28,11 @@ use opamp_client::opamp::proto::any_value::Value::BytesValue;
 use resource_detection::system::hostname::get_hostname;
 use std::time::Duration;
 
-/// Whatever the test host's `/etc/os-release` actually contains, derived the same
-/// way the code under test derives it, so the expectation matches regardless of
-/// which distro this test happens to run on.
-fn expected_os_release_attributes() -> Vec<(&'static str, Value)> {
+/// Whatever the test host's OS version actually is, derived the same way the
+/// code under test derives it (`/etc/os-release` on Linux, the registry on
+/// Windows), so the expectation matches regardless of which OS/version this
+/// test happens to run on.
+fn expected_os_version_attributes() -> Vec<(&'static str, Value)> {
     resource_detection::system::os_version::detect_os_version()
         .map(|version_id| vec![(OS_VERSION_ATTRIBUTE_KEY, Value::StringValue(version_id))])
         .unwrap_or_default()
@@ -93,7 +94,7 @@ fn test_attributes() {
         ),
     ]));
     expected_non_identifying_attributes
-        .extend(convert_to_vec_key_value(expected_os_release_attributes()));
+        .extend(convert_to_vec_key_value(expected_os_version_attributes()));
 
     retry(30, Duration::from_secs(1), || {
         check_latest_identifying_attributes_match_expected(
@@ -267,7 +268,7 @@ agents:
         ),
     ]));
     expected_non_identifying_attributes
-        .extend(convert_to_vec_key_value(expected_os_release_attributes()));
+        .extend(convert_to_vec_key_value(expected_os_version_attributes()));
 
     retry(30, Duration::from_secs(1), || {
         check_latest_identifying_attributes_match_expected(

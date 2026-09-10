@@ -307,7 +307,7 @@ mod tests {
             (OS_ATTRIBUTE_KEY.to_string(), OS_ATTRIBUTE_VALUE.into()),
         ]);
         // Mirrors the real build() path so this expectation matches regardless of
-        // which distro the test happens to run on.
+        // which OS/version the test happens to run on.
         insert_os_version_attribute(&mut non_identifying_attributes);
 
         StartSettings {

@@ -6,9 +6,10 @@
 #[cfg(target_os = "linux")]
 const OS_RELEASE_PATH: &str = "/etc/os-release";
 
-/// Reads `/etc/os-release` and returns its `VERSION_ID` (e.g. "11"). Linux only;
-/// always `None` on other targets, or if the file can't be read or has no
-/// `VERSION_ID` line.
+/// Reads `/etc/os-release` and returns its `VERSION_ID` (e.g. "11"). `None` if
+/// the file can't be read or has no `VERSION_ID` line. Linux only: this
+/// function doesn't exist on other targets (see `system::os_version` for the
+/// cross-platform entry point).
 #[cfg(target_os = "linux")]
 pub fn detect_os_version() -> Option<String> {
     let content = std::fs::read_to_string(OS_RELEASE_PATH).ok()?;
