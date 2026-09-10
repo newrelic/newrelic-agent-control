@@ -3,6 +3,13 @@ pub mod detector;
 /// hostname retriever
 pub mod hostname;
 mod machine_identifier;
+/// os-release parser (Linux)
+mod os_release;
+/// cross-platform OS version detection
+pub mod os_version;
+/// Windows registry-based OS version detection
+#[cfg(target_os = "windows")]
+mod os_version_windows;
 
 /// HOSTNAME_KEY represents the hostname key attribute
 pub const HOSTNAME_KEY: &str = "hostname";
