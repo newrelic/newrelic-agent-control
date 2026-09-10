@@ -22,7 +22,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ### enhancement
 - Linux: added Debian 13 (trixie) as a supported/published platform.
-- Linux: Agent Control and its sub-agents now report OS version (`os.version`, parsed from `/etc/os-release`) as an OpAMP attribute, alongside the existing `os.type`.
+- Linux and Windows: Agent Control and its sub-agents now report OS version (`os.version`, parsed from `/etc/os-release` on Linux or the registry's `CurrentBuildNumber` on Windows) as an OpAMP attribute, alongside the existing `os.type`.
 
 ## v1.24.0 - 2026-09-08
 

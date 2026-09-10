@@ -12,10 +12,11 @@ use crate::event::channel::EventPublisher;
 
 /// Adds the `os.version` non-identifying attribute when it's available.
 ///
-/// Best-effort and Linux-only today: on other targets, or if `/etc/os-release` is
-/// missing or has no `VERSION_ID`, this leaves `attributes` untouched.
+/// Best-effort, Linux and Windows only today: on other targets, or if the
+/// version can't be read (missing `/etc/os-release`/`VERSION_ID` on Linux, or
+/// an unreadable registry key on Windows), this leaves `attributes` untouched.
 pub fn insert_os_version_attribute(attributes: &mut HashMap<String, DescriptionValueType>) {
-    if let Some(version_id) = resource_detection::system::os_release::detect_os_version() {
+    if let Some(version_id) = resource_detection::system::os_version::detect_os_version() {
         attributes.insert(OS_VERSION_ATTRIBUTE_KEY.to_string(), version_id.into());
     }
 }

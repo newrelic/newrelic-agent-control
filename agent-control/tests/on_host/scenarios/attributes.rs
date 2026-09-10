@@ -32,7 +32,7 @@ use std::time::Duration;
 /// way the code under test derives it, so the expectation matches regardless of
 /// which distro this test happens to run on.
 fn expected_os_release_attributes() -> Vec<(&'static str, Value)> {
-    resource_detection::system::os_release::detect_os_version()
+    resource_detection::system::os_version::detect_os_version()
         .map(|version_id| vec![(OS_VERSION_ATTRIBUTE_KEY, Value::StringValue(version_id))])
         .unwrap_or_default()
 }

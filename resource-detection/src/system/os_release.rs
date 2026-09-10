@@ -15,15 +15,14 @@ pub fn detect_os_version() -> Option<String> {
     parse_os_version(&content)
 }
 
-/// Linux only; always `None` on other targets.
-#[cfg(not(target_os = "linux"))]
-pub fn detect_os_version() -> Option<String> {
-    None
-}
-
 /// Parses `VERSION_ID` out of the contents of an os-release file. Exposed
 /// separately from [`detect_os_version`] so it can be exercised against
 /// fixture content without touching the filesystem.
+///
+/// Only ever called on Linux (see `detect_os_version` above), so this is dead
+/// code on other targets from the compiler's point of view even though its
+/// tests still run everywhere.
+#[allow(dead_code)]
 pub fn parse_os_version(content: &str) -> Option<String> {
     content.lines().find_map(|line| {
         let (key, value) = line.split_once('=')?;
