@@ -104,6 +104,9 @@ impl Client {
                 .pull_blob(reference, layer, &mut file)
                 .await
                 .map_err(|err| OciClientError::PullBlob(err.into()))?;
+            // HACK: slow the OCI pull so the nri-redis e2e catches the
+            // add-OHI-to-running-infra race. REMOVE BEFORE MERGE.
+            std::thread::sleep(std::time::Duration::from_secs(5));
 
             // Ensure all data is flushed to disk before returning
             file.sync_data().await.map_err(|err| {

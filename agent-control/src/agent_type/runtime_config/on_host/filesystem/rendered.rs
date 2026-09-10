@@ -158,9 +158,6 @@ impl SharedFileSystem {
     ) -> Result<(), FileSystemEntriesError> {
         for (path, entry) in &self.entries {
             entry.write(path, file_ops, dir_manager)?;
-            // HACK: widen the intra-write gap so the nri-redis e2e catches the
-            // config-lands-before-binary race. REMOVE BEFORE MERGE.
-            std::thread::sleep(std::time::Duration::from_secs(5));
         }
         Ok(())
     }
