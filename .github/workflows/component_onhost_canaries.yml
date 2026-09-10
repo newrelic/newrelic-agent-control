@@ -26,7 +26,7 @@ concurrency:
 
 env:
   # AC Staging Account `host-canaries-staging` fleet. Single source of truth for these GUIDs: the
-  # ONHOST_* repo variables, also consumed by the fleet-canary-alerts terraform plan/apply.
+  # ONHOST_* repo variables.
   FLEET_ID_STAGING: "${{ vars.ONHOST_FLEET_ID_STAGING }}"
   WINDOWS_FLEET_ID_STAGING: "${{ vars.ONHOST_WINDOWS_FLEET_ID_STAGING }}"
   # AC US Production Account `host-canaries-production` fleet

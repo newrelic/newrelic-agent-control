@@ -47,6 +47,20 @@ variable "emails" {
   description = "Comma-separated list of emails to receive alert notifications"
   type        = string
 }
+variable "fleet_id" {
+  description = "Fleet Control fleet entity GUID for the linux canary instance"
+  type        = string
+}
+
+variable "windows_fleet_id" {
+  description = "Fleet Control fleet entity GUID for the windows canary instance"
+  type        = string
+}
+
+variable "data_account_id" {
+  description = "New Relic fleet-data account ID"
+  type        = string
+}
 
 locals {
   ec2_instances = {
@@ -59,6 +73,7 @@ locals {
       username        = "ubuntu"
       platform        = "linux"
       python          = "/usr/bin/python3"
+      fleet_id        = var.fleet_id
     }
     "amd64:windows_2022" = {
       ami             = "ami-0c8cf460a9c224dfd"
@@ -69,6 +84,7 @@ locals {
       username        = "Administrator"
       platform        = "windows"
       python          = ""
+      fleet_id        = var.windows_fleet_id
     }
   }
 
@@ -221,6 +237,27 @@ locals {
     ]
   }
 
+  fleet_alert_conditions = [
+    {
+      name               = "UnHealthy agents"
+      threshold          = 0
+      duration           = 300
+      aggregation_window = 300
+      operator           = "above"
+      data_account_id    = var.data_account_id
+      template_name      = "./alert_nrql_templates/agent_heartbeat_unhealthy.tftpl"
+    },
+    {
+      name               = "Failed deployment"
+      threshold          = 0
+      duration           = 60
+      aggregation_window = 300
+      operator           = "above"
+      data_account_id    = var.data_account_id
+      template_name      = "./alert_nrql_templates/fleet_deployment_failed.tftpl"
+    },
+  ]
+
   // To setup the alerts, we need to know the hostnames of the instances.
   // One option would be to wait for the ansible inventory to be created, but then
   // terraform won't be able to show all the resources that the apply operation
@@ -235,7 +272,8 @@ locals {
       platform = v.platform
       conditions = concat(
         local.common_alert_conditions,
-        local.memory_alert_condition_by_platform[v.platform]
+        local.memory_alert_condition_by_platform[v.platform],
+        [for c in local.fleet_alert_conditions : merge(c, { fleet_guid = v.fleet_id })]
       )
     }
   }

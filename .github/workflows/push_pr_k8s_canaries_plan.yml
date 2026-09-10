@@ -30,10 +30,16 @@ jobs:
       matrix:
         include:
           - canary_dir: staging
+            fleet_id: ${{ vars.K8S_FLEET_ID_STAGING }}
+            data_account_id: ${{ vars.FLEET_DATA_ACCOUNT_ID_STAGING }}
           - canary_dir: production
+            fleet_id: ${{ vars.K8S_FLEET_ID_PRODUCTION }}
+            data_account_id: ${{ vars.FLEET_DATA_ACCOUNT_ID_PRODUCTION }}
     with:
       canary_dir: ${{ matrix.canary_dir }}
       apply: false
+      fleet_id: ${{ matrix.fleet_id }}
+      data_account_id: ${{ matrix.data_account_id }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}

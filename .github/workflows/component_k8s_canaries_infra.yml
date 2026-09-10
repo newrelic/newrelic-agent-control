@@ -11,6 +11,14 @@ on:
         description: "If true, runs terraform apply. If false, runs terraform plan."
         required: true
         type: boolean
+      fleet_id:
+        description: "Fleet Control fleet entity GUID for the k8s canary cluster"
+        required: true
+        type: string
+      data_account_id:
+        description: "New Relic fleet-data account ID that receives AgentHeartbeat/FleetDeployment events"
+        required: true
+        type: string
     secrets:
       AWS_ROLE_ARN:
         required: true
@@ -49,7 +57,7 @@ jobs:
         uses: newrelic/fargate-runner-action@8955938e6043114624462e6cd4e1cbbbcc54a691 # main
         with:
           aws_region: us-east-2
-          container_make_target: "SLACK_WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK_URL }} EMAILS=${{ vars.EMAILS }} CANARY_DIR=${{ inputs.canary_dir }} test/k8s-canaries/terraform-${{ inputs.apply && 'apply' || 'plan' }}"
+          container_make_target: "SLACK_WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK_URL }} EMAILS=${{ vars.EMAILS }} CANARY_DIR=${{ inputs.canary_dir }} FLEET_ID=${{ inputs.fleet_id }} DATA_ACCOUNT_ID=${{ inputs.data_account_id }} test/k8s-canaries/terraform-${{ inputs.apply && 'apply' || 'plan' }}"
           ecs_cluster_name: agent_control
           task_definition_name: agent_control
           cloud_watch_logs_group_name: /ecs/test-prerelease-agent_control
