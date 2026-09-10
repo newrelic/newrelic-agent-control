@@ -5,7 +5,7 @@ use fs::{directory_manager::DirectoryManager, file::writer::FileWriter};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
-use tracing::trace;
+use tracing::{debug, trace};
 
 /// Rendered filesystem tree, ready to be materialized on disk.
 ///
@@ -58,15 +58,26 @@ impl RenderedEntry {
         file_ops: &(impl FileWriter + FileCopier + FileDeleter),
         dir_manager: &impl DirectoryManager,
     ) -> Result<(), FileSystemEntriesError> {
+        let kind = match self {
+            Self::File { .. } => "file",
+            Self::Dir { .. } => "dir",
+            Self::DirContentFromMap { .. } => "dir_content_from_map",
+        };
+        debug!(path = %path.display(), kind, "Writing rendered entry");
         std::thread::sleep(std::time::Duration::from_secs(5));
         match self {
-            Self::File { content, .. } => match content {
-                FileContent::Text(text) => write_file(file_ops, dir_manager, path, text),
-                FileContent::Copy(source) => copy_file(file_ops, dir_manager, path, source),
-            },
-            Self::Dir { children, .. } => {
+            Self::File { content } => {
+                match content {
+                    FileContent::Text(text) => write_file(file_ops, dir_manager, path, text)?,
+                    FileContent::Copy(source) => copy_file(file_ops, dir_manager, path, source)?,
+                }
+                sync_file_to_disk(path)
+            }
+            Self::Dir { children } => {
                 ensure_dir(file_ops, dir_manager, path)?;
-                for (sub_path, child) in children {
+                let mut sorted: Vec<_> = children.iter().collect();
+                sorted.sort_by(|a, b| a.0.cmp(b.0));
+                for (sub_path, child) in sorted {
                     let child_path = path.join(sub_path);
                     trace!("Recursing into child entry {}", child_path.display());
                     child.write(&child_path, file_ops, dir_manager)?;
@@ -79,8 +90,14 @@ impl RenderedEntry {
                 delete_path(path, file_ops, dir_manager)
                     .map_err(|err| FileSystemEntriesError(format!("clearing {path:?}: {err}")))?;
                 ensure_dir(file_ops, dir_manager, path)?;
-                for (file_name, content) in files {
-                    write_file(file_ops, dir_manager, &path.join(file_name), content)?;
+                let mut sorted: Vec<_> = files.iter().collect();
+                sorted.sort_by(|a, b| a.0.cmp(b.0));
+                for (file_name, content) in sorted {
+                    // Route through RenderedEntry::write so the sync in the File arm covers these files too.
+                    let entry = RenderedEntry::File {
+                        content: FileContent::Text(content.to_owned()),
+                    };
+                    entry.write(&path.join(file_name), file_ops, dir_manager)?;
                 }
                 Ok(())
             }
@@ -99,9 +116,16 @@ impl FileSystem {
         file_ops: &(impl FileWriter + FileCopier + FileDeleter),
         dir_manager: &impl DirectoryManager,
     ) -> Result<(), FileSystemEntriesError> {
-        for (path, entry) in &self.entries {
+        debug!(
+            entry_count = self.entries.len(),
+            "Materializing FileSystem tree"
+        );
+        let mut sorted: Vec<_> = self.entries.iter().collect();
+        sorted.sort_by(|a, b| a.0.cmp(b.0));
+        for (path, entry) in sorted {
             entry.write(path, file_ops, dir_manager)?;
         }
+        debug!("FileSystem tree materialization complete");
         Ok(())
     }
 
@@ -157,9 +181,16 @@ impl SharedFileSystem {
         file_ops: &(impl FileWriter + FileCopier + FileDeleter),
         dir_manager: &impl DirectoryManager,
     ) -> Result<(), FileSystemEntriesError> {
-        for (path, entry) in &self.entries {
+        debug!(
+            entry_count = self.entries.len(),
+            "Materializing SharedFileSystem tree"
+        );
+        let mut sorted: Vec<_> = self.entries.iter().collect();
+        sorted.sort_by(|a, b| a.0.cmp(b.0));
+        for (path, entry) in sorted {
             entry.write(path, file_ops, dir_manager)?;
         }
+        debug!("SharedFileSystem tree materialization complete");
         Ok(())
     }
 }
@@ -194,7 +225,7 @@ fn write_file(
     path: &Path,
     content: &str,
 ) -> Result<(), FileSystemEntriesError> {
-    trace!("Writing filesystem entry to {}", path.display());
+    debug!(path = %path.display(), "Writing file");
     // We ensure the parent exists even if the dir is declared independently.
     let parent = path
         .parent()
@@ -215,10 +246,10 @@ fn copy_file(
     path: &Path,
     source: &Path,
 ) -> Result<(), FileSystemEntriesError> {
-    trace!(
-        "Copying filesystem entry from {} to {}",
-        source.display(),
-        path.display()
+    debug!(
+        source = %source.display(),
+        path = %path.display(),
+        "Copying file"
     );
     let parent = path
         .parent()
@@ -229,6 +260,17 @@ fn copy_file(
     file_ops
         .copy(source, path)
         .map_err(|err| FileSystemEntriesError(format!("copying {source:?} to {path:?}: {err}")))
+}
+
+/// Opens `path` and issues `sync_all` so the file's bytes and metadata are on disk before the
+/// caller proceeds. Called once at the end of `RenderedEntry::write`'s File arm so every
+/// materialized file gets flushed at a single point, providing a barrier against readers
+/// observing a later file appear before an earlier one is durable.
+fn sync_file_to_disk(path: &Path) -> Result<(), FileSystemEntriesError> {
+    let file = std::fs::File::open(path)
+        .map_err(|err| FileSystemEntriesError(format!("opening {path:?} for sync: {err}")))?;
+    file.sync_all()
+        .map_err(|err| FileSystemEntriesError(format!("syncing {path:?}: {err}")))
 }
 
 /// Removes whatever currently occupies `path` if it exists and its on-disk shape (directory vs.
