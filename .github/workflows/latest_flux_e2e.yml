@@ -29,7 +29,8 @@ jobs:
       E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
 
   notify-failure:
-    if: ${{ always() && failure() }}
+    # Notify ONLY on scheduled un-attended executions
+    if: ${{ always() && failure() && github.event_name != 'workflow_dispatch' && github.run_attempt == '1' }}
     needs:
       - k8s-e2e-tests-latest-flux
     uses: ./.github/workflows/component_send_warning_via_slack.yml

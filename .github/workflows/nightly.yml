@@ -238,7 +238,8 @@ jobs:
         run: bash .github/workflows/scripts/slack_e2e_summary.sh
 
   notify-failure:
-    if: ${{ always() && failure() }}
+    # Notify ONLY on scheduled un-attended executions
+    if: ${{ always() && failure() && github.event_name != 'workflow_dispatch' && github.run_attempt == '1' }}
     needs:
       - onhost-e2e
       - k8s_canaries

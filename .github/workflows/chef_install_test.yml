@@ -77,7 +77,8 @@ jobs:
           fi
 
   notify-failure:
-    if: ${{ always() && failure() }}
+    # Notify ONLY on scheduled un-attended executions
+    if: ${{ always() && failure() && github.event_name != 'workflow_dispatch' && github.run_attempt == '1' }}
     needs: [chef-install]
     uses: ./.github/workflows/component_send_warning_via_slack.yml
     with:
