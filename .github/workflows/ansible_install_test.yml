@@ -43,6 +43,8 @@ jobs:
 
       - name: Create and apply Ansible playbook
         run: |
+          set -o pipefail  # keep ansible-playbook's exit code through the `tee` pipe below
+
           # Create ansible playbook file
           cat <<EOF > playbook.yaml
           - name: Install New Relic infrastructure and logs
@@ -68,7 +70,15 @@ jobs:
               NEW_RELIC_AGENT_CONTROL_PROXY_IGNORE_SYSTEM : "false"
           EOF
 
-          ansible-playbook playbook.yaml -i "localhost," --connection=local > output.log 2>&1
+          ansible-playbook playbook.yaml -i "localhost," --connection=local -v | tee output.log
+
+      - name: Upload ansible output log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ansible-install-output
+          path: output.log
+          if-no-files-found: warn
 
       - name: Check for successful installation
         run: |
