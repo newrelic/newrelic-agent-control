@@ -82,6 +82,10 @@ jobs:
       - name: Print Ansible output on failure
         if: failure()
         run: cat output.log
+      
+      - name: Print cli logs
+        if: failure()
+        run: cat /tmp/newrelic-cli-debug.log
 
   # notify-failure:
   #   if: ${{ always() && failure() }}
