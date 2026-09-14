@@ -53,6 +53,7 @@ jobs:
               targets:
                 - logs-agent-control
                 - agent-control
+              verbosity: debug
             environment:
               NEW_RELIC_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
               NEW_RELIC_ACCOUNT_ID: "${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}"
@@ -83,10 +84,10 @@ jobs:
         if: failure()
         run: cat output.log
 
-  notify-failure:
-    if: ${{ always() && failure() }}
-    needs: [ansible-install]
-    uses: ./.github/workflows/component_send_warning_via_slack.yml
-    with:
-      message: "Ansible installation workflow failed"
-    secrets: inherit
+  # notify-failure:
+  #   if: ${{ always() && failure() }}
+  #   needs: [ansible-install]
+  #   uses: ./.github/workflows/component_send_warning_via_slack.yml
+  #   with:
+  #     message: "Ansible installation workflow failed"
+  #   secrets: inherit
