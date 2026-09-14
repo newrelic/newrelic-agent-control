@@ -25,6 +25,21 @@ module "alerts" {
   instance_id = "Agent_Control_Canaries_Staging-Cluster"
 
   conditions = [
+      {
+      name                           = "K8sContainerSample metric presence"
+      metric                         = "*"
+      sample                         = "K8sContainerSample"
+      threshold                      = 0
+      duration                       = 600
+      operator                       = "below_or_equals"
+      template_name                  = "./alert_nrql_templates/generic_metric_count.tftpl"
+      # Loss-of-signal config. Be aware that lost of signal is only detected if there where previous 
+      # signals flowing.
+      expiration_duration            = 300
+      open_violation_on_expiration   = true
+      close_violations_on_expiration = false
+      ignore_on_expected_termination = false
+    },
     {
       name          = "CPU usage (cores)"
       metric        = "cpuUsedCores"
@@ -52,57 +67,6 @@ module "alerts" {
       operator      = "above"
       template_name = "./alert_nrql_templates/generic_metric_max.tftpl"
     },
-    # Trigger alert if no metrics
-    {
-      name          = "CPU usage (cores)"
-      metric        = "cpuUsedCores"
-      sample        = "K8sContainerSample"
-      threshold     = 0
-      duration      = 3600
-      operator      = "below_or_equals"
-      template_name = "./alert_nrql_templates/generic_metric_max.tftpl"
-    },
-    {
-      name          = "Memory usage (bytes)"
-      metric        = "memoryWorkingSetBytes"
-      sample        = "K8sContainerSample"
-      threshold     = 0
-      duration      = 600
-      operator      = "below_or_equals"
-      template_name = "./alert_nrql_templates/generic_metric_max.tftpl"
-    },
-    {
-      # This alert should detect slow memory leaks.
-      #
-      # For that, we compute the slope of the line (derivative function), with 3 hours of data (aggregation_window).
-      # We then smooth the curve by computing the slope every hour (slide_by) and check that the slope is
-      # above 210KB/hour (threshold) for at least 6 hours (duration).
-      #
-      # That roughly translates to +5MB over 24 hours. False positives should be unlikely with the current threshold,
-      # but we can adjust it.
-      #
-      # Bare in mind that we are using 3 hour windows. The duration must be computed as the multiplication of the
-      # aggregation_window by the number of data points we want to be above the threshold to trigger the alert.
-      # In our case, we want 2 data points to be above the threshold, so the duration is 3 hours * 2 = 6 hours.
-      name               = "Memory growth (bytes/hour)"
-      metric             = "derivative(memoryResidentSizeBytes, 1 hour)"
-      sample             = "ProcessSample"
-      aggregation_window = 10800
-      slide_by           = 3600
-      threshold          = 210000
-      duration           = 21600
-      operator           = "above"
-      template_name      = "./alert_nrql_templates/generic_metric_plain.tftpl"
-    },
-    {
-      name          = "Agent Control container"
-      metric        = "*"
-      sample        = "K8sContainerSample"
-      threshold     = 0
-      duration      = 600
-      operator      = "below_or_equals"
-      template_name = "./alert_nrql_templates/generic_metric_count.tftpl"
-    },
     {
       # Fires if no self-instrumentation logs are received in a 10-minute window.
       name               = "Self-instrumentation logs presence"
@@ -111,6 +75,12 @@ module "alerts" {
       aggregation_window = 600
       operator           = "below_or_equals"
       template_name      = "./alert_nrql_templates/log_presence.tftpl"
+      # Loss-of-signal config. Be aware that lost of signal is only detected if there where previous 
+      # signals flowing.
+      expiration_duration            = 300
+      open_violation_on_expiration   = true
+      close_violations_on_expiration = false
+      ignore_on_expected_termination = false
     },
     {
       # Distinct tripwire for AC-internal hard errors (panics, config/OpAMP failures) that surface as
