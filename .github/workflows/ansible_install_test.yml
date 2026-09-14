@@ -45,13 +45,12 @@ jobs:
         run: |
           # Create ansible playbook file
           cat <<EOF > playbook.yaml
-          - name: Install New Relic infrastructure and logs
+          - name: Install New Relic infrastructure
             hosts: all
             roles:
               - role: newrelic.newrelic_install
             vars:
               targets:
-                - logs-agent-control
                 - agent-control
               verbosity: debug
             environment:
