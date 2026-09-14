@@ -11,6 +11,8 @@ variable "account_id" {}
 variable "api_key" {}
 variable "slack_webhook_url" {}
 variable "emails" {}
+variable "fleet_id" {}
+variable "data_account_id" {}
 module "alerts" {
   source = "../../../terraform/modules/nr_alerts"
 
@@ -90,6 +92,26 @@ module "alerts" {
       aggregation_window = 600
       operator           = "above"
       template_name      = "./alert_nrql_templates/log_error_presence.tftpl"
+    },
+    {
+      name               = "UnHealthy agents"
+      threshold          = 0
+      duration           = 300
+      aggregation_window = 300
+      operator           = "above"
+      data_account_id    = var.data_account_id
+      fleet_guid         = var.fleet_id
+      template_name      = "./alert_nrql_templates/agent_heartbeat_unhealthy.tftpl"
+    },
+    {
+      name               = "Failed deployment"
+      threshold          = 0
+      duration           = 60
+      aggregation_window = 300
+      operator           = "above"
+      data_account_id    = var.data_account_id
+      fleet_guid         = var.fleet_id
+      template_name      = "./alert_nrql_templates/fleet_deployment_failed.tftpl"
     },
   ]
 }

@@ -57,6 +57,9 @@ define check_env_vars_infra
 	$(call check_env_var,AC_CANARY_WINDOWS_PASSWORD)
 	$(call check_env_var,SLACK_WEBHOOK_URL)
 	$(call check_env_var,EMAILS)
+	$(call check_env_var,FLEET_ID)
+	$(call check_env_var,WINDOWS_FLEET_ID)
+	$(call check_env_var,DATA_ACCOUNT_ID)
 endef
 
 define check_env_vars_install
@@ -86,6 +89,9 @@ test/onhost-canaries/infra-plan:
 	TF_VAR_api_key=${NEW_RELIC_API_KEY} \
 	TF_VAR_slack_webhook_url="${SLACK_WEBHOOK_URL}" \
 	TF_VAR_emails="${EMAILS}" \
+	TF_VAR_fleet_id="${FLEET_ID}" \
+	TF_VAR_windows_fleet_id="${WINDOWS_FLEET_ID}" \
+	TF_VAR_data_account_id="${DATA_ACCOUNT_ID}" \
 	terraform -chdir=$(ONHOST_TF_DIR) plan -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
 
 # -parallelism=1: the alerts module is for_each'd per canary host, and New Relic's API
@@ -99,6 +105,9 @@ test/onhost-canaries/infra-apply:
 	TF_VAR_api_key=${NEW_RELIC_API_KEY} \
 	TF_VAR_slack_webhook_url="${SLACK_WEBHOOK_URL}" \
 	TF_VAR_emails="${EMAILS}" \
+	TF_VAR_fleet_id="${FLEET_ID}" \
+	TF_VAR_windows_fleet_id="${WINDOWS_FLEET_ID}" \
+	TF_VAR_data_account_id="${DATA_ACCOUNT_ID}" \
 	terraform -chdir=$(ONHOST_TF_DIR) apply -auto-approve -parallelism=1 -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
 
 # -parallelism=1: same ENTITY_IN_USE risk as infra-apply, see comment above.
@@ -111,6 +120,9 @@ test/onhost-canaries/infra-destroy:
 	TF_VAR_api_key=${NEW_RELIC_API_KEY} \
 	TF_VAR_slack_webhook_url="${SLACK_WEBHOOK_URL}" \
 	TF_VAR_emails="${EMAILS}" \
+	TF_VAR_fleet_id="${FLEET_ID}" \
+	TF_VAR_windows_fleet_id="${WINDOWS_FLEET_ID}" \
+	TF_VAR_data_account_id="${DATA_ACCOUNT_ID}" \
 	terraform -chdir=$(ONHOST_TF_DIR) destroy -auto-approve -parallelism=1 -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
 
 .PHONY: test/onhost-canaries/ansible-install
