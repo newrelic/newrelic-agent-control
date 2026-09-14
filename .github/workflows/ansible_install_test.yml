@@ -79,6 +79,10 @@ jobs:
             exit 1
           fi
 
+      - name: Print Ansible output on failure
+        if: failure()
+        run: cat output.log
+
   notify-failure:
     if: ${{ always() && failure() }}
     needs: [ansible-install]
