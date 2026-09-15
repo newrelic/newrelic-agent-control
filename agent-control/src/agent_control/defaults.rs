@@ -98,6 +98,10 @@ pub const OS_ATTRIBUTE_VALUE: &str = "linux";
 #[cfg(target_os = "windows")]
 pub const OS_ATTRIBUTE_VALUE: &str = "windows";
 
+/// OpAMP attribute key for the OS version (e.g. "11" on Linux, a build number
+/// like "26100" on Windows). Linux and Windows only today.
+pub const OS_VERSION_ATTRIBUTE_KEY: &str = "os.version";
+
 // Paths
 cfg_if::cfg_if! {
     if #[cfg(target_os = "macos")] {
