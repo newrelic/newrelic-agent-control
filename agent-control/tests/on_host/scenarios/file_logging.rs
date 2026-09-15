@@ -111,7 +111,9 @@ fn collect_stdout_logs(log_dir: &Path, agent_id: &str) -> io::Result<String> {
 /// values, waits for healthy, then sends a remote config update via OpAMP and waits for the
 /// reload to take effect.
 ///
-/// Returns the log_dir so callers can inspect the filesystem.
+/// Returns the log_dir so callers can inspect the filesystem. The returned `FakeServer` must be
+/// kept alive by the caller until the reload has taken effect, since dropping it stops the OpAMP
+/// server.
 ///
 /// # Arguments
 /// * `agent_id` - the agent id to use for the sub-agent
@@ -125,7 +127,7 @@ fn run_file_logging_scenario(
     initial_message: &str,
     reload_file_logging: bool,
     reload_message: &str,
-) -> (TempBasePaths, StartedAgentControl) {
+) -> (TempBasePaths, StartedAgentControl, FakeServer) {
     let mut opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let dirs = TempBasePaths::default();
@@ -165,8 +167,9 @@ fn run_file_logging_scenario(
         format!("message: \"{reload_message}\"\nenable_file_logging: \"{reload_file_logging}\"\n"),
     );
 
-    // AC stays alive via the returned handle; the caller's retry waits for the post-reload logs.
-    (dirs, agent_control)
+    // AC and the OpAMP server stay alive via the returned handles; the caller's retry waits for
+    // the post-reload logs.
+    (dirs, agent_control, opamp_server)
 }
 
 /// File logging enable/disable combinations with before and after reload checks
@@ -182,8 +185,8 @@ fn test_file_logging_reload(
 ) {
     let agent_id = format!("file-logging-agent-{first_run_enabled}-{second_run_enabled}");
 
-    // Keep the handle alive so AC keeps running during the wait below.
-    let (dirs, _agent_control) = run_file_logging_scenario(
+    // Keep the handles alive so AC and the OpAMP server keep running during the wait below.
+    let (dirs, _agent_control, _opamp_server) = run_file_logging_scenario(
         &agent_id,
         first_run_enabled,
         first_run_message,
@@ -222,7 +225,7 @@ fn onhost_supervisor_reloading_keeps_file_logging_disabled() {
     let unique_str_2 = "keeps_disabled_run2";
     let agent_id = "test-agent-logs-always-disabled";
 
-    let (dirs, _agent_control) =
+    let (dirs, _agent_control, _opamp_server) =
         run_file_logging_scenario(agent_id, false, unique_str_1, false, unique_str_2);
 
     let log_dir_path = dirs.log_dir();
