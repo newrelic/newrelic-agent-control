@@ -13,16 +13,6 @@ if [ -e "$oldPid" ]; then
 fi
 
 ######################################################################################
-# Newrelic Agent Control folder migration
-######################################################################################
-if command -v newrelic-agent-control-cli >/dev/null 2>&1; then
-    echo "Running New Relic Agent Control folder migration..."
-    newrelic-agent-control-cli files-backwards-compatibility-migration-from-v120 || true
-else
-    echo "Warning: newrelic-agent-control-cli not found. Skipping folder migration." >&2
-fi
-
-######################################################################################
 # Newrelic Agent Control - restore config saved by RPM on uninstall
 ######################################################################################
 CONFIG_FILE=/etc/newrelic-agent-control/local-data/agent-control/local_config.yaml

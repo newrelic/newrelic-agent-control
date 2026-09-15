@@ -22,6 +22,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ### enhancement
 - Linux: added Debian 13 (trixie) as a supported/published platform.
+- Linux: removed the legacy on-host folder migration pre-v1.2.0 from `newrelic-agent-control-cli` 
 
 ### security
 - Update rustls
