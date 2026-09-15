@@ -810,18 +810,16 @@ where
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod tests {
-    use super::*;
-
     use super::super::sub_agent::agent_renderer::AgentRenderer;
     use super::super::sub_agent::remote_config_parser::AgentRemoteConfigParser;
     use super::super::sub_agent::supervisor::tests::{
         MockSupervisor, MockSupervisorBuilder, MockSupervisorStarter, TestingSupervisorError,
     };
+    use super::*;
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
     use crate::agent_type::definition::AgentTypeDefinition;
     use crate::agent_type::registry::Registry;
-    use crate::agent_type::variable::constraints::VariableConstraints;
     use crate::checkers::health::health_checker::{Healthy, Unhealthy};
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
@@ -1118,7 +1116,6 @@ deployment:
         let agent_renderer = Arc::new(AgentRenderer::new(
             agent_type_registry.clone(),
             HashMap::new(),
-            VariableConstraints::default(),
             ValueProviders::default(),
             PathBuf::default().as_path(),
         ));
@@ -1252,7 +1249,6 @@ deployment:
         let agent_renderer = Arc::new(AgentRenderer::new(
             agent_type_registry.clone(),
             HashMap::new(),
-            VariableConstraints::default(),
             ValueProviders::default(),
             PathBuf::default().as_path(),
         ));
@@ -1938,7 +1934,6 @@ deployment:
         sub_agent.agent_renderer = Arc::new(AgentRenderer::new(
             Arc::new(TestAgent::agent_type_definition_with_required_var().into()),
             HashMap::new(),
-            VariableConstraints::default(),
             ValueProviders::default(),
             PathBuf::default().as_path(),
         ));

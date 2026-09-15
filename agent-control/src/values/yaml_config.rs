@@ -282,7 +282,6 @@ pub fn has_remote_management(capabilities: &Capabilities) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_type::variable::constraints::VariableConstraints;
     use crate::agent_type::variable::namespace::{Namespace, VariableName};
     use crate::agent_type::{definition::AgentTypeDefinition, variable::value::VariableValue};
     use rstest::rstest;
@@ -419,10 +418,7 @@ deployment: {}
             ),
         ]);
 
-        let resolved = agent_type
-            .variables
-            .resolve(&VariableConstraints::default(), input_structure)
-            .unwrap();
+        let resolved = agent_type.variables.resolve(input_structure).unwrap();
 
         assert_eq!(expected, resolved);
     }
@@ -443,9 +439,7 @@ deployment: {}
             serde_saphyr::from_str::<YAMLConfig>(EXAMPLE_CONFIG_REPLACE_WRONG_TYPE).unwrap();
         let agent_type = AgentTypeDefinition::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE);
 
-        let result = agent_type
-            .variables
-            .resolve(&VariableConstraints::default(), input_structure);
+        let result = agent_type.variables.resolve(input_structure);
 
         assert!(result.is_err());
         assert!(
