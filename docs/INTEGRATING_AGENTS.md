@@ -130,33 +130,6 @@ A default value for this variable, for the cases where no configuration value ha
 
 In the case of the `yaml` variable type, is recommended to explicitly set a 'null' default value as `default: null`.
 
-##### `variants` (optional)
-
-Only available for **String** variables.
-
-A list of accepted values for this variable. If any configuration includes a value for this variable that is not among the specified variants, the configuration will be invalid. The accepted values can be changed in the Agent Control configuration, as in the example below:
-
-Agent type:
-
-```yaml
-my_variable:
-  # ...
-  type: string
-  variants:
-    ac_config_field: "my_variable_variants" # If the field is set in `agent_type_var_constraints.variants`, the configures values will be used instead of the default ones.
-    values: ["value1", "value2"] # Otherwise the values defined here are used
-```
-
-AC config:
-
-```yaml
-agent_type_var_constraints:
-  variants: # map of variants
-    my_variable_variants: ["supported_value1", "supported_value2"] # The key should match what is defined in the Agent Type
-```
-
-By default, no variants are set, resulting in no variant validation.
-
 ### Agent Type Deployment
 
 This actually defines how the workload will be created and managed by AC, and it's defined under the top-level field `deployment`. The shape of `deployment` depends on the [platform](#agent-type-metadata) declared in the metadata: an on-host definition uses [on-host deployment fields](#on-host-deployment-definition) (`executables`, `filesystem`, `packages`, …), and a Kubernetes definition uses [Kubernetes deployment fields](#kubernetes-deployment-definition) (`objects`, …). Each per-platform YAML file describes a single deployment block.

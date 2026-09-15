@@ -270,7 +270,6 @@ pub mod tests {
     use super::*;
     use crate::agent_type::protocol_version::SUPPORTED_PROTOCOL_VERSION;
     use crate::agent_type::variable::VariableDefinition;
-    use crate::agent_type::variable::constraints::VariableConstraints;
     use crate::agent_type::variable::tree::VariableTree;
     use crate::agent_type::variable::value::{VariableType, VariableValue};
     use assert_matches::assert_matches;
@@ -331,10 +330,7 @@ pub mod tests {
         /// It will panic if the yaml values are not valid or there is any error resolving.
         pub fn fill_test_variables(&self, yaml_values: &str) -> VariableValues {
             let values = serde_saphyr::from_str::<YAMLConfig>(yaml_values).unwrap();
-            self.variables
-                .clone()
-                .resolve(&VariableConstraints::default(), values)
-                .unwrap()
+            self.variables.clone().resolve(values).unwrap()
         }
     }
 
@@ -612,7 +608,6 @@ deployment: {{}}
 
         let expected_def = VariableDefinition {
             default: Some(VariableValue::String("nrdot".to_string())),
-            variants: None,
             variable_type: VariableType::String,
         };
 
@@ -713,77 +708,6 @@ status_server_port: 8004
             !filled_variables
                 .contains_key(&VariableName::new(Namespace::Variable, "unknown_variable"))
         )
-    }
-
-    const AGENT_TYPE_WITH_VARIANTS: &str = r#"
-name: variant_values
-namespace: newrelic
-version: 0.0.1
-platform: host
-operating_system: linux
-variables:
-  restart_policy:
-    type:
-      type: string
-      required: false
-      variants:
-        values: [fixed, linear]
-      default: exponential
-deployment:
-  executables:
-    - id: echo
-      path: /bin/echo
-      args:
-        - "${nr-var:restart_policy.type}"
-"#;
-
-    const VALUES_VALID_VARIANT: &str = r#"
-restart_policy:
-    type: fixed
-"#;
-
-    const VALUES_INVALID_VARIANT: &str = r#"
-restart_policy:
-    type: random
-"#;
-
-    #[test]
-    fn test_variables_with_variants() {
-        let agent_type = AgentTypeDefinition::build_for_testing(AGENT_TYPE_WITH_VARIANTS);
-
-        // Valid variant
-        let filled_variables = agent_type.fill_test_variables(VALUES_VALID_VARIANT);
-
-        let var = filled_variables
-            .get(&VariableName::new(
-                Namespace::Variable,
-                "restart_policy.type",
-            ))
-            .unwrap();
-        assert_eq!("fixed".to_string(), var.to_string());
-
-        // Invalid variant
-        let invalid_values: YAMLConfig =
-            serde_saphyr::from_str(VALUES_INVALID_VARIANT).expect("Failed to parse user config");
-        let filled_variables_result = agent_type
-            .variables
-            .clone()
-            .resolve(&VariableConstraints::default(), invalid_values);
-        assert!(filled_variables_result.is_err());
-        assert_eq!(
-            filled_variables_result.unwrap_err().to_string(),
-            r#"invalid value provided. Variants allowed: [fixed, linear]"#
-        );
-
-        // Default invalid variant is allowed
-        let filled_variables_default = agent_type.fill_test_variables("");
-        let var = filled_variables_default
-            .get(&VariableName::new(
-                Namespace::Variable,
-                "restart_policy.type",
-            ))
-            .unwrap();
-        assert_eq!("exponential".to_string(), var.to_string());
     }
 
     #[rstest]
