@@ -9,7 +9,6 @@
 use super::LocalRegistry;
 use crate::agent_control::run::k8s::{NAMESPACE_AGENTS_VARIABLE_NAME, NAMESPACE_VARIABLE_NAME};
 use crate::agent_control::run::on_host::HOST_ID_VARIABLE_NAME;
-use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::agent_type::variable::namespace::{Namespace, VariableName};
 use crate::agent_type::variable::value::VariableValues;
 use crate::environment::Environment;
@@ -1029,7 +1028,6 @@ fn iterate_test_cases(environment: Environment) {
         let renderer = AgentRenderer::new(
             registry.clone(),
             ac_variables.clone(),
-            VariableConstraints::default(),
             env_value_registry_for_testing(values.additional_env.clone()),
             &remote_dir,
         );

@@ -17,11 +17,10 @@
 use crate::agent_type::definition::YAMLConfig;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::templates::TEMPLATE_KEY_SEPARATOR;
-use crate::agent_type::variable::VariableDefinition;
-use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::agent_type::variable::name::{VariableNameError, validate_variable_name};
 use crate::agent_type::variable::namespace::{Namespace, VariableName};
 use crate::agent_type::variable::value::VariableValues;
+use crate::agent_type::variable::{VariableDefinition, coerce_serde_value};
 use serde::Deserialize;
 use std::collections::HashMap;
 use thiserror::Error;
@@ -114,13 +113,8 @@ impl VariableTree {
     /// Errors when a required variable has no user value, when a user value doesn't match the declared type,
     /// or when a user value fails variants validation. User-config keys with no matching
     /// definition are logged as `WARN` and ignored.
-    pub fn resolve(
-        self,
-        constraints: &VariableConstraints,
-        user_values: YAMLConfig,
-    ) -> Result<VariableValues, AgentTypeError> {
-        let (resolved, mut missing) =
-            resolve_sub_tree(user_values.into(), self.0, constraints, "")?;
+    pub fn resolve(self, user_values: YAMLConfig) -> Result<VariableValues, AgentTypeError> {
+        let (resolved, mut missing) = resolve_sub_tree(user_values.into(), self.0, "")?;
         if !missing.is_empty() {
             missing.sort();
             return Err(AgentTypeError::ValuesNotPopulated(missing));
@@ -133,7 +127,6 @@ impl VariableTree {
 fn resolve_sub_tree(
     mut values: HashMap<String, serde_json::Value>,
     sub_tree: HashMap<String, VariableTreeNode>,
-    constraints: &VariableConstraints,
     path_prefix: &str,
 ) -> Result<(VariableValues, Vec<String>), AgentTypeError> {
     let mut resolved: VariableValues = HashMap::new();
@@ -144,23 +137,27 @@ fn resolve_sub_tree(
         let variable_name = VariableName::new(Namespace::Variable, &partial_variable_path);
         let user_value = values.remove(&key);
         match subtree {
-            VariableTreeNode::End(def) => {
-                match def.resolve_value(constraints, user_value)? {
+            VariableTreeNode::End(def) => match user_value {
+                Some(v) => {
+                    let value = coerce_serde_value(&def.variable_type, v)?;
+                    resolved.insert(variable_name, value);
+                }
+                None => match def.default {
                     Some(value) => {
                         resolved.insert(variable_name, value);
                     }
                     // Missing required variables are accumulated so we surface every one at once
                     // instead of short-circuiting on the first.
                     None => missing.push(partial_variable_path),
-                }
-            }
+                },
+            },
             VariableTreeNode::Mapping(children) => {
                 let inner: HashMap<String, serde_json::Value> = match user_value {
                     Some(v) => serde_json::from_value(v)?,
                     None => HashMap::new(),
                 };
                 let (child_resolved, child_missing) =
-                    resolve_sub_tree(inner, children, constraints, &partial_variable_path)?;
+                    resolve_sub_tree(inner, children, &partial_variable_path)?;
                 resolved.extend(child_resolved);
                 missing.extend(child_missing);
             }
@@ -211,7 +208,6 @@ mod tests {
             flat.get("a.b.c"),
             Some(&VariableDefinition {
                 default: None,
-                variants: None,
                 variable_type: VariableType::Bool,
             })
         );
@@ -219,7 +215,6 @@ mod tests {
             flat.get("top"),
             Some(&VariableDefinition {
                 default: Some(VariableValue::String("t".to_string())),
-                variants: None,
                 variable_type: VariableType::String,
             })
         );
@@ -234,7 +229,7 @@ mod tests {
         let user: YAMLConfig =
             serde_json::from_value(json!({"known": "v", "unknown": "ignored"})).unwrap();
 
-        let resolved = tree.resolve(&VariableConstraints::default(), user).unwrap();
+        let resolved = tree.resolve(user).unwrap();
 
         assert_eq!(resolved.len(), 1);
         assert!(resolved.contains_key(&VariableName::new(Namespace::Variable, "known")));
@@ -262,17 +257,15 @@ mod tests {
         let tree: VariableTree = serde_json::from_value(spec).unwrap();
         let user: YAMLConfig = serde_json::from_value(user).unwrap();
 
-        let err = tree
-            .resolve(&VariableConstraints::default(), user)
-            .unwrap_err();
+        let err = tree.resolve(user).unwrap_err();
 
         assert_matches!(err, AgentTypeError::ValueConversion(_));
     }
 
-    #[rstest]
-    #[case::in_variants("a", true)]
-    #[case::not_in_variants("c", false)]
-    fn resolve_enforces_configured_variants(#[case] user_value: &str, #[case] accepted: bool) {
+    #[test]
+    fn resolve_silently_ignores_legacy_variants_field_in_definition() {
+        // Legacy agent type YAMLs may still carry a `variants:` block. It must be silently
+        // accepted (no validation) so old registries keep loading.
         let tree: VariableTree = serde_json::from_value(json!({
             "name": {
                 "type": "string",
@@ -281,20 +274,14 @@ mod tests {
             },
         }))
         .unwrap();
-        let user: YAMLConfig = serde_json::from_value(json!({"name": user_value})).unwrap();
+        let user: YAMLConfig = serde_json::from_value(json!({"name": "c"})).unwrap();
 
-        let result = tree.resolve(&VariableConstraints::default(), user);
+        let resolved = tree.resolve(user).unwrap();
 
-        if accepted {
-            assert_eq!(
-                result
-                    .unwrap()
-                    .get(&VariableName::new(Namespace::Variable, "name")),
-                Some(&VariableValue::String(user_value.to_string()))
-            );
-        } else {
-            assert_matches!(result, Err(AgentTypeError::InvalidVariant(_)));
-        }
+        assert_eq!(
+            resolved.get(&VariableName::new(Namespace::Variable, "name")),
+            Some(&VariableValue::String("c".to_string()))
+        );
     }
 
     #[test]
@@ -323,10 +310,7 @@ mod tests {
         }))
         .unwrap();
 
-        let err = tree
-            .clone()
-            .resolve(&VariableConstraints::default(), partial)
-            .unwrap_err();
+        let err = tree.clone().resolve(partial).unwrap_err();
 
         assert_matches!(
             err,
@@ -350,7 +334,7 @@ mod tests {
         }))
         .unwrap();
 
-        let resolved = tree.resolve(&VariableConstraints::default(), full).unwrap();
+        let resolved = tree.resolve(full).unwrap();
 
         let expected: VariableValues = HashMap::from([
             (

@@ -20,9 +20,6 @@ variables:
       type: string
       required: false
       default: newrelic/nri-redis-artifacts
-      variants:
-        ac_config_field: "oci_repository_urls"
-        values: [ "newrelic/nri-redis-artifacts" ]
 deployment:
   packages:
     nri-redis:

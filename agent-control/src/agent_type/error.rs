@@ -32,9 +32,6 @@ pub enum AgentTypeError {
     /// A `kind: file` entry is invalid
     #[error("invalid filesystem file entry: {0}")]
     InvalidFileEntry(String),
-    /// The provided value is not one of the allowed variants.
-    #[error("invalid value provided. Variants allowed: {0}")]
-    InvalidVariant(String),
     /// Rendering a template failed.
     #[error("rendering template: {0}")]
     RenderingTemplate(String),
