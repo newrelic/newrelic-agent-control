@@ -2,7 +2,7 @@
 use fs::file::copier::FileCopier;
 use fs::file::deleter::FileDeleter;
 use fs::{directory_manager::DirectoryManager, file::writer::FileWriter};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tracing::trace;
@@ -12,9 +12,12 @@ use tracing::trace;
 /// Top-level keys (`entries`) are absolute paths under the sub-agent's filesystem dir; children
 /// inside a `Dir` are kept relative to their parent — recursion in [`FileSystem::write`] joins
 /// them onto the parent path.
+///
+/// `BTreeMap`, not `HashMap`: entries always write in sorted key order, so one entry can depend
+/// on another (e.g. a config expecting a sibling binary to exist first).
 #[derive(Debug, Clone, PartialEq)]
 pub struct FileSystem {
-    pub(super) entries: HashMap<PathBuf, RenderedEntry>,
+    pub(super) entries: BTreeMap<PathBuf, RenderedEntry>,
 }
 
 /// The source of a rendered file's bytes.
@@ -34,15 +37,15 @@ pub enum RenderedEntry {
         /// Where the file's bytes come from.
         content: FileContent,
     },
-    /// A directory containing child entries keyed by their relative path.
+    /// A directory containing child entries keyed by their relative path, in sorted order.
     Dir {
         /// The dictionary containing each children path and the entry.
-        children: HashMap<PathBuf, RenderedEntry>,
+        children: BTreeMap<PathBuf, RenderedEntry>,
     },
-    /// A directory whose files were projected from a map (filename to content).
+    /// A directory whose files were projected from a map (filename to content), in sorted order.
     DirContentFromMap {
         /// The dictionary containing all file paths and their content.
-        files: HashMap<PathBuf, String>,
+        files: BTreeMap<PathBuf, String>,
     },
 }
 
@@ -59,10 +62,13 @@ impl RenderedEntry {
         dir_manager: &impl DirectoryManager,
     ) -> Result<(), FileSystemEntriesError> {
         match self {
-            Self::File { content, .. } => match content {
-                FileContent::Text(text) => write_file(file_ops, dir_manager, path, text),
-                FileContent::Copy(source) => copy_file(file_ops, dir_manager, path, source),
-            },
+            Self::File { content, .. } => {
+                match content {
+                    FileContent::Text(text) => write_file(file_ops, dir_manager, path, text)?,
+                    FileContent::Copy(source) => copy_file(file_ops, dir_manager, path, source)?,
+                }
+                sync_file_to_disk(path)
+            }
             Self::Dir { children, .. } => {
                 ensure_dir(file_ops, dir_manager, path)?;
                 for (sub_path, child) in children {
@@ -79,7 +85,10 @@ impl RenderedEntry {
                     .map_err(|err| FileSystemEntriesError(format!("clearing {path:?}: {err}")))?;
                 ensure_dir(file_ops, dir_manager, path)?;
                 for (file_name, content) in files {
-                    write_file(file_ops, dir_manager, &path.join(file_name), content)?;
+                    let entry = Self::File {
+                        content: FileContent::Text(content.clone()),
+                    };
+                    entry.write(&path.join(file_name), file_ops, dir_manager)?;
                 }
                 Ok(())
             }
@@ -88,11 +97,12 @@ impl RenderedEntry {
 }
 
 impl FileSystem {
-    pub(super) fn new(entries: HashMap<PathBuf, RenderedEntry>) -> Self {
+    pub(super) fn new(entries: BTreeMap<PathBuf, RenderedEntry>) -> Self {
         Self { entries }
     }
 
-    /// Writes the declared tree under `base_dir`, overwriting any declared paths already on disk.
+    /// Writes the declared tree under `base_dir` in sorted order, overwriting any declared paths
+    /// already on disk.
     pub fn write(
         &self,
         file_ops: &(impl FileWriter + FileCopier + FileDeleter),
@@ -142,15 +152,16 @@ impl FileSystem {
 /// Rendered shared filesystem tree, materialized under the base shared across sub-agents.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SharedFileSystem {
-    entries: HashMap<PathBuf, RenderedEntry>,
+    entries: BTreeMap<PathBuf, RenderedEntry>,
 }
 
 impl SharedFileSystem {
-    pub(super) fn new(entries: HashMap<PathBuf, RenderedEntry>) -> Self {
+    pub(super) fn new(entries: BTreeMap<PathBuf, RenderedEntry>) -> Self {
         Self { entries }
     }
 
-    /// Materializes the declared tree on disk. Existing files are overwritten; nothing is pruned.
+    /// Materializes the declared tree on disk in sorted order. Existing files are overwritten;
+    /// nothing is pruned.
     pub fn write(
         &self,
         file_ops: &(impl FileWriter + FileCopier + FileDeleter),
@@ -230,6 +241,17 @@ fn copy_file(
         .map_err(|err| FileSystemEntriesError(format!("copying {source:?} to {path:?}: {err}")))
 }
 
+/// Flushes `path` to disk so it's durable before the next sibling is written. Opened with write
+/// access because `sync_all` on Windows needs `GENERIC_WRITE` for `FlushFileBuffers`.
+fn sync_file_to_disk(path: &Path) -> Result<(), FileSystemEntriesError> {
+    let file = std::fs::OpenOptions::new()
+        .write(true)
+        .open(path)
+        .map_err(|err| FileSystemEntriesError(format!("opening {path:?} for sync: {err}")))?;
+    file.sync_all()
+        .map_err(|err| FileSystemEntriesError(format!("syncing {path:?}: {err}")))
+}
+
 /// Removes whatever currently occupies `path` if it exists and its on-disk shape (directory vs.
 /// file) doesn't match `expect_dir`. A missing path is not an error.
 fn clear_if_wrong_shape(
@@ -271,17 +293,19 @@ mod tests {
     use super::*;
     use fs::directory_manager::DirectoryManagerFs;
     use fs::file::LocalFile;
+    use rstest::rstest;
+    use std::sync::Mutex;
     use tempfile::TempDir;
 
     impl FileSystem {
         pub(crate) fn test_empty() -> Self {
-            Self::new(HashMap::new())
+            Self::new(BTreeMap::new())
         }
     }
 
     impl SharedFileSystem {
         pub(crate) fn test_empty() -> Self {
-            Self::new(HashMap::new())
+            Self::new(BTreeMap::new())
         }
     }
 
@@ -297,12 +321,184 @@ mod tests {
         }
     }
 
-    fn dir_entry(children: HashMap<PathBuf, RenderedEntry>) -> RenderedEntry {
+    fn dir_entry(children: BTreeMap<PathBuf, RenderedEntry>) -> RenderedEntry {
         RenderedEntry::Dir { children }
     }
 
-    fn map_dir_entry(files: HashMap<PathBuf, String>) -> RenderedEntry {
+    fn map_dir_entry(files: BTreeMap<PathBuf, String>) -> RenderedEntry {
         RenderedEntry::DirContentFromMap { files }
+    }
+
+    /// Delegates to the real [`LocalFile`]/[`DirectoryManagerFs`] while recording call order, so
+    /// tests can assert on write order directly.
+    #[derive(Default)]
+    struct RecordingFileOps {
+        calls: Mutex<Vec<PathBuf>>,
+    }
+
+    impl RecordingFileOps {
+        fn calls(&self) -> Vec<PathBuf> {
+            self.calls.lock().unwrap().clone()
+        }
+    }
+
+    impl FileWriter for RecordingFileOps {
+        fn write(&self, path: &Path, buf: String) -> std::io::Result<()> {
+            self.calls.lock().unwrap().push(path.to_path_buf());
+            LocalFile.write(path, buf)
+        }
+    }
+
+    impl FileCopier for RecordingFileOps {
+        fn copy(&self, from: &Path, to: &Path) -> std::io::Result<()> {
+            self.calls.lock().unwrap().push(to.to_path_buf());
+            LocalFile.copy(from, to)
+        }
+    }
+
+    impl FileDeleter for RecordingFileOps {
+        fn delete(&self, path: &Path) -> std::io::Result<()> {
+            LocalFile.delete(path)
+        }
+    }
+
+    impl DirectoryManager for RecordingFileOps {
+        fn create(&self, path: &Path) -> std::io::Result<()> {
+            DirectoryManagerFs.create(path)
+        }
+        fn delete(&self, path: &Path) -> std::io::Result<()> {
+            DirectoryManagerFs.delete(path)
+        }
+        fn list(&self, path: &Path) -> std::io::Result<Vec<PathBuf>> {
+            DirectoryManagerFs.list(path)
+        }
+    }
+
+    #[test]
+    fn write_orders_top_level_and_nested_entries_alphabetically() {
+        let tmp = TempDir::new().unwrap();
+        let base = tmp.path();
+        let recorder = RecordingFileOps::default();
+
+        let fs = FileSystem::new(BTreeMap::from([
+            (base.join("zzz-second"), file_entry_with_text("second")),
+            (
+                base.join("aaa-first"),
+                dir_entry(BTreeMap::from([
+                    (PathBuf::from("z-nested-second"), file_entry_with_text("b")),
+                    (PathBuf::from("a-nested-first"), file_entry_with_text("a")),
+                ])),
+            ),
+        ]));
+
+        fs.write(&recorder, &recorder).unwrap();
+
+        assert_eq!(
+            recorder.calls(),
+            vec![
+                base.join("aaa-first/a-nested-first"),
+                base.join("aaa-first/z-nested-second"),
+                base.join("zzz-second"),
+            ],
+            "entries and their nested children must be written in alphabetical order, \
+             regardless of insertion order"
+        );
+    }
+
+    #[rstest]
+    #[case::two_reversed(vec!["b", "a"])]
+    #[case::already_sorted(vec!["a", "b", "c"])]
+    #[case::single_entry(vec!["only"])]
+    #[case::one_key_is_a_prefix_of_another(vec!["config", "config-extra", "aaa"])]
+    #[case::mixed_case(vec!["Zebra", "apple", "Banana"])]
+    fn write_orders_arbitrary_key_sets_alphabetically(#[case] names: Vec<&str>) {
+        let tmp = TempDir::new().unwrap();
+        let base = tmp.path();
+        let recorder = RecordingFileOps::default();
+
+        let entries: BTreeMap<_, _> = names
+            .iter()
+            .map(|name| (base.join(name), file_entry_with_text(name)))
+            .collect();
+        let mut expected: Vec<PathBuf> = names.iter().map(|name| base.join(name)).collect();
+        expected.sort();
+
+        FileSystem::new(entries)
+            .write(&recorder, &recorder)
+            .unwrap();
+
+        assert_eq!(recorder.calls(), expected);
+    }
+
+    struct BinaryPresenceProbe {
+        dependency_path: PathBuf,
+        observed_at_config_write: Mutex<Option<bool>>,
+    }
+
+    impl FileWriter for BinaryPresenceProbe {
+        fn write(&self, path: &Path, buf: String) -> std::io::Result<()> {
+            if path.to_string_lossy().contains("config") {
+                *self.observed_at_config_write.lock().unwrap() =
+                    Some(self.dependency_path.exists());
+            }
+            LocalFile.write(path, buf)
+        }
+    }
+
+    impl FileCopier for BinaryPresenceProbe {
+        fn copy(&self, from: &Path, to: &Path) -> std::io::Result<()> {
+            LocalFile.copy(from, to)
+        }
+    }
+
+    impl FileDeleter for BinaryPresenceProbe {
+        fn delete(&self, path: &Path) -> std::io::Result<()> {
+            LocalFile.delete(path)
+        }
+    }
+
+    impl DirectoryManager for BinaryPresenceProbe {
+        fn create(&self, path: &Path) -> std::io::Result<()> {
+            DirectoryManagerFs.create(path)
+        }
+        fn delete(&self, path: &Path) -> std::io::Result<()> {
+            DirectoryManagerFs.delete(path)
+        }
+        fn list(&self, path: &Path) -> std::io::Result<Vec<PathBuf>> {
+            DirectoryManagerFs.list(path)
+        }
+    }
+
+    #[test]
+    fn write_never_writes_a_config_before_the_binary_it_depends_on() {
+        let tmp = TempDir::new().unwrap();
+        let base = tmp.path();
+        let source = base.join("source-bin");
+        std::fs::write(&source, "binary-bytes").unwrap();
+
+        let probe = BinaryPresenceProbe {
+            dependency_path: base.join("dir/aaa-binary"),
+            observed_at_config_write: Mutex::new(None),
+        };
+
+        let fs = FileSystem::new(BTreeMap::from([(
+            base.join("dir"),
+            dir_entry(BTreeMap::from([
+                (
+                    PathBuf::from("zzz-config"),
+                    file_entry_with_text("config content"),
+                ),
+                (PathBuf::from("aaa-binary"), file_entry_copy(source)),
+            ])),
+        )]));
+
+        fs.write(&probe, &probe).unwrap();
+
+        assert_eq!(
+            *probe.observed_at_config_write.lock().unwrap(),
+            Some(true),
+            "the binary must already exist on disk by the time its dependent config is written"
+        );
     }
 
     #[test]
@@ -311,7 +507,7 @@ mod tests {
         let target_dir = tmp.path().join("does-not-exist-yet");
         let target_path = target_dir.join("file.txt");
 
-        let fs = FileSystem::new(HashMap::from([(
+        let fs = FileSystem::new(BTreeMap::from([(
             target_path.clone(),
             file_entry_with_text("hello"),
         )]));
@@ -329,7 +525,7 @@ mod tests {
         std::fs::write(&source, source_bytes).unwrap();
 
         let target_path = tmp.path().join("does-not-exist-yet").join("dest.bin");
-        let fs = FileSystem::new(HashMap::from([(
+        let fs = FileSystem::new(BTreeMap::from([(
             target_path.clone(),
             file_entry_copy(source),
         )]));
@@ -343,11 +539,11 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let base = tmp.path();
 
-        let fs = FileSystem::new(HashMap::from([(
+        let fs = FileSystem::new(BTreeMap::from([(
             base.join("parent"),
-            dir_entry(HashMap::from([
+            dir_entry(BTreeMap::from([
                 (PathBuf::from("child.txt"), file_entry_with_text("child")),
-                (PathBuf::from("empty-nested"), dir_entry(HashMap::new())),
+                (PathBuf::from("empty-nested"), dir_entry(BTreeMap::new())),
             ])),
         )]));
         fs.write(&LocalFile, &DirectoryManagerFs).unwrap();
@@ -364,9 +560,9 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let base = tmp.path();
 
-        let fs = FileSystem::new(HashMap::from([(
+        let fs = FileSystem::new(BTreeMap::from([(
             base.join("logging.d"),
-            map_dir_entry(HashMap::from([
+            map_dir_entry(BTreeMap::from([
                 (PathBuf::from("a.yaml"), "a-content".to_string()),
                 (PathBuf::from("b.yaml"), "b-content".to_string()),
             ])),
@@ -388,9 +584,9 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let base = tmp.path();
 
-        let fs = FileSystem::new(HashMap::from([(
+        let fs = FileSystem::new(BTreeMap::from([(
             base.join("logging.d"),
-            map_dir_entry(HashMap::new()),
+            map_dir_entry(BTreeMap::new()),
         )]));
         fs.write(&LocalFile, &DirectoryManagerFs).unwrap();
 
@@ -402,9 +598,9 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let base = tmp.path();
 
-        let first = FileSystem::new(HashMap::from([(
+        let first = FileSystem::new(BTreeMap::from([(
             base.join("logging.d"),
-            map_dir_entry(HashMap::from([(
+            map_dir_entry(BTreeMap::from([(
                 PathBuf::from("a.yaml"),
                 "a-content".to_string(),
             )])),
@@ -414,9 +610,9 @@ mod tests {
         // tracked by the map, but is still cleared: the whole directory is wiped before rewrite.
         std::fs::write(base.join("logging.d/untracked.txt"), "stray").unwrap();
 
-        let second = FileSystem::new(HashMap::from([(
+        let second = FileSystem::new(BTreeMap::from([(
             base.join("logging.d"),
-            map_dir_entry(HashMap::from([(
+            map_dir_entry(BTreeMap::from([(
                 PathBuf::from("b.yaml"),
                 "b-content".to_string(),
             )])),
@@ -443,10 +639,10 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let path = tmp.path().join("file.txt");
 
-        FileSystem::new(HashMap::from([(path.clone(), file_entry_with_text("v1"))]))
+        FileSystem::new(BTreeMap::from([(path.clone(), file_entry_with_text("v1"))]))
             .write(&LocalFile, &DirectoryManagerFs)
             .unwrap();
-        FileSystem::new(HashMap::from([(path.clone(), file_entry_with_text("v2"))]))
+        FileSystem::new(BTreeMap::from([(path.clone(), file_entry_with_text("v2"))]))
             .write(&LocalFile, &DirectoryManagerFs)
             .unwrap();
 
@@ -461,7 +657,7 @@ mod tests {
         std::fs::create_dir_all(&path).unwrap();
         std::fs::write(path.join("leftover.txt"), "old").unwrap();
 
-        FileSystem::new(HashMap::from([(
+        FileSystem::new(BTreeMap::from([(
             path.clone(),
             file_entry_with_text("hello"),
         )]))
@@ -478,9 +674,9 @@ mod tests {
         let path = tmp.path().join("entry");
         std::fs::write(&path, "old").unwrap();
 
-        FileSystem::new(HashMap::from([(
+        FileSystem::new(BTreeMap::from([(
             path.clone(),
-            dir_entry(HashMap::from([(
+            dir_entry(BTreeMap::from([(
                 PathBuf::from("child.txt"),
                 file_entry_with_text("child"),
             )])),
@@ -502,9 +698,9 @@ mod tests {
         let path = tmp.path().join("entry");
         std::fs::write(&path, "old").unwrap();
 
-        FileSystem::new(HashMap::from([(
+        FileSystem::new(BTreeMap::from([(
             path.clone(),
-            map_dir_entry(HashMap::from([(
+            map_dir_entry(BTreeMap::from([(
                 PathBuf::from("a.yaml"),
                 "a-content".to_string(),
             )])),
@@ -527,9 +723,9 @@ mod tests {
         std::fs::create_dir_all(&path).unwrap();
         std::fs::write(path.join("untracked.txt"), "untracked").unwrap();
 
-        FileSystem::new(HashMap::from([(
+        FileSystem::new(BTreeMap::from([(
             path.clone(),
-            dir_entry(HashMap::from([(
+            dir_entry(BTreeMap::from([(
                 PathBuf::from("declared.txt"),
                 file_entry_with_text("declared"),
             )])),
@@ -562,9 +758,9 @@ mod tests {
         std::fs::create_dir(base.join("undeclared-dir")).unwrap();
         std::fs::write(base.join("undeclared-dir/inner.txt"), "inner").unwrap();
 
-        let fs = FileSystem::new(HashMap::from([
+        let fs = FileSystem::new(BTreeMap::from([
             (base.join("declared.yaml"), file_entry_with_text("x")),
-            (base.join("declared-dir"), dir_entry(HashMap::new())),
+            (base.join("declared-dir"), dir_entry(BTreeMap::new())),
         ]));
 
         fs.delete_not_declared(&LocalFile, &DirectoryManagerFs)
@@ -597,9 +793,9 @@ mod tests {
         std::fs::write(base.join("logging.d/syslog.yaml"), "sys").unwrap();
         std::fs::write(base.join("logging.d/stale.yaml"), "stale").unwrap();
 
-        let fs = FileSystem::new(HashMap::from([(
+        let fs = FileSystem::new(BTreeMap::from([(
             base.join("logging.d"),
-            map_dir_entry(HashMap::from([(
+            map_dir_entry(BTreeMap::from([(
                 PathBuf::from("syslog.yaml"),
                 "sys".into(),
             )])),
