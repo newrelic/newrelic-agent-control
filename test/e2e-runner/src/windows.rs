@@ -76,8 +76,11 @@ pub fn run_windows_e2e() {
         WindowsScenarios::AllOhisNoService(args) => {
             scenarios::all_ohis_no_service::test_all_ohis_no_service(args);
         }
-        WindowsScenarios::Uninstall(args) => {
-            scenarios::uninstall::test_uninstall_script(args);
+        WindowsScenarios::UninstallAndReinstall(args) => {
+            scenarios::uninstall::test_uninstall_and_reinstall(args);
+        }
+        WindowsScenarios::UninstallLockedDirectory(args) => {
+            scenarios::uninstall::test_uninstall_locked_directory(args);
         }
         WindowsScenarios::ServiceRestartPolicy(args) => {
             scenarios::service_restart_policy::test_service_restarts_indefinitely_on_failure(args);

@@ -24,6 +24,10 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 - Linux: added Debian 13 (trixie) as a supported/published platform.
 - Linux: removed the legacy on-host folder migration pre-v1.2.0 from `newrelic-agent-control-cli` 
 
+### bugfix
+- Linux: `uninstall.sh` now uses `apt-get purge` instead of `apt-get remove`, preventing a dpkg state inconsistency that caused reinstallation to fail, the service could not start because the `systemd-env.conf` conffile was not recreated by the package manager.
+- Windows: the uninstall script now warns instead of silently succeeding when the install or runtime-data directory cannot be removed (e.g. Windows Explorer has it open), and preserves the script itself so it can be re-run once the lock is released.
+
 ### security
 - Update rustls
 
