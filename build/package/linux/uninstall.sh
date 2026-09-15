@@ -27,7 +27,7 @@ remove_agent_control_package() {
                 OPTIONS="$OPTIONS -o Acquire::Http::Proxy=$HTTPS_PROXY"
             fi
 
-            apt-get $OPTIONS remove -y -qq newrelic-agent-control || true
+            apt-get $OPTIONS purge -y -qq newrelic-agent-control || true
             ;;
         yum)
             yum -y -q remove newrelic-agent-control || true
