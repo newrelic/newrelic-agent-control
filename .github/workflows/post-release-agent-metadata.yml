@@ -56,7 +56,7 @@ jobs:
           ls -lh /tmp/artifacts/
 
       - name: Upload agent metadata to New Relic
-        uses: newrelic/agent-metadata-action@f54db63d39530eded4ec65d278a590cf0a6f7d47 # v1.5.1
+        uses: newrelic/agent-metadata-action/send-metadata@399d5ba876e7d03bf6215f8283d72ffb8dc8240b # v1.7.0
         with:
           agent-type: NRAgentControl
           version: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
@@ -66,7 +66,7 @@ jobs:
           newrelic-client-id: ${{ secrets.AC_NEWRELIC_CLIENT_ID }}
           newrelic-private-key: ${{ secrets.AC_NEWRELIC_PRIVATE_KEY }}
           # shared newrelic key to instrument the go binary used in the action
-          apm-control-nr-license-key: ${{ secrets.APM_CONTROL_NR_LICENSE_KEY }}
+          newrelic-license-key: ${{ secrets.APM_CONTROL_NR_LICENSE_KEY }}
           oci-registry: ${{ secrets.OCI_REGISTRY }}
           oci-username: ${{ secrets.OCI_USERNAME }}
           oci-password: ${{ secrets.OCI_PASSWORD }}
