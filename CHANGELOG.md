@@ -24,7 +24,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 - Linux: added Debian 13 (trixie) as a supported/published platform.
 
 ### bugfix
-- On-host: filesystem entries under `filesystem:`/`shared_filesystem:` are now written to disk in alphabetical order (previously an arbitrary `HashMap` order) and fsynced after each write, fixing a race where a dependent config file (e.g. an OHI config) could be written before the binary it depends on, causing the sub-agent to fail to load the integration until manually restarted.
+- On-host: filesystem entries under `filesystem:`/`shared_filesystem:` are now written to disk in alphabetical order and fsynced after each write, making the write order deterministic.
 
 ## v1.24.0 - 2026-09-08
 

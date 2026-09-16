@@ -340,10 +340,17 @@ mod tests {
         fn calls(&self) -> Vec<PathBuf> {
             self.calls.lock().unwrap().clone()
         }
+
+        fn assert_previous_calls_are_on_disk(&self) {
+            for path in self.calls.lock().unwrap().iter() {
+                assert!(path.exists(), "{path:?} should already be on disk");
+            }
+        }
     }
 
     impl FileWriter for RecordingFileOps {
         fn write(&self, path: &Path, buf: String) -> std::io::Result<()> {
+            self.assert_previous_calls_are_on_disk();
             self.calls.lock().unwrap().push(path.to_path_buf());
             LocalFile.write(path, buf)
         }
@@ -351,6 +358,7 @@ mod tests {
 
     impl FileCopier for RecordingFileOps {
         fn copy(&self, from: &Path, to: &Path) -> std::io::Result<()> {
+            self.assert_previous_calls_are_on_disk();
             self.calls.lock().unwrap().push(to.to_path_buf());
             LocalFile.copy(from, to)
         }
@@ -428,77 +436,6 @@ mod tests {
             .unwrap();
 
         assert_eq!(recorder.calls(), expected);
-    }
-
-    struct BinaryPresenceProbe {
-        dependency_path: PathBuf,
-        observed_at_config_write: Mutex<Option<bool>>,
-    }
-
-    impl FileWriter for BinaryPresenceProbe {
-        fn write(&self, path: &Path, buf: String) -> std::io::Result<()> {
-            if path.to_string_lossy().contains("config") {
-                *self.observed_at_config_write.lock().unwrap() =
-                    Some(self.dependency_path.exists());
-            }
-            LocalFile.write(path, buf)
-        }
-    }
-
-    impl FileCopier for BinaryPresenceProbe {
-        fn copy(&self, from: &Path, to: &Path) -> std::io::Result<()> {
-            LocalFile.copy(from, to)
-        }
-    }
-
-    impl FileDeleter for BinaryPresenceProbe {
-        fn delete(&self, path: &Path) -> std::io::Result<()> {
-            LocalFile.delete(path)
-        }
-    }
-
-    impl DirectoryManager for BinaryPresenceProbe {
-        fn create(&self, path: &Path) -> std::io::Result<()> {
-            DirectoryManagerFs.create(path)
-        }
-        fn delete(&self, path: &Path) -> std::io::Result<()> {
-            DirectoryManagerFs.delete(path)
-        }
-        fn list(&self, path: &Path) -> std::io::Result<Vec<PathBuf>> {
-            DirectoryManagerFs.list(path)
-        }
-    }
-
-    #[test]
-    fn write_never_writes_a_config_before_the_binary_it_depends_on() {
-        let tmp = TempDir::new().unwrap();
-        let base = tmp.path();
-        let source = base.join("source-bin");
-        std::fs::write(&source, "binary-bytes").unwrap();
-
-        let probe = BinaryPresenceProbe {
-            dependency_path: base.join("dir/aaa-binary"),
-            observed_at_config_write: Mutex::new(None),
-        };
-
-        let fs = FileSystem::new(BTreeMap::from([(
-            base.join("dir"),
-            dir_entry(BTreeMap::from([
-                (
-                    PathBuf::from("zzz-config"),
-                    file_entry_with_text("config content"),
-                ),
-                (PathBuf::from("aaa-binary"), file_entry_copy(source)),
-            ])),
-        )]));
-
-        fs.write(&probe, &probe).unwrap();
-
-        assert_eq!(
-            *probe.observed_at_config_write.lock().unwrap(),
-            Some(true),
-            "the binary must already exist on disk by the time its dependent config is written"
-        );
     }
 
     #[test]

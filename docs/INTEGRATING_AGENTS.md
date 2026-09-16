@@ -519,6 +519,8 @@ Every `file` and `dir` entry survives sub-agent stop, restart, and config-apply:
 
 **Removed from fleet.** When an agent is removed from the fleet config (via remote config or by being absent at AC startup after a previous deploy), its entire filesystem directory is deleted by `ResourceCleaner`, regardless of what it contains.
 
+**Write order is deterministic.** Within a `dir` (and among top-level `filesystem`/`shared_filesystem` entries), entries are written in alphabetical order by name, and each file is fsynced before the next one starts. An entry that depends on another can rely on this by naming convention — e.g. `infra-agent-ohi-binaries` is written, and durable on disk, before `infra-agent-ohi-configs`.
+
 ##### `shared_filesystem`
 
 Like [`filesystem`](#filesystem), but the tree is written under a directory **shared across all sub-agents** (`${nr-sub:shared_filesystem_dir}`, e.g. `/var/lib/newrelic-agent-control/shared-filesystem`) instead of the per-agent directory. It accepts the exact same schema (`kind: file | dir | dir_content_from_map`, nested `entries:`, and `copy_from_file`).
