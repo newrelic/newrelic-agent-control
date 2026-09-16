@@ -1,0 +1,56 @@
+name: 🚫⏯️ Disable Faulty Version and Promote Replacement
+
+# Incident-response shortcut: promotes a known-good agent-control version onto
+# a release channel, then disables a faulty version - in that order, so the
+# channel is never left pointing at nothing.
+on:
+  workflow_dispatch:
+    inputs:
+      promote-version:
+        description: 'Known-good agent-control version to promote (e.g. 1.22.0).'
+        required: true
+        type: string
+      disable-version:
+        description: 'Faulty agent-control version to disable (e.g. 1.21.0). Disabled only after promote-version is successfully promoted.'
+        required: true
+        type: string
+      channel:
+        description: 'Release channel to promote promote-version to.'
+        required: true
+        type: choice
+        options:
+          - REGULAR
+        default: REGULAR
+      platform:
+        description: 'Target platform for the promotion. HOST promotes for both LINUX and WINDOWS; KUBERNETESCLUSTER promotes once with no operating system.'
+        required: true
+        type: choice
+        options:
+          - HOST
+          - KUBERNETESCLUSTER
+      note:
+        description: 'Optional note describing why this promotion was made (audit trail only).'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  disable-and-promote:
+    name: Disable Faulty Version and Promote Replacement
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Disable faulty version and promote replacement
+        uses: newrelic/agent-metadata-action/disable-and-promote@399d5ba876e7d03bf6215f8283d72ffb8dc8240b # v1.7.0
+        with:
+          agent-type: NRAgentControl
+          promote-version: ${{ inputs.promote-version }}
+          disable-version: ${{ inputs.disable-version }}
+          channel: ${{ inputs.channel }}
+          platform: ${{ inputs.platform }}
+          note: ${{ inputs.note }}
+          newrelic-client-id: ${{ secrets.AC_NEWRELIC_CLIENT_ID }}
+          newrelic-private-key: ${{ secrets.AC_NEWRELIC_PRIVATE_KEY }}
+          newrelic-license-key: ${{ secrets.AGENT_METADATA_ACTION_LICENSE_KEY }}
