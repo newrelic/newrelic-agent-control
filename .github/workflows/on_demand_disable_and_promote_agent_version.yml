@@ -2,9 +2,7 @@ name: 🚫⏯️ Disable Faulty Version and Promote Replacement
 
 # Incident-response shortcut: promotes a known-good agent-control version onto
 # a release channel, then disables a faulty version - in that order, so the
-# channel is never left pointing at nothing. Both versions must already be
-# published to instrumentation-metadata.
-
+# channel is never left pointing at nothing.
 on:
   workflow_dispatch:
     inputs:
@@ -55,4 +53,4 @@ jobs:
           note: ${{ inputs.note }}
           newrelic-client-id: ${{ secrets.AC_NEWRELIC_CLIENT_ID }}
           newrelic-private-key: ${{ secrets.AC_NEWRELIC_PRIVATE_KEY }}
-          newrelic-license-key: ${{ secrets.APM_CONTROL_NR_LICENSE_KEY }}
+          newrelic-license-key: ${{ secrets.AGENT_METADATA_ACTION_LICENSE_KEY }}
