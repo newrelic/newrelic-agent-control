@@ -68,8 +68,8 @@ pub fn run_linux_e2e() {
         LinuxScenarios::PackageUpgrade(args) => {
             scenarios::package_upgrade::test_package_manager_upgrade_keeps_service_enabled(args);
         }
-        LinuxScenarios::Uninstall(args) => {
-            scenarios::uninstall::test_uninstall_script(args);
+        LinuxScenarios::UninstallAndReinstall(args) => {
+            scenarios::uninstall::test_uninstall_and_reinstall(args);
         }
         LinuxScenarios::ServiceRestartPolicy(args) => {
             scenarios::service_restart_policy::test_service_restarts_indefinitely_on_failure(args);

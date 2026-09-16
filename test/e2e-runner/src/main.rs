@@ -63,9 +63,9 @@ enum LinuxScenarios {
     /// manager (not the OCI self-update path) to the version under test, and verifies the
     /// service is still enabled and running afterward. Regression test for the preremove.sh fix.
     PackageUpgrade(InstallationArgs),
-    /// Installs Agent Control and runs the bundled uninstall.sh script, then asserts that
-    /// the binary, service unit, static config and runtime data are fully removed.
-    Uninstall(InstallationArgs),
+    /// Installs Agent Control, runs the bundled uninstall.sh, asserts full removal, then
+    /// reinstalls and asserts the service is running and enabled.
+    UninstallAndReinstall(InstallationArgs),
     /// Verifies the service restarts indefinitely on failure (no burst-limit ceiling).
     /// Breaks the config to force immediate exits, then asserts systemd auto-restarted
     /// ≥5 times without setting StartLimitHit.
@@ -113,9 +113,13 @@ enum WindowsScenarios {
     /// but does NOT start any monitored service. Verifies from the AC log that the
     /// infra-agent invoked each OHI binary with the expected config
     AllOhisNoService(InstallationArgs),
-    /// Installs Agent Control and runs the bundled uninstall.ps1 script, then asserts that
-    /// the service, install directory, and runtime data directory are fully removed.
-    Uninstall(InstallationArgs),
+    /// Installs Agent Control, runs the bundled uninstall.ps1, asserts full removal, then
+    /// reinstalls and asserts the service is running.
+    UninstallAndReinstall(InstallationArgs),
+    /// Installs Agent Control and runs the bundled uninstall.ps1 script while holding a file
+    /// handle open in the install directory. Asserts that the
+    /// script emits a warning and does not silently report success.
+    UninstallLockedDirectory(InstallationArgs),
     /// Verifies the service restarts indefinitely on failure.
     /// Breaks the config to force immediate exits, then asserts the SCM restarted the
     /// service ≥5 times via Event ID 7031 entries.

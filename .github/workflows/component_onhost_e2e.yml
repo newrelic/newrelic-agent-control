@@ -68,7 +68,7 @@ jobs:
           - nri-flex
           - all-ohis-no-service
           - package-upgrade
-          - uninstall
+          - uninstall-and-reinstall
           - service-restart-policy
     steps:
       - name: Record job start time
@@ -144,7 +144,8 @@ jobs:
           - nri-redis
           - nri-flex
           - all-ohis-no-service
-          - uninstall
+          - uninstall-and-reinstall
+          - uninstall-locked-directory
           - service-restart-policy
     steps:
       - name: Record job start time
