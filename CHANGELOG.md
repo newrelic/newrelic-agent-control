@@ -27,6 +27,9 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 ### security
 - Update rustls
 
+### bugfix
+- On-host: filesystem entries under `filesystem:`/`shared_filesystem:` are now written to disk in alphabetical order and fsynced after each write, making the write order deterministic.
+
 ## v1.24.0 - 2026-09-08
 
 ### 🚀 Enhancements
