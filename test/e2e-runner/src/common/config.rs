@@ -68,9 +68,10 @@ fn merge_yaml_mappings(base: Value, new: Value) -> Value {
 }
 
 /// Configuration for debug logging as a string
+// TODO: set to trace temporarily
 pub const DEBUG_LOGGING_CONFIG: &str = r#"
 log:
-  level: debug
+  level: trace
   file:
     enabled: true
   format:
