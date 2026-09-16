@@ -45,6 +45,10 @@ pub fn file_logger(
 ) -> Result<FileLogger, FileLoggerError> {
     let file_dir = agent_log_dir(&file_logging_config.base_path, agent_id);
 
+    // TODO: Remove folder creation when https://github.com/tokio-rs/tracing/issues/3612 is resolved.
+    std::fs::create_dir_all(&file_dir)
+        .map_err(|e| FileLoggerError(format!("creating log directory: {}", e)))?;
+
     let file_appender = RollingFileAppender::builder()
         .rotation(Rotation::DAILY)
         .max_log_files(MAX_LOG_FILES_SUB_AGENT)
