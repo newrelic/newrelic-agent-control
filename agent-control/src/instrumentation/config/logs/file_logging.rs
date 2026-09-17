@@ -2,6 +2,7 @@
 
 use super::config::LoggingConfigError;
 use crate::agent_control::defaults::{AGENT_CONTROL_ID, AGENT_CONTROL_LOG_FILENAME};
+use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
@@ -27,6 +28,12 @@ impl FileLoggingConfig {
 
         // if path is not specified into the config we fall back to a default path
         let log_file = self.path.unwrap_or(LogFilePath::new(&default_dir));
+
+        // TODO: Remove folder creation when https://github.com/tokio-rs/tracing/issues/3612 is resolved.
+        let directory_manager = DirectoryManagerFs;
+        directory_manager.create(&log_file.parent).map_err(|e| {
+            LoggingConfigError::FileLoggingConfig(format!("creating log directory: {}", e))
+        })?;
 
         let file_appender = RollingFileAppender::builder()
             .rotation(Rotation::DAILY)
