@@ -134,8 +134,8 @@ where
     R: AgentTypeRegistry,
     S: ValueProvider,
 {
-    /// Creates a renderer from an agent-type registry, agent-control variables, variable
-    /// constraints, value providers, and the remote configuration directory.
+    /// Creates a renderer from an agent-type registry, agent-control variables,
+    /// value providers, and the remote configuration directory.
     pub fn new(
         registry: Arc<R>,
         ac_variables: VariableValues,

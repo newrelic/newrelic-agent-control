@@ -1,4 +1,4 @@
-//! Configuration value types: the local/remote [`Config`] enums.
+//! Configuration value types: the local/remote [`Config`] enum.
 
 use crate::opamp::remote_config::hash::{ConfigState, Hash};
 use crate::values::yaml_config::YAMLConfig;

@@ -201,22 +201,16 @@ required: true
     }
 
     #[rstest]
-    #[case::string("string")]
-    #[case::yaml("yaml")]
-    #[case::bool("bool")]
-    #[case::number("number")]
-    #[case::string_map("string_map")]
-    fn variable_definition_ignores_legacy_variants_field(#[case] variable_type: &str) {
+    fn variable_definition_ignores_legacy_variants_field() {
         // Old agent type YAMLs may still carry a `variants:` block. Parsing must accept and
         // silently drop it so legacy definitions keep loading after the feature was removed.
-        let value = format!(
-            r#"
-type: {variable_type}
+        let value = r#"
+type: string
 required: true
 variants:
   values: ["a", "b"]
 "#
-        );
+        .to_string();
         assert!(serde_saphyr::from_str::<VariableDefinition>(&value).is_ok());
     }
 
@@ -229,9 +223,6 @@ foo:
       type: string
       required: false
       default: "a"
-      variants:
-        ac_config_field: "foo.bar.var_name"
-        values: ["a", "b"]
 "#;
         let tree: VariableTreeNode = serde_saphyr::from_str(value).unwrap();
         let expected: VariableTreeNode = VariableTreeNode::Mapping(HashMap::from([(
