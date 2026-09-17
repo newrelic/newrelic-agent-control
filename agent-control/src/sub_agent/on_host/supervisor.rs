@@ -393,11 +393,9 @@ where
         let agent_id = self.agent_identity.id.clone();
         let logging_config = self.file_logging_config.clone();
         let dispatch = dispatcher::get_default(|d: &Dispatch| d.clone());
-        let span = tracing::Span::current();
 
         let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
             let _guard = dispatcher::set_default(&dispatch);
-            let _enter = span.enter();
 
             let exec_id = exec_data.id.clone();
 
@@ -466,7 +464,8 @@ where
                 }
 
                 i += 1;
-                let restart_cancelled = wait_restart(&mut restart_policy, i, &stop_consumer);
+                let restart_cancelled =
+                    wait_restart(&mut restart_policy, i, &stop_consumer, &agent_id, &exec_id);
                 if restart_cancelled {
                     break;
                 }
@@ -578,9 +577,11 @@ fn wait_restart(
     restart_policy: &mut RestartPolicy,
     step: u32,
     stop_consumer: &EventConsumer<CancellationMessage>,
+    agent_id: &AgentID,
+    exec_id: &str,
 ) -> bool {
     let max_retries = restart_policy.backoff.max_retries();
-    info!("Waiting for restart policy backoff");
+    info!(%agent_id, %exec_id, "Waiting for restart policy backoff");
 
     let mut cancelled = false;
     restart_policy.backoff(|duration| {
@@ -595,9 +596,9 @@ fn wait_restart(
         n => n.to_string(),
     };
     if !cancelled {
-        info!("Restarting supervisor ({step}/{max_retries_str})");
+        info!(%agent_id, %exec_id, "Restarting supervisor ({step}/{max_retries_str})");
     } else {
-        info!("Restarting supervisor ({step}/{max_retries_str}) was cancelled");
+        info!(%agent_id, %exec_id, "Restarting supervisor ({step}/{max_retries_str}) was cancelled");
     }
 
     cancelled
@@ -615,9 +616,14 @@ fn handle_exit(
         return None;
     }
 
-    let ExecutableData { bin, args, .. } = &exec_data;
+    let ExecutableData {
+        id: exec_id,
+        bin,
+        args,
+        ..
+    } = &exec_data;
     warn!(%agent_id,supervisor = bin,exit_code = ?exit_status.code(),"Executable exited unsuccessfully");
-    debug!(%exit_status, "Error executing executable, marking as unhealthy");
+    debug!(%agent_id, %exec_id, %exit_status, "Error executing executable, marking as unhealthy");
 
     let args = args.join(" ");
     let error = format!("path '{bin}' with args '{args}' failed with '{exit_status}'",);
@@ -705,6 +711,13 @@ pub mod tests {
         time::{Duration, Instant},
     };
     use tracing_test::traced_test;
+
+    /// The process/logger threads don't inherit the test's `#[traced_test]` span (spans aren't
+    /// propagated across `std::thread::spawn`), so `logs_contain` can't see their output. Read
+    /// the shared log buffer directly instead.
+    fn global_logs() -> String {
+        String::from_utf8(tracing_test::internal::global_buf().lock().unwrap().clone()).unwrap()
+    }
 
     fn get_empty_packages() -> RenderedPackages {
         HashMap::new()
@@ -871,8 +884,9 @@ pub mod tests {
             "stopping the supervisor took to much time: {duration:?}"
         );
 
+        let logs = global_logs();
         for log in contain_logs {
-            assert!(logs_contain(log), "log not found: {log}");
+            assert!(logs.contains(log), "log not found: {log}");
         }
     }
 
@@ -1075,7 +1089,7 @@ declared-dir:
         }
 
         thread::sleep(Duration::from_secs(1));
-        assert!(logs_contain("NR-command"));
+        assert!(global_logs().contains("NR-command"));
     }
 
     #[test]
@@ -1171,18 +1185,19 @@ declared-dir:
 
         thread::sleep(Duration::from_secs(1));
 
-        logs_assert(|lines| {
-            let count = lines
-                .iter()
-                .filter(|l| l.contains("Restarting supervisor"))
-                .count();
-            match count {
-                3 => Ok(()),
-                n => Err(format!(
-                    "The supervisor should be restarted 3 times. Expected 3 lines, got {n}"
-                )),
-            }
-        });
+        // Other tests in this module also log "Restarting supervisor" concurrently, so match on
+        // this test's own agent_id (as a whole field, not just a substring) to avoid flakiness.
+        let count = global_logs()
+            .lines()
+            .filter(|l| {
+                l.contains("Restarting supervisor")
+                    && l.split_whitespace().any(|tok| tok == "agent_id=echo")
+            })
+            .count();
+        assert_eq!(
+            count, 3,
+            "The supervisor should be restarted 3 times. Expected 3 lines, got {count}"
+        );
     }
 
     #[test]

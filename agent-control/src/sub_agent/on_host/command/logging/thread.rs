@@ -34,12 +34,10 @@ where
         .collect();
 
     let dispatch = dispatcher::get_default(|d| d.clone());
-    let span = tracing::Span::current();
 
     // In a separate thread, iterate over the handle to get the logs
     let sender_thread = spawn_named_thread("OnHost log sender", move || {
         let _guard = dispatcher::set_default(&dispatch);
-        let _enter = span.enter();
 
         let log_entries = BufReader::new(handle).lines();
         for line in log_entries {
@@ -63,6 +61,13 @@ mod tests {
     use std::io::{Read, Seek, SeekFrom, Write};
     use tempfile::tempfile;
     use tracing_test::traced_test;
+
+    /// The reader/logger threads don't inherit the test's `#[traced_test]` span (spans aren't
+    /// propagated across `std::thread::spawn`), so `logs_contain` can't see their output. Read
+    /// the shared log buffer directly instead.
+    fn global_logs() -> String {
+        String::from_utf8(tracing_test::internal::global_buf().lock().unwrap().clone()).unwrap()
+    }
 
     mock! {
         Write {}
@@ -123,8 +128,9 @@ mod tests {
             thd.join().unwrap();
         }
 
-        assert!(logs_contain("logging test 1"));
-        assert!(logs_contain("logging test 2"));
+        let logs = global_logs();
+        assert!(logs.contains("logging test 1"));
+        assert!(logs.contains("logging test 2"));
     }
 
     #[traced_test]
@@ -160,8 +166,9 @@ mod tests {
             thd.join().unwrap();
         }
 
-        assert!(logs_contain("err logging test 1"));
-        assert!(logs_contain("err logging test 2"));
+        let logs = global_logs();
+        assert!(logs.contains("err logging test 1"));
+        assert!(logs.contains("err logging test 2"));
     }
 
     #[traced_test]
@@ -202,8 +209,9 @@ mod tests {
             thd.join().unwrap();
         }
 
-        assert!(logs_contain("logging test 1 agent_id=test-agent"));
-        assert!(logs_contain("logging test 2 agent_id=test-agent"));
+        let logs = global_logs();
+        assert!(logs.contains("logging test 1 agent_id=test-agent"));
+        assert!(logs.contains("logging test 2 agent_id=test-agent"));
 
         // Check the file content
         temp_file.seek(SeekFrom::Start(0)).unwrap();
