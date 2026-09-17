@@ -56,6 +56,12 @@ pub fn run_windows_e2e() {
         WindowsScenarios::SelfUpdateCurrentToLatest(args) => {
             scenarios::self_update::test_self_update_from_current_to_latest(args);
         }
+        WindowsScenarios::SelfUpdateRollback(args) => {
+            scenarios::self_update::test_self_update_rollback(args);
+        }
+        WindowsScenarios::SelfUpdateMultipleUpgrades(args) => {
+            scenarios::self_update::test_self_update_multiple_upgrades(args);
+        }
         WindowsScenarios::WrongConfig(args) => {
             scenarios::service_wrong_config::test_service_restart_depending_on_config_correctness(
                 args,

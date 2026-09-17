@@ -103,10 +103,7 @@ fn wait_for_registry() {
     .expect("OCI registry did not become ready within 30 seconds");
 }
 
-/// Holds a pushed and signed AC package artifact for the duration of a test.
-///
-/// Keeps the JWKS HTTP server alive so that signature verification against
-/// `jwks_url` continues to work while the test runs.
+/// Holds a pushed and signed AC package. Keeps the JWKS server alive for the test's duration.
 pub struct PushedPackage {
     /// OCI image index reference.
     pub reference: Reference,
@@ -115,13 +112,41 @@ pub struct PushedPackage {
     _signer: OCISigner,
 }
 
-/// Finds the AC release archive in `args.artifacts_package_dir`,
-/// pushes it to `registry`, and signs it.
-///
-/// The archive name follows the goreleaser convention:
-/// `newrelic-agent-control_{version}_{os}_{arch}.{ext}`.
-/// On Linux: `.tar.gz`; on Windows: `.zip` (always `amd64`)
+/// Finds, pushes and signs the AC release archive from `args.artifacts_package_dir`.
 pub fn push_ac_package(args: &InstallationArgs) -> PushedPackage {
+    let signer = OCISigner::start(tokio_runtime().handle().clone());
+    let reference = push_and_sign(args, &args.agent_control_version, &signer);
+    let jwks_url = signer.jwks_url().to_string();
+
+    PushedPackage {
+        reference,
+        jwks_url,
+        _signer: signer,
+    }
+}
+
+/// Same local AC package pushed under several tags, all signed by one shared JWKS endpoint.
+pub struct PushedPackages {
+    /// URL of the JWKS endpoint serving the public signing key.
+    pub jwks_url: String,
+    _signer: OCISigner,
+}
+
+/// Pushes and signs the same local AC archive under each tag, reusing one signer.
+pub fn push_ac_package_with_tags(args: &InstallationArgs, tags: &[&str]) -> PushedPackages {
+    let signer = OCISigner::start(tokio_runtime().handle().clone());
+    for tag in tags {
+        push_and_sign(args, tag, &signer);
+    }
+    let jwks_url = signer.jwks_url().to_string();
+
+    PushedPackages {
+        jwks_url,
+        _signer: signer,
+    }
+}
+
+fn push_and_sign(args: &InstallationArgs, tag: &str, signer: &OCISigner) -> Reference {
     let package_dir = args
         .artifacts_package_dir
         .as_deref()
@@ -134,21 +159,12 @@ pub fn push_ac_package(args: &InstallationArgs) -> PushedPackage {
         format!("localhost:{LOCAL_REGISTRY_PORT}"),
     );
 
-    let reference = publisher.push_with_tag(&file, media_type, &args.agent_control_version);
-
-    let signer = OCISigner::start(tokio_runtime().handle().clone());
-
+    let reference = publisher.push_with_tag(&file, media_type, tag);
     signer.sign_artifact(&reference);
 
-    let jwks_url = signer.jwks_url().to_string();
+    info!("AC package pushed and signed: {reference}");
 
-    info!("AC package pushed and signed: {reference} (JWKS: {jwks_url})");
-
-    PushedPackage {
-        reference,
-        jwks_url,
-        _signer: signer,
-    }
+    reference
 }
 
 #[cfg(target_os = "windows")]
