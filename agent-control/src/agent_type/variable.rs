@@ -132,7 +132,6 @@ mod tests {
         variable::value::VariableValue,
         variable::{VariableDefinition, tree::VariableTreeNode},
     };
-    use rstest::rstest;
     use std::collections::HashMap;
 
     #[test]
