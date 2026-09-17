@@ -1120,6 +1120,9 @@ deployment:
             PathBuf::default().as_path(),
         ));
 
+        let mut validator = MockRemoteConfigValidator::new();
+        validator.expect_validate().returning(|_, _| Ok(()));
+
         SubAgent::new(
             TestAgent::identity(),
             opamp_client,
@@ -1129,7 +1132,7 @@ deployment:
             (sub_agent_internal_publisher, sub_agent_internal_consumer),
             Arc::new(
                 AgentRemoteConfigParser::<MockRemoteConfigValidator, Registry>::new(
-                    vec![],
+                    Arc::new(validator),
                     agent_type_registry,
                 ),
             ),
@@ -1262,7 +1265,7 @@ deployment:
             (sub_agent_internal_publisher, sub_agent_internal_consumer),
             Arc::new(
                 AgentRemoteConfigParser::<MockRemoteConfigValidator, Registry>::new(
-                    vec![],
+                    Arc::new(MockRemoteConfigValidator::default()),
                     agent_type_registry,
                 ),
             ),

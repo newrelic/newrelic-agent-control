@@ -215,9 +215,8 @@ impl AgentControlRunner {
         };
 
         let signature_validator = Arc::new(self.signature_validator);
-        let remote_config_validators = vec![signature_validator.clone()];
         let remote_config_parser = AgentRemoteConfigParser::new(
-            remote_config_validators,
+            signature_validator.clone(),
             self.agent_type_registry.clone(),
         );
 
