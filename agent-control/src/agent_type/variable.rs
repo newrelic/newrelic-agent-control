@@ -200,7 +200,7 @@ required: true
         assert_eq!(def.default, None);
     }
 
-    #[rstest]
+    #[test]
     fn variable_definition_ignores_legacy_variants_field() {
         // Old agent type YAMLs may still carry a `variants:` block. Parsing must accept and
         // silently drop it so legacy definitions keep loading after the feature was removed.
