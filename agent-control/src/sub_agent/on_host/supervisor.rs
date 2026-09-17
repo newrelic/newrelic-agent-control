@@ -676,6 +676,7 @@ impl HealthHandler {
 pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::agent_id::tests::UniqueAgentID;
     use crate::agent_control::defaults::STDOUT_LOG_FILE_NAME_SUFFIX;
     use crate::agent_type::agent_attributes::AgentAttributes;
     use crate::agent_type::agent_type_id::AgentTypeID;
@@ -700,6 +701,7 @@ pub mod tests {
     use crate::sub_agent::agent_renderer::RenderedAgent;
     use crate::sub_agent::on_host::command::restart_policy::BackoffStrategy;
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
+    use crate::sub_agent::on_host::test_utils::global_logs_lines;
     use crate::sub_agent::supervisor::Supervisor;
     use crate::utils::retry::retry;
     use opamp_client::operation::settings::DescriptionValueType;
@@ -711,13 +713,6 @@ pub mod tests {
         time::{Duration, Instant},
     };
     use tracing_test::traced_test;
-
-    /// The process/logger threads don't inherit the test's `#[traced_test]` span (spans aren't
-    /// propagated across `std::thread::spawn`), so `logs_contain` can't see their output. Read
-    /// the shared log buffer directly instead.
-    fn global_logs() -> String {
-        String::from_utf8(tracing_test::internal::global_buf().lock().unwrap().clone()).unwrap()
-    }
 
     fn get_empty_packages() -> RenderedPackages {
         HashMap::new()
@@ -818,22 +813,18 @@ pub mod tests {
     #[traced_test]
     #[rstest::rstest]
     #[cfg_attr(target_family = "unix", case::long_running_process_shutdown_after_start(
-        "long-running",
         build_test_exec_data(r#"{"id":"sleep","path":"sleep","args":["10"]}"#),
         Some(Duration::from_secs(1)),
         vec!["Stopping executable", "Executable terminated"]))]
     #[cfg_attr(target_family = "windows", case::long_running_process_shutdown_after_start(
-        "long-running",
         build_test_exec_data(r#"{"id":"cmd","path":"cmd","args":["/C","timeout","/T","10","/NOBREAK"]}"#),
         Some(Duration::from_secs(1)),
         vec!["Stopping executable", "Executable terminated"]))]
     #[case::fail_process_shutdown_after_start(
-        "wrong-command",
         build_test_exec_data(r#"{"id":"wrong-command","path":"wrong-command"}"#),
         Some(Duration::from_secs(1)),
         vec!["Executable not running"])]
     fn test_supervisor_gracefully_shutdown(
-        #[case] agent_id: &str,
         #[case] executable: ExecutableData,
         #[case] run_warmup_time: Option<Duration>,
         #[case] contain_logs: Vec<&'static str>,
@@ -847,8 +838,9 @@ pub mod tests {
             executable.with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
+        let agent_id = UniqueAgentID::build();
         let agent_identity = AgentIdentity::from((
-            agent_id.to_owned().try_into().unwrap(),
+            agent_id.clone().into(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
@@ -884,9 +876,9 @@ pub mod tests {
             "stopping the supervisor took to much time: {duration:?}"
         );
 
-        let logs = global_logs();
+        let logs = global_logs_lines(agent_id);
         for log in contain_logs {
-            assert!(logs.contains(log), "log not found: {log}");
+            assert!(logs.iter().any(|l| l.contains(log)), "log not found: {log}");
         }
     }
 
@@ -1058,8 +1050,9 @@ declared-dir:
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
+        let agent_id = UniqueAgentID::build();
         let agent_identity = AgentIdentity::from((
-            "wrong-command".to_owned().try_into().unwrap(),
+            agent_id.clone().into(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
@@ -1089,7 +1082,11 @@ declared-dir:
         }
 
         thread::sleep(Duration::from_secs(1));
-        assert!(global_logs().contains("NR-command"));
+        assert!(
+            global_logs_lines(agent_id)
+                .iter()
+                .any(|l| l.contains("NR-command"))
+        );
     }
 
     #[test]
@@ -1153,8 +1150,9 @@ declared-dir:
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
+        let agent_id = UniqueAgentID::build();
         let agent_identity = AgentIdentity::from((
-            "echo".to_owned().try_into().unwrap(),
+            agent_id.clone().into(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
@@ -1185,14 +1183,9 @@ declared-dir:
 
         thread::sleep(Duration::from_secs(1));
 
-        // Other tests in this module also log "Restarting supervisor" concurrently, so match on
-        // this test's own agent_id (as a whole field, not just a substring) to avoid flakiness.
-        let count = global_logs()
-            .lines()
-            .filter(|l| {
-                l.contains("Restarting supervisor")
-                    && l.split_whitespace().any(|tok| tok == "agent_id=echo")
-            })
+        let count = global_logs_lines(agent_id)
+            .iter()
+            .filter(|l| l.contains("Restarting supervisor"))
             .count();
         assert_eq!(
             count, 3,

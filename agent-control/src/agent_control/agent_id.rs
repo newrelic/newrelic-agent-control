@@ -156,6 +156,25 @@ pub(crate) mod tests {
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::AGENT_CONTROL_ID;
 
+    /// Type to build instances of `AgentID` that are unique within test runs, for tests that need distinct IDs.
+    #[derive(Clone)]
+    pub(crate) struct UniqueAgentID(AgentID);
+
+    impl From<UniqueAgentID> for AgentID {
+        fn from(value: UniqueAgentID) -> Self {
+            value.0
+        }
+    }
+
+    impl UniqueAgentID {
+        pub fn build() -> Self {
+            use std::sync::atomic::{AtomicU64, Ordering};
+            static COUNTER: AtomicU64 = AtomicU64::new(0);
+            let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+            Self(AgentID::try_from(format!("unique{n}")).unwrap())
+        }
+    }
+
     impl Default for AgentID {
         fn default() -> Self {
             AgentID::try_from("default").unwrap()
