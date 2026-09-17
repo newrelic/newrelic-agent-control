@@ -588,4 +588,303 @@ mod tests {
         clock.advance(Duration::from_secs(31));
         let _ = updater.retry().unwrap_err();
     }
+
+    /// Real `OCIPackageManager` + `BinaryReplacer` end to end (only the download is mocked):
+    /// v4 → v5 → back to v4 always re-downloads fresh, since v4's directory got purged.
+    mod real_self_update_lifecycle {
+        use super::*;
+        use crate::oci::artifact_definitions::{LocalAgentPackage, PackageMediaType};
+        use crate::package::oci::downloader::tests::MockOCIDownloader;
+        use crate::package::oci::package_manager::{OCIPackageManager, get_package_path};
+        use flate2::Compression;
+        use flate2::write::GzEncoder;
+        use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
+        use std::fs::File;
+        use tempfile::tempdir;
+
+        fn ac_package_data(version: &str) -> PackageData {
+            let package = AgentControlPackage::default();
+            PackageData {
+                id: AGENT_CONTROL_BIN_PACKAGE_ID.to_string(),
+                oci: Oci {
+                    repository: package.download.oci.repository,
+                    version: Version::from_str(version).unwrap(),
+                    public_key_url: Some(package.download.oci.public_key_url),
+                },
+                post_download_hook: None,
+            }
+        }
+
+        /// Builds a tar.gz with a single file named like the real AC binary.
+        fn fake_ac_archive(download_dir: &Path, binary_content: &[u8]) -> LocalAgentPackage {
+            DirectoryManagerFs.create(download_dir).unwrap();
+            let source = tempdir().unwrap();
+            std::fs::write(source.path().join(AGENT_CONTROL_BIN), binary_content).unwrap();
+
+            let archive_path = download_dir.join("layer.tar.gz");
+            let tar_gz = File::create(&archive_path).unwrap();
+            let enc = GzEncoder::new(tar_gz, Compression::default());
+            let mut tar = tar::Builder::new(enc);
+            tar.append_dir_all(".", source.path()).unwrap();
+            tar.finish().unwrap();
+
+            LocalAgentPackage::new(PackageMediaType::AgentPackageLayerTarGz, archive_path)
+        }
+
+        type RealUpdater = OnHostACUpdater<
+            OCIPackageManager<MockOCIDownloader, DirectoryManagerFs>,
+            MockVerifyExecutorMock,
+            SystemClock,
+            BinaryReplacer,
+        >;
+
+        /// Fresh `OCIPackageManager` per call, simulating the process restart after every
+        /// self-update. `remote_dir`/`current_exe` are passed in since only disk survives a restart.
+        fn fresh_process_updater(
+            remote_dir: &Path,
+            current_exe: &Path,
+        ) -> (
+            RealUpdater,
+            crate::event::channel::EventConsumer<AgentControlInternalEvent>,
+        ) {
+            let mut downloader = MockOCIDownloader::new();
+            downloader
+                .expect_download()
+                .times(1)
+                .returning(move |pkg_data, dir| {
+                    let content = format!("FAKE-BINARY-{}", pkg_data.oci.version).into_bytes();
+                    Ok(fake_ac_archive(dir, &content))
+                });
+            let package_manager =
+                OCIPackageManager::new(downloader, DirectoryManagerFs, remote_dir.into());
+            let self_replacer = BinaryReplacer::with_target(current_exe.into());
+            let mut verify_executor = MockVerifyExecutorMock::new();
+            verify_executor
+                .expect_execute()
+                .times(1)
+                .returning(|_, _| Ok(()));
+            let (publisher, consumer) = pub_sub();
+
+            (
+                OnHostACUpdater::new(
+                    true,
+                    publisher,
+                    package_manager,
+                    verify_executor,
+                    self_replacer,
+                    AgentControlPackage::default(),
+                    no_jitter_backoff(Duration::from_secs(30), Duration::from_secs(30), 5),
+                    SystemClock,
+                ),
+                consumer,
+            )
+        }
+
+        #[test]
+        fn upgrade_then_rollback_preserves_binaries_and_purges_the_old_directory() {
+            let remote_dir = tempdir().unwrap();
+            let exe_dir = tempdir().unwrap();
+            let current_exe = exe_dir.path().join(AGENT_CONTROL_BIN);
+            std::fs::write(&current_exe, b"FAKE-BINARY-base").unwrap();
+
+            let v4_path = get_package_path(
+                remote_dir.path(),
+                &AgentID::AgentControl,
+                &ac_package_data("v4"),
+            )
+            .unwrap();
+            let v5_path = get_package_path(
+                remote_dir.path(),
+                &AgentID::AgentControl,
+                &ac_package_data("v5"),
+            )
+            .unwrap();
+
+            // Upgrade to v4.
+            let (updater, _consumer) = fresh_process_updater(remote_dir.path(), &current_exe);
+            updater
+                .try_upgrade(Version::from_str("v4").unwrap())
+                .unwrap();
+            assert_eq!(std::fs::read(&current_exe).unwrap(), b"FAKE-BINARY-v4");
+            assert!(v4_path.exists());
+            assert_eq!(
+                std::fs::read(v4_path.join(AGENT_CONTROL_BIN)).unwrap(),
+                b"FAKE-BINARY-v4",
+                "v4's package must still contain its binary after self-replacing into it"
+            );
+
+            // Upgrade to v5
+            let (updater, _consumer) = fresh_process_updater(remote_dir.path(), &current_exe);
+            updater
+                .try_upgrade(Version::from_str("v5").unwrap())
+                .unwrap();
+            assert_eq!(std::fs::read(&current_exe).unwrap(), b"FAKE-BINARY-v5");
+            assert_eq!(
+                std::fs::read(v5_path.join(AGENT_CONTROL_BIN)).unwrap(),
+                b"FAKE-BINARY-v5"
+            );
+            assert!(
+                !v4_path.exists(),
+                "v4's package directory should have been purged when v5 was installed"
+            );
+
+            // Roll back to v4
+            let (updater, _consumer) = fresh_process_updater(remote_dir.path(), &current_exe);
+            updater
+                .try_upgrade(Version::from_str("v4").unwrap())
+                .unwrap();
+            assert_eq!(
+                std::fs::read(&current_exe).unwrap(),
+                b"FAKE-BINARY-v4",
+                "rollback to v4 must succeed"
+            );
+            assert!(
+                !v5_path.exists(),
+                "v5's package directory should have been purged when v4 was re-installed"
+            );
+
+            // Forward to v5 again
+            let (updater, _consumer) = fresh_process_updater(remote_dir.path(), &current_exe);
+            updater
+                .try_upgrade(Version::from_str("v5").unwrap())
+                .unwrap();
+            assert_eq!(
+                std::fs::read(&current_exe).unwrap(),
+                b"FAKE-BINARY-v5",
+                "forward to v5 again must succeed"
+            );
+            assert_eq!(
+                std::fs::read(v5_path.join(AGENT_CONTROL_BIN)).unwrap(),
+                b"FAKE-BINARY-v5",
+                "the second time around, v5's package is a fresh extraction with its binary intact"
+            );
+        }
+
+        /// no restart between installs (like a sub-agent) — both directories survive.
+        #[test]
+        fn two_installs_without_a_restart_retain_both_directories() {
+            let remote_dir = tempdir().unwrap();
+            let exe_dir = tempdir().unwrap();
+            let current_exe = exe_dir.path().join(AGENT_CONTROL_BIN);
+            std::fs::write(&current_exe, b"FAKE-BINARY-base").unwrap();
+
+            let mut downloader = MockOCIDownloader::new();
+            downloader
+                .expect_download()
+                .times(2)
+                .returning(move |pkg_data, dir| {
+                    let content = format!("FAKE-BINARY-{}", pkg_data.oci.version).into_bytes();
+                    Ok(fake_ac_archive(dir, &content))
+                });
+            let package_manager =
+                OCIPackageManager::new(downloader, DirectoryManagerFs, remote_dir.path().into());
+            let self_replacer = BinaryReplacer::with_target(current_exe.clone());
+            let mut verify_executor = MockVerifyExecutorMock::new();
+            verify_executor
+                .expect_execute()
+                .times(2)
+                .returning(|_, _| Ok(()));
+            let (publisher, _consumer) = pub_sub();
+
+            let updater = OnHostACUpdater::new(
+                true,
+                publisher,
+                package_manager,
+                verify_executor,
+                self_replacer,
+                AgentControlPackage::default(),
+                no_jitter_backoff(Duration::from_secs(30), Duration::from_secs(30), 5),
+                SystemClock,
+            );
+
+            let v4_path = get_package_path(
+                remote_dir.path(),
+                &AgentID::AgentControl,
+                &ac_package_data("v4"),
+            )
+            .unwrap();
+            let v5_path = get_package_path(
+                remote_dir.path(),
+                &AgentID::AgentControl,
+                &ac_package_data("v5"),
+            )
+            .unwrap();
+
+            updater
+                .try_upgrade(Version::from_str("v4").unwrap())
+                .unwrap();
+            updater
+                .try_upgrade(Version::from_str("v5").unwrap())
+                .unwrap();
+
+            assert!(
+                v4_path.join(AGENT_CONTROL_BIN).exists(),
+                "without a restart in between, v4's package survives just like a sub-agent's would"
+            );
+            assert!(v5_path.join(AGENT_CONTROL_BIN).exists());
+        }
+
+        /// Self-update to v5, then a cli/package-manager reinstall (bypassing
+        /// `OCIPackageManager`), then back to v5 reuses the untouched retained package.
+        #[test]
+        fn returning_to_a_self_updated_version_after_a_cli_reinstall_reuses_the_retained_package() {
+            let remote_dir = tempdir().unwrap();
+            let exe_dir = tempdir().unwrap();
+            let current_exe = exe_dir.path().join(AGENT_CONTROL_BIN);
+            std::fs::write(&current_exe, b"FAKE-BINARY-vA-from-cli").unwrap();
+
+            let v5_path = get_package_path(
+                remote_dir.path(),
+                &AgentID::AgentControl,
+                &ac_package_data("v5"),
+            )
+            .unwrap();
+
+            // Fleet Control deploys v5
+            let (updater, _consumer) = fresh_process_updater(remote_dir.path(), &current_exe);
+            updater
+                .try_upgrade(Version::from_str("v5").unwrap())
+                .unwrap();
+            assert_eq!(std::fs::read(&current_exe).unwrap(), b"FAKE-BINARY-v5");
+
+            // cli/package-manager reinstall overwrites the binary directly
+            std::fs::write(&current_exe, b"FAKE-BINARY-vA-from-cli").unwrap();
+            assert!(
+                v5_path.join(AGENT_CONTROL_BIN).exists(),
+                "a cli-driven reinstall must not touch the OCI package retention directory"
+            );
+
+            // Deploy v5 again
+            let mut downloader = MockOCIDownloader::new();
+            downloader.expect_download().times(0);
+            let package_manager =
+                OCIPackageManager::new(downloader, DirectoryManagerFs, remote_dir.path().into());
+            let self_replacer = BinaryReplacer::with_target(current_exe.clone());
+            let mut verify_executor = MockVerifyExecutorMock::new();
+            verify_executor
+                .expect_execute()
+                .times(1)
+                .returning(|_, _| Ok(()));
+            let (publisher, _consumer) = pub_sub();
+            let updater = OnHostACUpdater::new(
+                true,
+                publisher,
+                package_manager,
+                verify_executor,
+                self_replacer,
+                AgentControlPackage::default(),
+                no_jitter_backoff(Duration::from_secs(30), Duration::from_secs(30), 5),
+                SystemClock,
+            );
+            updater
+                .try_upgrade(Version::from_str("v5").unwrap())
+                .unwrap();
+
+            assert_eq!(
+                std::fs::read(&current_exe).unwrap(),
+                b"FAKE-BINARY-v5",
+                "returning to v5 via a fresh deployment must succeed, reusing the retained package"
+            );
+        }
+    }
 }

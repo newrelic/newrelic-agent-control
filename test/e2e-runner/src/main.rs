@@ -46,9 +46,10 @@ enum LinuxScenarios {
     /// Tests self-update functionality by installing latest released Agent Control, and verifying that AC updates itself,
     /// when instructed via OpAMP, to the current compiled version (pushed to local registry).
     SelfUpdateLatestToCurrent(InstallationArgs),
-    /// Tests self-update functionality by installing Agent Control from current branch and verifying that AC updates itself,
-    /// when instructed via OpAMP, to the latest published tag.
-    SelfUpdateCurrentToLatest(InstallationArgs),
+    /// Self-updates from the current branch build to a published version, then to another, then
+    /// rolls back to the first one, verifying the rollback succeeds. Regression test for the OCI
+    /// package binary being deleted by self-update (also covers plain consecutive upgrades).
+    SelfUpdateRollback(InstallationArgs),
     /// Installs Agent Control with the infra-agent and nri-redis, spins up a local Redis instance, and verifies that
     /// RedisSample data lands in NRDB.
     NriRedis(InstallationArgs),
@@ -88,9 +89,10 @@ enum WindowsScenarios {
     /// Tests self-update functionality by installing latest released Agent Control, and verifying that AC updates itself,
     /// when instructed via OpAMP, to the current compiled version (pushed to local registry).
     SelfUpdateLatestToCurrent(InstallationArgs),
-    /// Tests self-update functionality by installing Agent Control from current branch and verifying that AC updates itself,
-    /// when instructed via OpAMP, to the latest published tag.
-    SelfUpdateCurrentToLatest(InstallationArgs),
+    /// Self-updates from the current branch build to a published version, then to another, then
+    /// rolls back to the first one, verifying the rollback succeeds. Regression test for the OCI
+    /// package binary being deleted by self-update (also covers plain consecutive upgrades).
+    SelfUpdateRollback(InstallationArgs),
     /// Simple installation of Agent Control on Windows with update to wrong and correct config
     /// to test service stop and start.
     WrongConfig(InstallationArgs),
