@@ -1,13 +1,12 @@
 //! Key-aware signature verifier store that refreshes its verifying key when the key id changes.
+use crate::signature::public_key::PublicKey;
+use crate::signature::public_key_fetcher::PublicKeyFetcher;
 use aws_lc_rs::digest;
 use base64::{Engine, prelude::BASE64_STANDARD};
 use std::sync::Mutex;
 use thiserror::Error;
 use tracing::debug;
 use url::Url;
-
-use crate::signature::public_key::PublicKey;
-use crate::signature::public_key_fetcher::PublicKeyFetcher;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum VerifierStoreError {
