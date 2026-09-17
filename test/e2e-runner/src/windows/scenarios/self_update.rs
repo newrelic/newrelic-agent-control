@@ -1,4 +1,4 @@
-use crate::common::docker_hub::latest_published_ac_tag;
+use crate::common::docker_hub::published_ac_tags;
 use crate::common::oci::{OciRegistry, push_ac_package};
 use crate::common::on_drop::CleanUp;
 use crate::common::runtime::tokio_runtime;
@@ -9,7 +9,7 @@ use crate::windows::install::{
 };
 use crate::windows::service::{STATUS_RUNNING, restart_service};
 use crate::windows::{self};
-use fake_opamp_server::FakeServer;
+use fake_opamp_server::{FakeServer, InstanceID};
 use std::time::Duration;
 use tracing::info;
 
@@ -139,16 +139,43 @@ agents: {{}}
     info!("Self-update test completed successfully");
 }
 
-pub fn test_self_update_from_current_to_latest(args: InstallationArgs) {
-    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
+pub fn test_self_update_rollback(args: InstallationArgs) {
+    info!("Starting self-update rollback scenario");
+
+    let _clean_up = CleanUp::new(tear_down_test);
+    let [version_a, version_b] = two_distinct_published_versions();
+    let (mut opamp_server, instance_id, initial_version) = start_self_update_test(&args);
+    assert_ne!(
+        initial_version, version_a,
+        "initial and target version must differ for self-update to be meaningful"
+    );
+
+    trigger_update_and_wait(&mut opamp_server, &instance_id, &version_a);
+    trigger_update_and_wait(&mut opamp_server, &instance_id, &version_b);
+    info!("Rolling back to the previously-installed version");
+    trigger_update_and_wait(&mut opamp_server, &instance_id, &version_a);
+
+    info!("Self-update rollback test completed successfully");
+}
+
+fn two_distinct_published_versions() -> [String; 2] {
+    let mut tags = retry_panic(
+        10,
+        Duration::from_secs(2),
+        "fetching published AC tags from Docker Hub",
+        || published_ac_tags(2),
+    );
+    [tags.remove(0), tags.remove(0)]
+}
+
+fn start_self_update_test(args: &InstallationArgs) -> (FakeServer, InstanceID, String) {
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
     info!("Fake OpAMP server started at {}", opamp_server.endpoint());
 
     let recipe_data = RecipeData {
-        args,
+        args: args.clone(),
         ..Default::default()
     };
-
-    let _clean_up = CleanUp::new(tear_down_test);
 
     install_agent_control_from_recipe(&recipe_data);
 
@@ -199,27 +226,23 @@ log:
         "Verified initial AC version before self-update"
     );
 
-    let new_version = retry_panic(
-        10,
-        Duration::from_secs(2),
-        "fetching latest AC tag from Docker Hub",
-        latest_published_ac_tag,
-    );
-    assert_ne!(
-        initial_version, new_version,
-        "initial and new version must differ for self-update to be meaningful"
-    );
+    (opamp_server, instance_id, initial_version)
+}
 
+fn trigger_update_and_wait(
+    opamp_server: &mut FakeServer,
+    instance_id: &InstanceID,
+    target_version: &str,
+) {
     let update_config = format!(
         r#"
-version: "{new_version}"
+version: "{target_version}"
 agents: {{}}
 "#
     );
     opamp_server.set_config_response(instance_id.clone(), update_config);
-    info!(tag = new_version, "Sent self-update remote config");
+    info!(tag = target_version, "Sent self-update remote config");
 
-    info!("Verifying remote config status is Applied");
     retry_panic(
         120,
         Duration::from_secs(2),
@@ -231,7 +254,6 @@ agents: {{}}
         },
     );
 
-    info!("Verifying agent.version attribute reflects the updated version");
     retry_panic(
         120,
         Duration::from_secs(2),
@@ -242,14 +264,12 @@ agents: {{}}
             else {
                 return Err("agent.version attribute not set yet".into());
             };
-            if reported_version == new_version {
+            if reported_version == target_version {
                 Ok(())
             } else {
-                Err(format!("expected version {new_version}, got {reported_version}").into())
+                Err(format!("expected version {target_version}, got {reported_version}").into())
             }
         },
     );
-    info!(version = new_version, "AC version updated successfully");
-
-    info!("Self-update test completed successfully");
+    info!(version = target_version, "AC version updated successfully");
 }
