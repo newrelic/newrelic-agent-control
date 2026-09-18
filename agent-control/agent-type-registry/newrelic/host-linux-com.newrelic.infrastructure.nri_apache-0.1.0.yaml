@@ -20,9 +20,6 @@ variables:
       type: string
       required: false
       default: newrelic/nri-apache-artifacts
-      variants:
-        ac_config_field: "oci_repository_urls"
-        values: [ "newrelic/nri-apache-artifacts" ]
 deployment:
   packages:
     nri-apache:

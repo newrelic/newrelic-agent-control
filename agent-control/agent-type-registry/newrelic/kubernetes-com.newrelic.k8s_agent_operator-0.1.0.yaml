@@ -32,9 +32,6 @@ variables:
       type: string
       required: false
       default: "https://newrelic.github.io/k8s-agents-operator"
-      variants:
-        ac_config_field: "chart_repository_urls"
-        values: [ "https://newrelic.github.io/k8s-agents-operator" ]
     secret_reference:
       description: "HelmRepository secret reference (secretRef)"
       type: yaml

@@ -65,7 +65,6 @@ variables:
     description: "seconds until next retry if agent fails to start"
     type: string
     required: false
-    variants: [5s, 10s, 20s, 30s]
     default: 20s
   enable_file_logging:
     description: "enable logging the on host executables' logs to files"
@@ -80,18 +79,16 @@ Nested variable names are supported. For instance:
 variables:
   log:
     level:
-      description: "Log level with only info and error"
+      description: "Log level"
       type: string
       required: false
       default: info
-      variants: ["info", "error"]
 ```
 
 All variables have a few common attributes:
 
 * `description`: A brief description of the variable. This is useful for documentation purposes and can help others understand the purpose of the variable.
 * `type`: The data type of the variable. We support several data types, including `string`, `file`, `bool`, `yaml`, and more.
-* `variants`: Represents a defined list of acceptable values for the variable. Only values present in the variants list are considered valid.
 * `default`: The default value for the variable if no value is provided.
 * `required`: Whether the variable is mandatory to be provided or not.
 

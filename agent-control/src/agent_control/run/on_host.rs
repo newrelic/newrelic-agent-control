@@ -207,7 +207,6 @@ impl AgentControlRunner {
         let agent_renderer = Arc::new(AgentRenderer::new(
             self.agent_type_registry.clone(),
             agent_control_variables,
-            self.bootstrap_config.agent_type_var_constraints,
             value_providers,
             &remote_dir,
         ));

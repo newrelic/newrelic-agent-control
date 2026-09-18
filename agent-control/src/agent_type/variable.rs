@@ -1,23 +1,19 @@
 //! This module defines the Agent Type variables, including their serialized representation and
 //! the corresponding functionality.
 //!
-//! A [`VariableDefinition`] is the static shape parsed from an Agent Type YAML. Once we have the
-//! AC-wide constraints and the user-supplied values, [`VariableDefinition::resolve_value`] produces
-//! the resolved [`VariableValue`].
+//! A [`VariableDefinition`] is the static shape parsed from an Agent Type YAML. It is resolved
+//! against user-supplied values via [`tree::VariableTree::resolve`] to produce the resolved
+//! [`VariableValue`].
 
-pub mod constraints;
 pub mod dynamic_variables;
 pub mod name;
 pub mod namespace;
 pub mod tree;
 pub mod value;
-pub mod variants;
 
-use crate::agent_type::variable::variants::Variants;
 use crate::agent_type::{
     error::AgentTypeError,
     variable::value::{VariableType, VariableValue},
-    variable::{constraints::VariableConstraints, variants::VariantsConfig},
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -26,8 +22,6 @@ use std::collections::HashMap;
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct VariableDefinition {
     pub(crate) default: Option<VariableValue>,
-    /// Allowed values for `string`-typed variables. `None` for other types.
-    pub(crate) variants: Option<VariantsConfig>,
     #[serde(flatten)]
     pub(crate) variable_type: VariableType,
 }
@@ -43,26 +37,17 @@ impl<'de> Deserialize<'de> for VariableDefinition {
             required: bool,
             #[serde(default)]
             default: Option<serde_json::Value>,
-            #[serde(default)]
-            variants: Option<VariantsConfig>,
             #[serde(flatten)]
             variable_type: VariableType,
         }
 
         let raw = Raw::deserialize(deserializer)?;
 
-        if raw.variants.is_some() && !matches!(raw.variable_type, VariableType::String) {
-            return Err(serde::de::Error::custom(AgentTypeError::Parse(
-                "`variants` is only supported for `string`-typed variables".to_string(),
-            )));
-        }
-
         let default = normalize_default(raw.default, raw.required, &raw.variable_type)
             .map_err(serde::de::Error::custom)?;
 
         Ok(VariableDefinition {
             default,
-            variants: raw.variants,
             variable_type: raw.variable_type,
         })
     }
@@ -100,29 +85,6 @@ impl VariableDefinition {
     /// Returns the variable's declared type.
     pub fn kind(&self) -> &VariableType {
         &self.variable_type
-    }
-
-    /// Resolves this definition into a fully-populated [`VariableValue`] using the given AC
-    /// constraints and an optional user-supplied value. Errors when the user value doesn't match
-    /// the declared type/variants, or when the variable is required and no value was provided.
-    pub fn resolve_value(
-        self,
-        constraints: &VariableConstraints,
-        user_value: Option<serde_json::Value>,
-    ) -> Result<Option<VariableValue>, AgentTypeError> {
-        match user_value {
-            Some(v) => {
-                let coerced = coerce_serde_value(&self.variable_type, v)?;
-                if let (Some(cfg), VariableValue::String(s)) = (&self.variants, &coerced) {
-                    let resolved = Variants::new(cfg, &constraints.variants);
-                    if !resolved.is_valid(s) {
-                        return Err(AgentTypeError::InvalidVariant(resolved.to_string()));
-                    }
-                }
-                Ok(Some(coerced))
-            }
-            None => Ok(self.default),
-        }
     }
 }
 
@@ -168,9 +130,8 @@ mod tests {
     use crate::agent_type::variable::value::VariableType;
     use crate::agent_type::{
         variable::value::VariableValue,
-        variable::{VariableDefinition, tree::VariableTreeNode, variants::VariantsConfig},
+        variable::{VariableDefinition, tree::VariableTreeNode},
     };
-    use rstest::rstest;
     use std::collections::HashMap;
 
     #[test]
@@ -178,7 +139,6 @@ mod tests {
         let variable_type = VariableType::String;
         let definition = VariableDefinition {
             default: None,
-            variants: None,
             variable_type: variable_type.clone(),
         };
 
@@ -240,44 +200,17 @@ required: true
     }
 
     #[test]
-    fn variable_definition_variants_on_string_is_accepted() {
+    fn variable_definition_ignores_legacy_variants_field() {
+        // Old agent type YAMLs may still carry a `variants:` block. Parsing must accept and
+        // silently drop it so legacy definitions keep loading after the feature was removed.
         let value = r#"
 type: string
 required: true
 variants:
   values: ["a", "b"]
-"#;
-        let def: VariableDefinition = serde_saphyr::from_str(value).unwrap();
-        assert!(matches!(def.variable_type, VariableType::String));
-        assert_eq!(
-            def.variants,
-            Some(VariantsConfig {
-                ac_config_field: None,
-                values: vec!["a".to_string(), "b".to_string()].into(),
-            })
-        );
-    }
-
-    #[rstest]
-    #[case::yaml("yaml")]
-    #[case::bool("bool")]
-    #[case::number("number")]
-    #[case::string_map("string_map")]
-    fn variable_definition_variants_on_non_string_is_rejected(#[case] variable_type: &str) {
-        let value = format!(
-            r#"
-type: {variable_type}
-required: true
-variants:
-  values: ["a", "b"]
 "#
-        );
-        let err = serde_saphyr::from_str::<VariableDefinition>(&value).unwrap_err();
-        assert!(
-            err.to_string()
-                .contains("`variants` is only supported for `string`-typed variables"),
-            "unexpected error: {err}",
-        );
+        .to_string();
+        assert!(serde_saphyr::from_str::<VariableDefinition>(&value).is_ok());
     }
 
     #[test]
@@ -289,9 +222,6 @@ foo:
       type: string
       required: false
       default: "a"
-      variants:
-        ac_config_field: "foo.bar.var_name"
-        values: ["a", "b"]
 "#;
         let tree: VariableTreeNode = serde_saphyr::from_str(value).unwrap();
         let expected: VariableTreeNode = VariableTreeNode::Mapping(HashMap::from([(
@@ -302,10 +232,6 @@ foo:
                     "var_name".to_string(),
                     VariableTreeNode::End(VariableDefinition {
                         default: Some(VariableValue::String("a".to_string())),
-                        variants: Some(VariantsConfig {
-                            ac_config_field: Some("foo.bar.var_name".to_string()),
-                            values: vec!["a".to_string(), "b".to_string()].into(),
-                        }),
                         variable_type: VariableType::String,
                     }),
                 )])),

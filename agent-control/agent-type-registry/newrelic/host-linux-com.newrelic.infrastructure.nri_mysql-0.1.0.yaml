@@ -20,9 +20,6 @@ variables:
       type: string
       required: false
       default: newrelic/nri-mysql-artifacts
-      variants:
-        ac_config_field: "oci_repository_urls"
-        values: [ "newrelic/nri-mysql-artifacts" ]
 deployment:
   packages:
     nri-mysql:

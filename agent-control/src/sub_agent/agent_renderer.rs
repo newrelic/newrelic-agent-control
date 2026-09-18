@@ -9,7 +9,6 @@ use crate::agent_type::runtime_config::k8s::K8s;
 use crate::agent_type::runtime_config::on_host::rendered::OnHost;
 use crate::agent_type::runtime_config::{Runtime, rendered};
 use crate::agent_type::templates::Templateable;
-use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::agent_type::variable::dynamic_variables::{DynamicVariables, DynamicVariablesError};
 use crate::agent_type::variable::value::VariableValues;
 use crate::sub_agent::identity::AgentIdentity;
@@ -126,7 +125,6 @@ where
 {
     registry: Arc<R>,
     ac_variables: VariableValues,
-    variable_constraints: VariableConstraints,
     value_providers: Registry<S>,
     remote_dir: PathBuf,
 }
@@ -136,19 +134,17 @@ where
     R: AgentTypeRegistry,
     S: ValueProvider,
 {
-    /// Creates a renderer from an agent-type registry, agent-control variables, variable
-    /// constraints, value providers, and the remote configuration directory.
+    /// Creates a renderer from an agent-type registry, agent-control variables,
+    /// value providers, and the remote configuration directory.
     pub fn new(
         registry: Arc<R>,
         ac_variables: VariableValues,
-        variable_constraints: VariableConstraints,
         value_providers: Registry<S>,
         remote_dir: &Path,
     ) -> Self {
         AgentRenderer {
             registry,
             ac_variables,
-            variable_constraints,
             value_providers,
             remote_dir: remote_dir.to_path_buf(),
         }
@@ -207,12 +203,8 @@ where
             .into_iter()
             .chain(agent_attributes.nr_path_variables())
             .collect();
-        let expanded_user_values = get_expanded_user_values(
-            variable_tree,
-            &self.variable_constraints,
-            user_values,
-            &expansion_variables,
-        )?;
+        let expanded_user_values =
+            get_expanded_user_values(variable_tree, user_values, &expansion_variables)?;
 
         // Join all available namespaced variables into a single lookup set of namespaced
         // variables used to template the runtime config.
@@ -234,7 +226,6 @@ where
 
 fn get_expanded_user_values(
     variable_tree: VariableTree,
-    constraints: &VariableConstraints,
     values: YAMLConfig,
     expansion_variables: &VariableValues,
 ) -> Result<VariableValues, AgentTypeError> {
@@ -242,7 +233,7 @@ fn get_expanded_user_values(
     // Notice that only data coming from value providers is taken into consideration (no other vars for example)
     let values_expanded = values.template_with(expansion_variables)?;
 
-    variable_tree.resolve(constraints, values_expanded)
+    variable_tree.resolve(values_expanded)
 }
 
 #[cfg(test)]
@@ -322,7 +313,6 @@ pub(crate) mod tests {
             Self {
                 registry: Arc::new(registry),
                 ac_variables: HashMap::new(),
-                variable_constraints: VariableConstraints::default(),
                 value_providers: Registry::default(),
                 remote_dir: PathBuf::default(),
             }
@@ -591,13 +581,7 @@ deployment:
 
         for yaml in wrong_backoff_yamls.into_iter() {
             let values = serde_saphyr::from_str::<YAMLConfig>(yaml).unwrap();
-            assert!(
-                agent_type
-                    .variables
-                    .clone()
-                    .resolve(&VariableConstraints::default(), values)
-                    .is_err()
-            )
+            assert!(agent_type.variables.clone().resolve(values).is_err())
         }
     }
 
@@ -645,7 +629,6 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
         let renderer = AgentRenderer::new(
             Arc::new(registry),
             HashMap::new(),
-            VariableConstraints::default(),
             value_providers,
             Path::new(""),
         );
@@ -690,7 +673,6 @@ substituted_2: my-value-2
         let renderer = AgentRenderer::new(
             Arc::new(registry),
             HashMap::new(),
-            VariableConstraints::default(),
             value_providers,
             Path::new(""),
         );
@@ -772,7 +754,6 @@ deployment:
         let renderer = AgentRenderer::new(
             Arc::new(registry),
             HashMap::new(),
-            VariableConstraints::default(),
             value_providers,
             Path::new(""),
         );
@@ -812,7 +793,6 @@ deployment:
         let renderer = AgentRenderer::new(
             Arc::new(registry),
             agent_control_variables,
-            VariableConstraints::default(),
             Registry::<ValueProviderType>::default(),
             Path::new(""),
         );
@@ -875,7 +855,6 @@ deployment:
         let renderer = AgentRenderer::new(
             Arc::new(registry),
             HashMap::new(),
-            VariableConstraints::default(),
             value_providers,
             Path::new(""),
         );
@@ -946,7 +925,6 @@ deployment:
         let renderer = AgentRenderer::new(
             Arc::new(registry),
             HashMap::new(),
-            VariableConstraints::default(),
             Registry::<ValueProviderType>::default(),
             &remote_dir,
         );

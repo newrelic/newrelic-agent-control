@@ -188,14 +188,6 @@ k8s:
 Notice that some of the fields in `k8s` are passed by the corresponding helm chart via Environment Variable to avoid race conditions.
 If set via config, after a failed upgrade we could have the "old" pod loading the new config and reading the new chart version, while the image is still the old one.
 
-### agent_type_var_constraints
-
-Allows setting up specific constraints in the agent types variables supporting it.
-
-- `variants`: if any agent-type defines a string variable with the `variants` fields and this configuration field defines the corresponding key. These variants will be used to validate values.
-
-See [variants documentation](/docs/INTEGRATING_AGENTS.md#variants-optional) for concrete example.
-
 ### value_providers
 
 The `value_providers` configuration field sets the configuration for the supported value providers. Users can use the values stored in secrets in their remote configurations. The legacy key `secrets_providers` is still accepted as an alias for backward compatibility.
