@@ -4,8 +4,10 @@
 //!
 //! 1. Read the current binary's permissions
 //! 2. Create a backup of the current binary
-//! 3. Copy/move the new binary into a temporary file in the **same directory** as the current
-//!    binary (ensures the final rename is on the same filesystem and therefore atomic)
+//! 3. Copy the new binary into a temporary file in the **same directory** as the current
+//!    binary (ensures the final rename is on the same filesystem and therefore atomic). The
+//!    new binary itself is only ever read, never moved or deleted: callers may need it to
+//!    still be there afterwards.
 //! 4. Atomically rename the temp file over the current binary path
 //! 5. On failure, restore from backup
 //!
@@ -228,21 +230,20 @@ fn create_temp_file(
         "Copying new binary to temp location"
     );
 
-    // Try to rename (move) new_bin to temp location first
-    // If on same filesystem, this is atomic and fast (no copy)
-    // If cross-filesystem, fall back to copy
-    match fs::rename(new_bin, &temp_path) {
-        Ok(()) => {
-            debug!("New binary moved successfully");
-        }
-        Err(_) => {
-            debug!("Rename failed, falling back to copy");
-            fs::copy(new_bin, &temp_path).map_err(ReplaceError::TempCopyFailed)?;
-        }
-    }
+    // new_bin is only ever read: callers (e.g. an OCI package retained on disk for rollback)
+    // must be able to rely on it still being there afterwards.
+    fs::copy(new_bin, &temp_path).map_err(ReplaceError::TempCopyFailed)?;
 
-    // Set correct permissions (from original binary)
+    // Set correct permissions (from original binary) before the fsync below: fs::copy on Unix
+    // also copies new_bin's permission bits, which may leave the temp file read-only.
     fs::set_permissions(&temp_path, permissions.clone()).map_err(ReplaceError::TempCopyFailed)?;
+
+    // guarantees the staged copy is fully on disk.
+    fs::OpenOptions::new()
+        .write(true)
+        .open(&temp_path)
+        .and_then(|f| f.sync_all())
+        .map_err(ReplaceError::TempCopyFailed)?;
 
     Ok(temp_path)
 }
@@ -293,6 +294,8 @@ mod tests {
 
         assert_eq!(fs::read(&backup).unwrap(), b"old binary");
         assert_eq!(fs::read(&current_exe).unwrap(), b"new binary");
+        assert!(new_bin.exists(), "new_bin should be preserved, not moved");
+        assert_eq!(fs::read(&new_bin).unwrap(), b"new binary");
     }
 
     #[test]
@@ -332,15 +335,10 @@ mod tests {
         // Get default permissions for test
         let permissions = fs::metadata(&current_exe).unwrap().permissions();
 
-        // Create multiple temp files to verify they don't collide
-        // Recreate new_bin before each call since create_temp_file may move it
+        // Create multiple temp files from the same new_bin to verify they don't collide
         fs::write(&new_bin, b"new").unwrap();
         let temp_path1 = create_temp_file(&current_exe, &new_bin, &permissions).unwrap();
-
-        fs::write(&new_bin, b"new").unwrap();
         let temp_path2 = create_temp_file(&current_exe, &new_bin, &permissions).unwrap();
-
-        fs::write(&new_bin, b"new").unwrap();
         let temp_path3 = create_temp_file(&current_exe, &new_bin, &permissions).unwrap();
 
         // All should exist simultaneously
@@ -488,7 +486,10 @@ mod tests {
             replace_binary(&files.current_exe, &files.new_bin).unwrap();
 
             assert_eq!(read(&files.current_exe).unwrap(), b"new binary");
-            assert!(!files.new_bin.exists(), "new_bin should have been moved");
+            assert!(
+                files.new_bin.exists(),
+                "new_bin should be preserved, not moved"
+            );
             assert!(
                 backup_path(&files.current_exe).exists(),
                 "backup should be left"
@@ -497,8 +498,8 @@ mod tests {
 
         #[test]
         fn test_replace_binary_succeeds_despite_delete_lock_on_new_bin() {
-            // A delete-lock on new_bin prevents rename but not reads, so create_temp_file
-            // falls back to copy and the replacement still succeeds.
+            // A delete-lock on new_bin prevents deleting/renaming it, but not reading it, so
+            // the copy in create_temp_file still succeeds.
             let files = TestFiles::new();
             write(&files.current_exe, b"old binary").unwrap();
             write(&files.new_bin, b"new binary").unwrap();

@@ -1,5 +1,5 @@
 use crate::common::docker_hub::latest_published_ac_tag;
-use crate::common::oci::{OciRegistry, push_ac_package};
+use crate::common::oci::{OciRegistry, push_ac_package, push_ac_package_with_tags};
 use crate::common::on_drop::CleanUp;
 use crate::common::runtime::tokio_runtime;
 use crate::common::test::{TestResult, retry_panic};
@@ -9,7 +9,7 @@ use crate::linux::install::{
     install_agent_control_from_recipe, install_latest_agent_control, tear_down_test,
 };
 use crate::linux::service::{STATUS_RUNNING, restart_service_and_wait};
-use fake_opamp_server::FakeServer;
+use fake_opamp_server::{FakeServer, InstanceID};
 use std::time::Duration;
 use tracing::info;
 
@@ -253,4 +253,149 @@ agents: {{}}
     info!(version = new_version, "AC version updated successfully");
 
     info!("Self-update test completed successfully");
+}
+
+/// Self-updates to a version, then rolls back to the previously-installed one.
+pub fn test_self_update_rollback(args: InstallationArgs) {
+    info!("Starting self-update rollback scenario");
+
+    let (mut opamp_server, instance_id) = start_self_update_test(&args, &["v1", "v2"]);
+
+    trigger_update_and_wait(&mut opamp_server, &instance_id, "v1");
+    trigger_update_and_wait(&mut opamp_server, &instance_id, "v2");
+    info!("Rolling back to the previously-installed version");
+    trigger_update_and_wait(&mut opamp_server, &instance_id, "v1");
+
+    info!("Self-update rollback test completed successfully");
+}
+
+/// Performs two consecutive self-updates to distinct versions.
+pub fn test_self_update_multiple_upgrades(args: InstallationArgs) {
+    info!("Starting multiple self-update scenario");
+
+    let (mut opamp_server, instance_id) = start_self_update_test(&args, &["v1", "v2"]);
+
+    trigger_update_and_wait(&mut opamp_server, &instance_id, "v1");
+    trigger_update_and_wait(&mut opamp_server, &instance_id, "v2");
+
+    info!("Multiple self-update test completed successfully");
+}
+
+/// Installs latest AC, pushes the artifact under `tags`, and connects it to a fake OpAMP server.
+fn start_self_update_test(args: &InstallationArgs, tags: &[&str]) -> (FakeServer, InstanceID) {
+    let registry = OciRegistry::start();
+    let pushed_packages = push_ac_package_with_tags(args, tags);
+
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
+    info!("Fake OpAMP server started at {}", opamp_server.endpoint());
+
+    let _clean_up = CleanUp::new(tear_down_test);
+
+    install_latest_agent_control(&RecipeData {
+        args: args.clone(),
+        ..Default::default()
+    });
+
+    let self_update_config = format!(
+        r#"
+agents: {{}}
+fleet_control:
+  endpoint: {}
+  signature_validation:
+    public_key_server_url: {}
+oci:
+  registry: {}
+log:
+  file:
+    enabled: true
+  level: debug
+self_update:
+  enabled: true
+  signature_verification_enabled: true
+  package:
+    download:
+      oci:
+        repository: test
+        public_key_url: {}
+"#,
+        opamp_server.endpoint(),
+        opamp_server.jwks_endpoint(),
+        registry.url(),
+        pushed_packages.jwks_url,
+    );
+    config::update_config(linux::DEFAULT_AC_CONFIG_PATH, &self_update_config);
+
+    restart_service_and_wait(linux::SERVICE_NAME, STATUS_RUNNING);
+    info!("AC service restarted with fleet and self-update configuration");
+
+    let instance_id = retry_panic(
+        20,
+        Duration::from_secs(2),
+        "AC connecting to OpAMP server",
+        || {
+            opamp_server
+                .find_agent_control_instance()
+                .map_err(|e| e.into())
+        },
+    );
+    info!("AC connected to fake OpAMP server");
+
+    retry_panic(
+        30,
+        Duration::from_secs(2),
+        "reading initial agent.version attribute",
+        || -> TestResult<_> {
+            opamp_server
+                .get_identifying_attr_value(instance_id.clone(), AGENT_VERSION_ATTR)
+                .ok_or_else(|| "agent.version attribute not set yet".into())
+        },
+    );
+
+    (opamp_server, instance_id)
+}
+
+/// Sends a remote config for `target_version` and waits for it to be applied.
+fn trigger_update_and_wait(
+    opamp_server: &mut FakeServer,
+    instance_id: &InstanceID,
+    target_version: &str,
+) {
+    let update_config = format!(
+        r#"
+version: "{target_version}"
+agents: {{}}
+"#
+    );
+    opamp_server.set_config_response(instance_id.clone(), update_config);
+    info!(tag = target_version, "Sent self-update remote config");
+
+    retry_panic(
+        120,
+        Duration::from_secs(2),
+        "waiting for remote config Applied status",
+        || {
+            opamp_server
+                .is_config_status_applied(instance_id.clone())
+                .map_err(|e| e.into())
+        },
+    );
+
+    retry_panic(
+        120,
+        Duration::from_secs(2),
+        "verifying updated agent.version attribute",
+        || {
+            let Some(reported_version) =
+                opamp_server.get_identifying_attr_value(instance_id.clone(), AGENT_VERSION_ATTR)
+            else {
+                return Err("agent.version attribute not set yet".into());
+            };
+            if reported_version == target_version {
+                Ok(())
+            } else {
+                Err(format!("expected version {target_version}, got {reported_version}").into())
+            }
+        },
+    );
+    info!(version = target_version, "AC version updated successfully");
 }

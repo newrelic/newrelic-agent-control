@@ -49,6 +49,12 @@ enum LinuxScenarios {
     /// Tests self-update functionality by installing Agent Control from current branch and verifying that AC updates itself,
     /// when instructed via OpAMP, to the latest published tag.
     SelfUpdateCurrentToLatest(InstallationArgs),
+    /// Self-updates to a version, then rolls back to the previously-installed one, verifying the
+    /// rollback succeeds. Regression test for the OCI package binary being deleted by self-update.
+    SelfUpdateRollback(InstallationArgs),
+    /// Performs two consecutive self-updates to distinct versions, verifying neither breaks the
+    /// other (package retention/backup cleanup from the first update doesn't affect the second).
+    SelfUpdateMultipleUpgrades(InstallationArgs),
     /// Installs Agent Control with the infra-agent and nri-redis, spins up a local Redis instance, and verifies that
     /// RedisSample data lands in NRDB.
     NriRedis(InstallationArgs),
@@ -91,6 +97,12 @@ enum WindowsScenarios {
     /// Tests self-update functionality by installing Agent Control from current branch and verifying that AC updates itself,
     /// when instructed via OpAMP, to the latest published tag.
     SelfUpdateCurrentToLatest(InstallationArgs),
+    /// Self-updates to a version, then rolls back to the previously-installed one, verifying the
+    /// rollback succeeds. Regression test for the OCI package binary being deleted by self-update.
+    SelfUpdateRollback(InstallationArgs),
+    /// Performs two consecutive self-updates to distinct versions, verifying neither breaks the
+    /// other (package retention/backup cleanup from the first update doesn't affect the second).
+    SelfUpdateMultipleUpgrades(InstallationArgs),
     /// Simple installation of Agent Control on Windows with update to wrong and correct config
     /// to test service stop and start.
     WrongConfig(InstallationArgs),
