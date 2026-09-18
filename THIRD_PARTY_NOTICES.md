@@ -2468,13 +2468,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## target-features <https://crates.io/crates/target-features>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
 ## tempfile <https://crates.io/crates/tempfile>
 
 Distributed under the following license(s):
@@ -2556,14 +2549,6 @@ Distributed under the following license(s):
 * Zlib
 * Apache-2.0
 * MIT
-
-## tinyvec_macros <https://crates.io/crates/tinyvec_macros>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-* Zlib
 
 ## tokio <https://crates.io/crates/tokio>
 
