@@ -252,7 +252,7 @@ agents:
             TestCase {
                 name: "include chart version",
                 yaml_config: "agents: {}\nchart_version: 0.0.1",
-                expected_config: "agents: {}\nchart_version: 0.0.1\n",
+                expected_config: "agents: {}\nchart_version: \"0.0.1\"\n",
             },
         ];
 
