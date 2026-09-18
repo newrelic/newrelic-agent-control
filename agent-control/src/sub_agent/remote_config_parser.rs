@@ -43,9 +43,9 @@ pub trait RemoteConfigParser {
     ) -> Result<Option<RemoteConfig>, RemoteConfigParserError>;
 }
 
-/// A [RemoteConfigParser] that runs a sequence of [RemoteConfigValidator]s before extracting values.
+/// A [RemoteConfigParser] that runs a [RemoteConfigValidator] before extracting values.
 pub struct AgentRemoteConfigParser<V, R> {
-    remote_config_validators: Vec<V>,
+    remote_config_validator: Arc<V>,
     agent_type_registry: Arc<R>,
 }
 
@@ -54,11 +54,11 @@ where
     V: RemoteConfigValidator,
     R: AgentTypeRegistry,
 {
-    /// Creates a parser from the given list of remote-config validators and the agent type registry
+    /// Creates a parser from the given validator and the agent type registry
     /// used to resolve the declared type of per-variable overrides.
-    pub fn new(remote_config_validators: Vec<V>, agent_type_registry: Arc<R>) -> Self {
+    pub fn new(remote_config_validator: Arc<V>, agent_type_registry: Arc<R>) -> Self {
         AgentRemoteConfigParser {
-            remote_config_validators,
+            remote_config_validator,
             agent_type_registry,
         }
     }
@@ -70,7 +70,7 @@ where
     R: AgentTypeRegistry,
 {
     /// Handles the remote configuration received by the OpAMP client and returns the corresponding yaml configuration
-    /// or an error if the configuration is invalid according to the configured validators.
+    /// or an error if the configuration is invalid according to the configured validator.
     fn parse(
         &self,
         agent_identity: AgentIdentity,
@@ -81,15 +81,17 @@ where
         if let Some(err_msg) = config.state.error_message().cloned() {
             return Err(RemoteConfigParserError::RemoteConfigLoad(err_msg));
         }
-        for validator in &self.remote_config_validators {
-            if let Err(error_msg) = validator.validate(&agent_identity, config) {
-                debug!(
-                    hash = &config.hash.to_string(),
-                    "Invalid remote configuration: {error_msg}"
-                );
-                return Err(RemoteConfigParserError::Validation(error_msg.to_string()));
-            }
+        if let Err(error_msg) = self
+            .remote_config_validator
+            .validate(&agent_identity, config)
+        {
+            debug!(
+                hash = &config.hash.to_string(),
+                "Invalid remote configuration: {error_msg}"
+            );
+            return Err(RemoteConfigParserError::Validation(error_msg.to_string()));
         }
+
         extract_remote_config_values(config, &agent_identity, self.agent_type_registry.as_ref())
     }
 }
@@ -273,9 +275,6 @@ fn load_variable_definitions<R: AgentTypeRegistry>(
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod tests {
-    use std::collections::HashMap;
-    use std::sync::Arc;
-
     use super::{AgentRemoteConfigParser, RemoteConfigParser, RemoteConfigParserError};
     use crate::agent_type::definition::AgentTypeDefinition;
     use crate::agent_type::protocol_version::SUPPORTED_PROTOCOL_VERSION;
@@ -293,6 +292,8 @@ pub mod tests {
     use predicates::prelude::predicate;
     use rstest::rstest;
     use serde_json::json;
+    use std::collections::HashMap;
+    use std::sync::Arc;
 
     mock! {
         pub RemoteConfigParser {}
@@ -332,7 +333,7 @@ default: {}"#;
         let variables: serde_json::Value = serde_saphyr::from_str(variables_yaml).unwrap();
         let document = json!({
             "namespace": "newrelic",
-            "name": "testagent",
+            "name": "test_agent",
             "version": "0.1.0",
             "platform": "host",
             "operating_system": "linux",
@@ -414,7 +415,7 @@ default: {}"#;
         registry.expect_get().never();
 
         let handler = AgentRemoteConfigParser::<MockRemoteConfigValidator, _>::new(
-            Vec::new(),
+            Arc::new(MockRemoteConfigValidator::new()),
             Arc::new(registry),
         );
         let result = handler.parse(agent_identity, &opamp_remote_config);
@@ -436,29 +437,21 @@ default: {}"#;
             ConfigurationMap::default(),
         );
 
-        let mut validator1 = MockRemoteConfigValidator::new();
-        let mut validator2 = MockRemoteConfigValidator::new();
-        let mut validator3 = MockRemoteConfigValidator::new();
+        let mut validator = MockRemoteConfigValidator::new();
 
-        validator1.should_validate(&agent_identity, &opamp_remote_config, Ok(()));
-        validator2.should_validate(
+        validator.should_validate(
             &agent_identity,
             &opamp_remote_config,
-            Err("validation2 error".into()),
+            Err("validation error".into()),
         );
-        validator3.expect_validate().never();
-
         let mut registry = MockAgentTypeRegistry::new();
         registry.expect_get().never();
 
-        let handler = AgentRemoteConfigParser::new(
-            vec![validator1, validator2, validator3],
-            Arc::new(registry),
-        );
+        let handler = AgentRemoteConfigParser::new(Arc::new(validator), Arc::new(registry));
 
         let result = handler.parse(agent_identity.clone(), &opamp_remote_config);
         assert_matches!(result, Err(RemoteConfigParserError::Validation(s)) => {
-            assert_eq!(s, "validation2 error".to_string());
+            assert_eq!(s, "validation error".to_string());
         });
     }
 
@@ -578,8 +571,11 @@ common:
         let remote_config =
             OpampRemoteConfig::new(agent_identity.id.clone(), hash, state, config_map);
 
+        let mut validator = MockRemoteConfigValidator::new();
+        validator.should_validate(&agent_identity, &remote_config, Ok(()));
+
         let handler = AgentRemoteConfigParser::<MockRemoteConfigValidator, _>::new(
-            Vec::new(),
+            Arc::new(validator),
             Arc::new(registry),
         );
 
@@ -605,9 +601,11 @@ common:
 
         let mut registry = MockAgentTypeRegistry::new();
         registry.expect_get().never();
+        let mut validator = MockRemoteConfigValidator::new();
+        validator.should_validate(&agent_identity, &remote_config, Ok(()));
 
         let handler = AgentRemoteConfigParser::<MockRemoteConfigValidator, _>::new(
-            Vec::new(),
+            Arc::new(validator),
             Arc::new(registry),
         );
 
@@ -1018,7 +1016,7 @@ files:
         let mut validator = MockRemoteConfigValidator::new();
         validator.should_validate(&agent_identity, &opamp_remote_config, Ok(()));
 
-        let handler = AgentRemoteConfigParser::new(vec![validator], Arc::new(registry));
+        let handler = AgentRemoteConfigParser::new(Arc::new(validator), Arc::new(registry));
 
         let expected = RemoteConfig {
             config: serde_saphyr::from_str(expected_yaml).unwrap(),
@@ -1097,7 +1095,7 @@ key2: whole2"#
             ),
             (
                 format!("{AGENT_CONFIG_OVERRIDE_VARIABLE_PREFIX}.common.four:key1"),
-                "mapentry1".to_string(),
+                "map_entry1".to_string(),
             ),
         ]));
         let opamp_remote_config = OpampRemoteConfig::new(
@@ -1113,7 +1111,7 @@ key2: whole2"#
         let mut validator = MockRemoteConfigValidator::new();
         validator.should_validate(&agent_identity, &opamp_remote_config, Ok(()));
 
-        let handler = AgentRemoteConfigParser::new(vec![validator], Arc::new(registry));
+        let handler = AgentRemoteConfigParser::new(Arc::new(validator), Arc::new(registry));
 
         let expected_yaml = r#"
 common:
@@ -1121,7 +1119,7 @@ common:
   two:
     three: overridden3
   four:
-    key1: mapentry1
+    key1: map_entry1
     key2: whole2
 "#;
         let expected = RemoteConfig {
@@ -1155,7 +1153,7 @@ common:
         let mut registry = MockAgentTypeRegistry::new();
         registry.expect_get().never();
 
-        let handler = AgentRemoteConfigParser::new(vec![validator], Arc::new(registry));
+        let handler = AgentRemoteConfigParser::new(Arc::new(validator), Arc::new(registry));
 
         let result = handler.parse(agent_identity.clone(), &opamp_remote_config);
 
@@ -1184,7 +1182,7 @@ common:
         let mut registry = MockAgentTypeRegistry::new();
         registry.expect_get_not_found(agent_identity.agent_type_id.clone());
 
-        let handler = AgentRemoteConfigParser::new(vec![validator], Arc::new(registry));
+        let handler = AgentRemoteConfigParser::new(Arc::new(validator), Arc::new(registry));
 
         let result = handler.parse(agent_identity.clone(), &opamp_remote_config);
         assert_matches!(
@@ -1220,7 +1218,7 @@ common:
         let mut registry = MockAgentTypeRegistry::new();
         registry.expect_get_remote_error(agent_identity.agent_type_id.clone());
 
-        let handler = AgentRemoteConfigParser::new(vec![validator], Arc::new(registry));
+        let handler = AgentRemoteConfigParser::new(Arc::new(validator), Arc::new(registry));
 
         let result = handler.parse(agent_identity.clone(), &opamp_remote_config);
         assert_matches!(

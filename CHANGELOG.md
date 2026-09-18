@@ -23,8 +23,8 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 ### enhancement
 - Linux: added Debian 13 (trixie) as a supported/published platform.
 - Linux: removed the legacy on-host folder migration pre-v1.2.0 from `newrelic-agent-control-cli` 
-- Variants support has been removed in favor of the "governance" flow server side  
-
+- Variants support has been removed in favor of the "governance" flow server side
+- Regex-based remote config validation has been removed in favor of the "governance" flow server side.
 
 ### bugfix
 - On-host: fixed a spurious `error`-level log `"cannot forward agent control event"` emitted on every clean shutdown; the status server bridge now exits only via an explicit stop signal, closed channels are silently disabled rather than causing an exit, and publisher lifetimes are extended to keep channels open until the stop signal fires.
