@@ -358,7 +358,6 @@ where
                                 },
                                 AgentControlInternalEvent::SelfUpdateRestartRequested() => {
                                     debug!("Stopping Agent Control to apply self-update");
-                                    self.agent_control_publisher.broadcast(AgentControlEvent::AgentControlStopped);
                                     sub_agents.stop();
                                     break GracefulShutdownReason::SelfUpdate;
                                 }}
@@ -369,8 +368,6 @@ where
                     let span = info_span!("process_application_event", id=AGENT_CONTROL_ID);
                     let _span_guard = span.enter();
                     let _= agent_control_event.inspect_err(|err| error!(error = %err, select_arm = "application_event_consumer", "Receiving application event"));
-                    debug!("Stopping Agent Control event processor");
-                    self.agent_control_publisher.broadcast(AgentControlEvent::AgentControlStopped);
                     sub_agents.stop();
                     break GracefulShutdownReason::ExternalRequested;
                 },
@@ -1674,34 +1671,6 @@ chart_version: 0.0.2 # not actually used, we rely on a mock
             let ev = t.channels.broadcast_subscriber.as_ref().recv().unwrap();
             assert_eq!(expected, ev);
         }
-    }
-
-    // Receive an StopRequest event should publish AgentControlStopped
-    #[test]
-    fn test_process_events_stop_request() {
-        let (t, mut agent_control) = TestAgentControl::setup();
-        agent_control.set_noop_resource_cleaner();
-        agent_control.set_noop_updater();
-
-        let sub_agents = StartedSubAgents::from(HashMap::default());
-        let event_processor = spawn({
-            move || {
-                agent_control.process_events(sub_agents);
-            }
-        });
-
-        sleep(Duration::from_millis(10));
-
-        t.channels
-            .app_publisher
-            .publish(ApplicationEvent::StopRequested)
-            .unwrap();
-
-        assert!(event_processor.join().is_ok());
-
-        let expected = AgentControlEvent::AgentControlStopped;
-        let ev = t.channels.broadcast_subscriber.as_ref().recv().unwrap();
-        assert_eq!(expected, ev);
     }
 
     /// A self-update defers sub-agent reconciliation to the restarted process (no double restart)

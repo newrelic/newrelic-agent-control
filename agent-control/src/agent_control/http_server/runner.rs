@@ -192,14 +192,16 @@ mod tests {
         assert_port_is_released(port);
     }
 
+    /// The bridge silently disables closed channel arms and keeps running until stop_rx fires.
+    /// Verifies the server stops cleanly when explicitly dropped even after publishers close.
     #[test]
-    fn test_server_stops_gracefully_when_external_channels_close() {
+    fn test_server_stops_gracefully_when_dropped_after_publishers_close() {
         let runtime = tokio_runtime();
         let port = get_available_port();
         let (_agent_control_publisher, agent_control_consumer) = pub_sub::<AgentControlEvent>();
         let (_sub_agent_publisher, sub_agent_consumer) = pub_sub();
 
-        let _http_server_runner = Runner::new(
+        let http_server = Runner::new(
             ServerConfig {
                 enabled: true,
                 port: port.into(),
@@ -213,11 +215,13 @@ mod tests {
         .start()
         .expect("HTTP server should start successfully");
 
-        assert_status_endpoint(port);
-
-        // Drop the publishers to trigger shutdown
         drop(_agent_control_publisher);
         drop(_sub_agent_publisher);
+
+        // Server still running, bridge is waiting for stop_rx, not channel disconnect.
+        assert_status_endpoint(port);
+
+        drop(http_server);
 
         assert_port_is_released(port);
     }

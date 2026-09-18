@@ -16,10 +16,6 @@ pub(super) async fn on_agent_control_event_update_status(
         tokio::select! {
             maybe_agent_control_event = agent_control_event_consumer.recv() => {
                 match maybe_agent_control_event {
-                    Some(AgentControlEvent::AgentControlStopped) => {
-                        debug!("status http server agent control stopped event");
-                        break;
-                    }
                     Some(agent_control_event) => {
                         update_agent_control_status(agent_control_event, status.clone()).await;
                     }
@@ -61,9 +57,6 @@ async fn update_agent_control_status(
         }
         AgentControlEvent::SubAgentRemoved(agent_id) => {
             status.agents.remove(&agent_id);
-        }
-        AgentControlEvent::AgentControlStopped => {
-            unreachable!("AgentControlStopped is controlled outside");
         }
         AgentControlEvent::OpAMPConnected => {
             trace!("opamp server is reachable");
@@ -150,9 +143,7 @@ mod tests {
     use crate::checkers::health::health_checker::{Healthy, Unhealthy};
     use crate::checkers::health::with_start_time::HealthWithStartTime;
     use crate::event::AgentControlEvent;
-    use crate::event::AgentControlEvent::{
-        AgentControlStopped, OpAMPConnectFailed, SubAgentRemoved,
-    };
+    use crate::event::AgentControlEvent::{OpAMPConnectFailed, SubAgentRemoved};
     use crate::event::SubAgentEvent;
     use crate::event::SubAgentEvent::HealthUpdated;
     use crate::sub_agent::identity::AgentIdentity;
@@ -656,28 +647,18 @@ mod tests {
         assert_eq!(expected_status, *status.read().await);
     }
 
-    #[tokio::test(flavor = "multi_thread")]
-    #[should_panic(expected = "AgentControlStopped is controlled outside")]
-    async fn test_agent_control_stop() {
-        update_agent_control_status(
-            AgentControlStopped,
-            Arc::new(RwLock::new(Status::default())),
-        )
-        .await;
-    }
-
     #[tokio::test]
     async fn test_event_process_end() {
         let rt = Handle::current();
         let (sa_event_publisher, sa_event_consumer) = unbounded_channel::<AgentControlEvent>();
         let (_suba_event_publisher, suba_event_consumer) = unbounded_channel::<SubAgentEvent>();
 
+        // Dropping the publisher closes the channel, which terminates the loop.
         let publisher_handle = rt.spawn(async move {
             sleep(Duration::from_millis(10)).await;
-            sa_event_publisher.send(AgentControlStopped).unwrap();
+            drop(sa_event_publisher);
         });
 
-        // Then the event will be consumed
         on_agent_control_event_update_status(
             sa_event_consumer,
             suba_event_consumer,
