@@ -204,18 +204,17 @@ impl Command {
                 eprintln!("Failed building the run context {}", err);
                 ExitCode::FAILURE
             }
-            Ok((tracer, run_context)) => Command::run_main(tracer, run_context, main_fn),
+            // `_tracer` stays alive until `run_main` (and its terminal log) returns.
+            Ok((_tracer, run_context)) => Command::run_main(run_context, main_fn),
         }
     }
 
-    /// Runs `main_fn`, logs the terminal outcome, and only then drops the tracer — so that log
-    /// line isn't silently lost because `main_fn` already shut down the file worker by the time
-    /// it returns.
-    fn run_main<F>(tracer: Vec<TracingGuardBox>, run_context: Context, main_fn: F) -> ExitCode
+    /// Runs `main_fn` and logs the terminal outcome.
+    fn run_main<F>(run_context: Context, main_fn: F) -> ExitCode
     where
         F: FnOnce(Context) -> Result<(), Box<dyn Error>>,
     {
-        let exit_code = match main_fn(run_context) {
+        match main_fn(run_context) {
             Ok(_) => {
                 info!("The agent control main process exited successfully");
                 ExitCode::SUCCESS
@@ -224,9 +223,7 @@ impl Command {
                 error!("The agent control main process exited with an error: {err}");
                 ExitCode::FAILURE
             }
-        };
-        drop(tracer);
-        exit_code
+        }
     }
 
     fn build_bootstrap_context(
@@ -422,7 +419,7 @@ mod tests {
 
         tracing::subscriber::with_default(subscriber, || {
             drop(guard);
-            tracing::error!("terminal message that never reaches the file");
+            error!("terminal message that never reaches the file");
         });
 
         assert!(
@@ -457,11 +454,8 @@ mod tests {
         };
 
         tracing::subscriber::with_default(subscriber, || {
-            Command::run_main(
-                vec![Box::new(guard) as TracingGuardBox],
-                run_context,
-                |_ctx| Err("boom".into()),
-            );
+            Command::run_main(run_context, |_ctx| Err("boom".into()));
+            drop(guard);
         });
 
         assert!(
