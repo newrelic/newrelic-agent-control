@@ -39,6 +39,9 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 - On-host: fixed a spurious `Error reading the log directory/files: No such file or directory` message printed to stderr the first time Agent Control's or a sub-agent's log directory is created.
 - On-host: executable output and lifecycle logs are no longer misleadingly tagged with the `start_agent` span for the entire lifetime of agent processes and supervisors, they carry the explicit fields instead.
 
+### bugfix
+- On exit, the process-terminated log line (success or error) is no longer dropped from the log file: it used to be emitted after the file logger had already shut down, so it only ever reached `journalctl`/stderr.
+
 ## v1.24.0 - 2026-09-08
 
 ### 🚀 Enhancements

@@ -118,8 +118,6 @@ pub struct BootstrapContext {
 pub struct Context {
     /// Context used to build and start [crate::agent_control::AgentControl]
     pub ac_runner_context: RunnerContext,
-    /// This must be kept alive for the duration of the program to ensure logs are flushed.
-    pub tracer: Vec<TracingGuardBox>,
     /// A handler used to signal the application to stop when running as a Windows Service
     #[cfg(target_family = "windows")]
     pub stop_handler: Option<windows::WindowsServiceStopHandler>,
@@ -206,16 +204,25 @@ impl Command {
                 eprintln!("Failed building the run context {}", err);
                 ExitCode::FAILURE
             }
-            Ok(run_context) => match main_fn(run_context) {
-                Ok(_) => {
-                    info!("The agent control main process exited successfully");
-                    ExitCode::SUCCESS
-                }
-                Err(err) => {
-                    error!("The agent control main process exited with an error: {err}");
-                    ExitCode::FAILURE
-                }
-            },
+            // `_tracer` stays alive until `run_main` (and its terminal log) returns.
+            Ok((_tracer, run_context)) => Command::run_main(run_context, main_fn),
+        }
+    }
+
+    /// Runs `main_fn` and logs the terminal outcome.
+    fn run_main<F>(run_context: Context, main_fn: F) -> ExitCode
+    where
+        F: FnOnce(Context) -> Result<(), Box<dyn Error>>,
+    {
+        match main_fn(run_context) {
+            Ok(_) => {
+                info!("The agent control main process exited successfully");
+                ExitCode::SUCCESS
+            }
+            Err(err) => {
+                error!("The agent control main process exited with an error: {err}");
+                ExitCode::FAILURE
+            }
         }
     }
 
@@ -241,12 +248,14 @@ impl Command {
         })
     }
 
-    /// Builds the complete context required to execute the application
+    /// Builds the complete context required to execute the application.
+    /// The tracer is returned separately from [Context] so the caller can keep it alive for as
+    /// long as it needs to log, rather than tying its lifetime to `main_fn`'s argument.
     fn build_context(
         running_mode: Environment,
         args: &Args,
         #[cfg(target_os = "windows")] as_windows_service: bool,
-    ) -> Result<Context, Box<dyn Error>> {
+    ) -> Result<(Vec<TracingGuardBox>, Context), Box<dyn Error>> {
         // We need to create the pub_sub here so the Windows Service Stop handler is capable
         // of publishing a stop signal to the application for a Graceful Shutdown.
         let (application_event_publisher, application_event_consumer) = pub_sub();
@@ -281,19 +290,21 @@ impl Command {
         info!("{}", binary_metadata(running_mode));
         info!("Starting NewRelic Agent Control with config folder '{config_folder_name}'",);
 
-        Ok(Context {
-            ac_runner_context: RunnerContext {
-                bootstrap_config,
-                base_paths,
-                running_mode,
-                application_event_consumer,
-                // None uses the current running executable.
-                self_replace_target: None,
-            },
+        Ok((
             tracer,
-            #[cfg(target_family = "windows")]
-            stop_handler,
-        })
+            Context {
+                ac_runner_context: RunnerContext {
+                    bootstrap_config,
+                    base_paths,
+                    running_mode,
+                    application_event_consumer,
+                    // None uses the current running executable.
+                    self_replace_target: None,
+                },
+                #[cfg(target_family = "windows")]
+                stop_handler,
+            },
+        ))
     }
 
     /// Builds the Agent Control configuration required to execute the application.
@@ -385,10 +396,85 @@ fn set_debug_dirs(base_paths: BasePaths, args: &Args) -> BasePaths {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::instrumentation::config::logs::config::LoggingConfig;
+    use crate::instrumentation::tracing_layers::file::file;
+    use tracing_subscriber::layer::SubscriberExt;
 
     #[test]
     fn test_subcommand_display() {
         assert_eq!(SubCommand::Version.to_string(), "version");
         assert_eq!(SubCommand::Verify.to_string(), "verify");
+    }
+
+    #[test]
+    fn terminal_log_is_lost_when_logged_after_the_tracer_is_dropped() {
+        let log_dir = tempfile::tempdir().unwrap();
+        let mut config = LoggingConfig::default();
+        config.file.enabled = true;
+
+        let (layer, guard) = file(&config, log_dir.path().to_path_buf())
+            .unwrap()
+            .expect("file logging should be enabled");
+        let subscriber = tracing_subscriber::registry().with(layer);
+
+        tracing::subscriber::with_default(subscriber, || {
+            drop(guard);
+            error!("terminal message that never reaches the file");
+        });
+
+        assert!(
+            !all_file_contents(log_dir.path())
+                .contains("terminal message that never reaches the file"),
+            "log line emitted after the tracer was dropped should not have reached the file"
+        );
+    }
+
+    #[test]
+    fn run_main_preserves_the_terminal_error_log_line() {
+        let log_dir = tempfile::tempdir().unwrap();
+        let mut config = LoggingConfig::default();
+        config.file.enabled = true;
+
+        let (layer, guard) = file(&config, log_dir.path().to_path_buf())
+            .unwrap()
+            .expect("file logging should be enabled");
+        let subscriber = tracing_subscriber::registry().with(layer);
+
+        let (_publisher, application_event_consumer) = pub_sub();
+        let run_context = Context {
+            ac_runner_context: RunnerContext {
+                bootstrap_config: AgentControlConfig::default(),
+                base_paths: BasePaths::default(),
+                running_mode: Environment::Linux,
+                application_event_consumer,
+                self_replace_target: None,
+            },
+            #[cfg(target_family = "windows")]
+            stop_handler: None,
+        };
+
+        tracing::subscriber::with_default(subscriber, || {
+            Command::run_main(run_context, |_ctx| Err("boom".into()));
+            drop(guard);
+        });
+
+        assert!(
+            all_file_contents(log_dir.path())
+                .contains("The agent control main process exited with an error: boom"),
+            "the terminal error log line should have reached the log file"
+        );
+    }
+
+    fn all_file_contents(dir: &std::path::Path) -> String {
+        let mut contents = String::new();
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                contents.push_str(&all_file_contents(&path));
+            } else {
+                contents.push_str(&std::fs::read_to_string(&path).unwrap_or_default());
+            }
+        }
+        contents
     }
 }
