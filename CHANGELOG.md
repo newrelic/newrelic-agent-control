@@ -20,6 +20,9 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ## Unreleased
 
+### bugfix
+- On-host: fixed integration restarts caused by redundant filesystem sync and full directory recreation when writing OHI config files to the shared filesystem.
+
 ## v1.25.0 - 2026-09-18
 
 ### 🛡️ Security notices
