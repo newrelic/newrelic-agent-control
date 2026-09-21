@@ -14,6 +14,11 @@ on:
         required: false
         type: string
         default: Cargo.toml
+      labels:
+        description: Comma-separated list of labels to add to the PR.
+        required: false
+        type: string
+        default: release
     secrets:
       app_id:
         description: GitHub App ID used to authenticate (via actions/create-github-app-token).
@@ -165,6 +170,7 @@ jobs:
           VERSION: ${{ steps.release-data.outputs.next-version }}
           HEAD_BRANCH: ${{ env.RELEASE_BRANCH_PREFIX }}${{ steps.release-data.outputs.next-version }}
           BASE_BRANCH: ${{ github.event.repository.default_branch }}
+          LABELS: ${{ inputs.labels }}
         run: |
           BODY=$(cat <<EOF
           Automated pre-release PR for version \`$VERSION\`.
@@ -175,4 +181,4 @@ jobs:
             --head "$HEAD_BRANCH" \
             --title "chore(release): prepare $VERSION" \
             --body "$BODY" \
-            --label release
+            --label "$LABELS"

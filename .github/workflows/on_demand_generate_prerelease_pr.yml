@@ -11,6 +11,7 @@ jobs:
     uses: ./.github/workflows/shared_create_prerelease_pr.yml
     with:
       cargo_toml_path: "agent-control/Cargo.toml"
+      labels: "release,k8s-extended-e2e,onhost-extended-e2e"
     secrets:
       app_id: ${{ secrets.AGENT_CONTROL_APP_ID }}
       app_private_key: ${{ secrets.AGENT_CONTROL_APP_PKEY }}
