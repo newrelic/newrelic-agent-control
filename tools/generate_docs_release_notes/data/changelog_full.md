@@ -13,6 +13,7 @@ All notable changes are documented in this file.
 ### 🐞 Bug fixes
 - Restore `local_config.yaml` from the `.rpmsave` backup left by a prior uninstall (#1240)
 - Fix a mis-recording of the Instrumented metric (a1b2c3d)
+- Supports escaping 'quotes' and ''quotes'' (#1250)
 
 ### 🛡️ Security notices
 - Bump base image to patch CVE-2026-0001

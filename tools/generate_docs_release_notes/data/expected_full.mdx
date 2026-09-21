@@ -4,7 +4,7 @@ releaseDate: '2026-07-15'
 version: 1.99.0
 features: ['Add support for shared filesystems in on-host agent types', 'On-host self-update now skips sub-agent reconciliation while an update is in progress']
 enhancements: []
-bugs: ['Restore `local_config.yaml` from the `.rpmsave` backup left by a prior uninstall', 'Fix a mis-recording of the Instrumented metric']
+bugs: ['Restore `local_config.yaml` from the `.rpmsave` backup left by a prior uninstall', 'Fix a mis-recording of the Instrumented metric', 'Supports escaping ''quotes'' and ''''quotes''''']
 security: ['Bump base image to patch CVE-2026-0001']
 ---
 
@@ -17,6 +17,7 @@ security: ['Bump base image to patch CVE-2026-0001']
 
 - Restore `local_config.yaml` from the `.rpmsave` backup left by a prior uninstall
 - Fix a mis-recording of the Instrumented metric
+- Supports escaping 'quotes' and ''quotes''
 
 ### Security updates
 
