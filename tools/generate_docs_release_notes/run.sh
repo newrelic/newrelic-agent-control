@@ -127,7 +127,7 @@ lines = [
 ]
 
 release_url = (
-    f'https://github.com/newrelic/newrelic-super-agent/releases/tag/{version}'
+    f'https://github.com/newrelic/newrelic-agent-control/releases/tag/{version}'
 )
 
 def markdown_section(title, items):
