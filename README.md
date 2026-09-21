@@ -79,7 +79,7 @@ If you would like to contribute to this project, review [these guidelines](./CON
 
 ## License
 
-New Relic agent control is licensed under the New Relic Pre-Release Software Notice.
+New Relic agent control is licensed under the New Relic Software License.
 
 It also uses source code from third-party libraries. You can find full details on which libraries are used and the terms
 under which they are licensed in the third-party notices document.
