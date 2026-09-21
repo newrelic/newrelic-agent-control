@@ -104,11 +104,19 @@ Each variable name (i.e. every key in the tree, at every level) must match `[A-Z
 
 #### Variable definition
 
-For the *leaf nodes* of the variable definitions, we currently support the following fields:
+For the *leaf nodes* of the variable definitions, we currently support the following fields. Fields marked **not enforced** are accepted in the YAML but have no effect on validation or runtime behavior.
 
 ##### `description` (`String`)
 
 A description of the variable, for documentation purposes.
+
+##### `classification` (`String`, optional, not enforced)
+
+Sets whether this variable accepts an agent config file as input (`config`) or multiple agent config files (`multi-config`). This is used on Fleet.
+
+##### `deprecated` (`bool`, optional, not enforced)
+
+Flags this variable as being phased out. It exists purely as a marker for humans reading or generating agent type definitions.
 
 ##### `type` (`String`)
 
