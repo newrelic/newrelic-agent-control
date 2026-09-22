@@ -1,0 +1,31 @@
+name: Load latest agent versions
+description: >
+  Sets $GITHUB_ENV vars for the pinned agent/OHI versions used by on-host E2E
+  and canary workflows. Bumped automatically by Renovate via the customManager
+  in `.github/renovate.json` - add a new pin as a `# renovate: ...` annotated
+  `echo` line below, no renovate.json changes needed.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        # renovate: datasource=docker depName=newrelic/infrastructure-agent-artifacts
+        echo "INFRA_AGENT_VERSION=1.80.4" >> "$GITHUB_ENV"
+        # renovate: datasource=docker depName=newrelic/nrdot-agent-artifacts
+        echo "NRDOT_VERSION=2.5.0" >> "$GITHUB_ENV"
+        # renovate: datasource=docker depName=newrelic/nri-redis-artifacts
+        echo "REDIS_VERSION=1.15.3" >> "$GITHUB_ENV"
+        # renovate: datasource=docker depName=newrelic/nri-nginx-artifacts
+        echo "NGINX_VERSION=3.8.3" >> "$GITHUB_ENV"
+        # renovate: datasource=docker depName=newrelic/nri-apache-artifacts
+        echo "APACHE_VERSION=1.18.0" >> "$GITHUB_ENV"
+        # renovate: datasource=docker depName=newrelic/nri-memcached-artifacts
+        echo "MEMCACHED_VERSION=2.9.3" >> "$GITHUB_ENV"
+        # renovate: datasource=docker depName=newrelic/ebpf-agent-artifacts
+        echo "EBPF_AGENT_VERSION=1.5.0" >> "$GITHUB_ENV"
+        # renovate: datasource=docker depName=newrelic/nri-flex-artifacts
+        echo "FLEX_VERSION=1.18.12" >> "$GITHUB_ENV"
+        # renovate: datasource=docker depName=newrelic/nri-mysql-artifacts
+        echo "MYSQL_VERSION=1.24.2" >> "$GITHUB_ENV"
+        # renovate: datasource=docker depName=newrelic/nri-postgresql-artifacts
+        echo "POSTGRESQL_VERSION=2.31.1" >> "$GITHUB_ENV"
