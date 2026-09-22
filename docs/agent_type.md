@@ -61,11 +61,13 @@ variables:
     type: yaml
     required: false
     default: {}
+    classification: config
   backoff_delay:
     description: "seconds until next retry if agent fails to start"
     type: string
     required: false
     default: 20s
+    deprecated: true
   enable_file_logging:
     description: "enable logging the on host executables' logs to files"
     type: bool
@@ -91,6 +93,10 @@ All variables have a few common attributes:
 * `type`: The data type of the variable. We support several data types, including `string`, `file`, `bool`, `yaml`, and more.
 * `default`: The default value for the variable if no value is provided.
 * `required`: Whether the variable is mandatory to be provided or not.
+* `classification`: A label that describes the kind of value the variable holds (e.g. `config`, `multi-config`).
+* `deprecated`: Marks the variable as deprecated (e.g. `deprecated: true`).
+
+Both `classification` and `deprecated` are accepted and ignored by Agent Control — they carry no runtime behavior and don't affect resolution, validation, or defaults.
 
 In terms of variable types, we currently support the following types listed in [this source file](./variable/variable_type.rs#L22):
 
