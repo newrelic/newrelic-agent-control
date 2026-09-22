@@ -34,12 +34,10 @@ where
         .collect();
 
     let dispatch = dispatcher::get_default(|d| d.clone());
-    let span = tracing::Span::current();
 
     // In a separate thread, iterate over the handle to get the logs
     let sender_thread = spawn_named_thread("OnHost log sender", move || {
         let _guard = dispatcher::set_default(&dispatch);
-        let _enter = span.enter();
 
         let log_entries = BufReader::new(handle).lines();
         for line in log_entries {
@@ -57,7 +55,9 @@ where
 mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::agent_id::tests::UniqueAgentID;
     use crate::sub_agent::on_host::command::logging::file_logger::FileLogger;
+    use crate::sub_agent::on_host::test_utils::global_logs_lines;
     use mockall::predicate::*;
     use mockall::{Sequence, mock};
     use std::io::{Read, Seek, SeekFrom, Write};
@@ -115,7 +115,8 @@ mod tests {
             .in_sequence(&mut seq)
             .returning(|_| Ok(0));
 
-        let loggers = vec![Logger::Stdout(AgentID::AgentControl)];
+        let agent_id = UniqueAgentID::build();
+        let loggers = vec![Logger::Stdout(agent_id.clone().into())];
 
         let (sender_thd, logger_thds) = spawn_logger_inner(read_mock, loggers);
         sender_thd.join().unwrap();
@@ -123,8 +124,9 @@ mod tests {
             thd.join().unwrap();
         }
 
-        assert!(logs_contain("logging test 1"));
-        assert!(logs_contain("logging test 2"));
+        let logs = global_logs_lines(agent_id);
+        assert!(logs.iter().any(|l| l.contains("logging test 1")));
+        assert!(logs.iter().any(|l| l.contains("logging test 2")));
     }
 
     #[traced_test]
@@ -150,7 +152,8 @@ mod tests {
             .in_sequence(&mut seq)
             .returning(|_| Ok(0));
 
-        let loggers = vec![Logger::Stderr(AgentID::AgentControl)];
+        let agent_id = UniqueAgentID::build();
+        let loggers = vec![Logger::Stderr(agent_id.clone().into())];
 
         // I wait for the logging threads to finish and return to make assertions, otherwise
         // the test will assert before the threads are done and the logs are printed, failing.
@@ -160,19 +163,20 @@ mod tests {
             thd.join().unwrap();
         }
 
-        assert!(logs_contain("err logging test 1"));
-        assert!(logs_contain("err logging test 2"));
+        let logs = global_logs_lines(agent_id);
+        assert!(logs.iter().any(|l| l.contains("err logging test 1")));
+        assert!(logs.iter().any(|l| l.contains("err logging test 2")));
     }
 
     #[traced_test]
     #[test]
     fn spawn_logger_with_file_logging() {
         // Create a writer and from it build a Logger::File(FileLogger)
-        let agent_id = AgentID::try_from("test-agent").unwrap();
+        let agent_id = UniqueAgentID::build();
         let mut temp_file = tempfile().unwrap();
         let file_logger = Logger::File(
             Box::new(FileLogger::new(temp_file.try_clone().unwrap())),
-            agent_id.clone(),
+            agent_id.clone().into(),
         );
 
         let mut read_mock = MockRead::new();
@@ -194,7 +198,7 @@ mod tests {
             .in_sequence(&mut seq)
             .returning(|_| Ok(0));
 
-        let loggers = vec![Logger::Stdout(agent_id), file_logger];
+        let loggers = vec![Logger::Stdout(agent_id.clone().into()), file_logger];
 
         let (sender_thd, logger_thds) = spawn_logger_inner(read_mock, loggers);
         sender_thd.join().unwrap();
@@ -202,15 +206,23 @@ mod tests {
             thd.join().unwrap();
         }
 
-        assert!(logs_contain("logging test 1 agent_id=test-agent"));
-        assert!(logs_contain("logging test 2 agent_id=test-agent"));
+        let logs = global_logs_lines(agent_id.clone());
+        let agent_id: AgentID = agent_id.into();
+        assert!(
+            logs.iter()
+                .any(|l| l.contains(&format!("logging test 1 agent_id={agent_id}")))
+        );
+        assert!(
+            logs.iter()
+                .any(|l| l.contains(&format!("logging test 2 agent_id={agent_id}")))
+        );
 
         // Check the file content
         temp_file.seek(SeekFrom::Start(0)).unwrap();
         let mut content = String::new();
         temp_file.read_to_string(&mut content).unwrap();
         let expected =
-            "logging test 1 agent_id=test-agent\nlogging test 2 agent_id=test-agent\n".to_string();
+            format!("logging test 1 agent_id={agent_id}\nlogging test 2 agent_id={agent_id}\n");
         assert_eq!(content, expected);
     }
 }

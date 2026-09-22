@@ -2,7 +2,6 @@ use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser, error::ErrorKind};
 use newrelic_agent_control::cli::common::agent_type_validation;
-use newrelic_agent_control::cli::on_host::migrate_folders;
 use newrelic_agent_control::cli::{common::logs, on_host::config_gen};
 use tracing::{Level, error};
 
@@ -23,8 +22,6 @@ enum Commands {
     /// Generate Agent Control configuration according to the provided configuration data.
     /// It generates the AC config, and it creates the system identity
     GenerateConfig(config_gen::Args),
-    /// Migrates legacy on-host directories (>v1.4.0) to the new layout. Intended to be run by post-installation package scripts only.
-    FilesBackwardsCompatibilityMigrationFromV120,
     /// Operations on agent type definitions.
     #[command(subcommand)]
     AgentType(AgentTypeCommand),
@@ -55,7 +52,6 @@ fn main() -> ExitCode {
                     .exit()
             }
         },
-        Commands::FilesBackwardsCompatibilityMigrationFromV120 => migrate_folders::migrate(),
         Commands::AgentType(AgentTypeCommand::Validate(args)) => {
             agent_type_validation::validate(args)
         }

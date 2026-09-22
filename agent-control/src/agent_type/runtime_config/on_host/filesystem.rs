@@ -20,7 +20,7 @@ use crate::agent_type::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     io::{Error as IOError, ErrorKind},
     path::{Component, Path, PathBuf},
 };
@@ -113,12 +113,13 @@ impl FileSystem {
     }
 
     /// Templates each entry and roots it under `base_dir`, prepending `base_dir` to each relative
-    /// top-level key (the only place a final on-disk path is constructed).
+    /// top-level key (the only place a final on-disk path is constructed). Collects into a
+    /// `BTreeMap`, sorting the tree once here.
     fn render_entries(
         self,
         base_dir: &Path,
         variables: &VariableValues,
-    ) -> Result<HashMap<PathBuf, rendered::RenderedEntry>, AgentTypeError> {
+    ) -> Result<BTreeMap<PathBuf, rendered::RenderedEntry>, AgentTypeError> {
         self.0
             .into_iter()
             .map(|(key, entry)| {
@@ -150,7 +151,7 @@ impl Templateable for SharedFileSystem {
         // Return early if no shared entries are declared. Agent Types that don't use shared-filesystem aren't
         // enforced to provide the `${nr-sub:shared_filesystem_dir}` variable.
         if self.0.is_empty() {
-            return Ok(rendered::SharedFileSystem::new(HashMap::new()));
+            return Ok(rendered::SharedFileSystem::new(BTreeMap::new()));
         }
         let base_dir = PathBuf::from(shared_filesystem_dir(variables)?);
         let entries = self.0.render_entries(&base_dir, variables)?;
@@ -250,7 +251,7 @@ impl Templateable for FilesystemEntry {
                 let children = entries
                     .into_iter()
                     .map(|(k, v)| Ok((PathBuf::from(k), v.template_with(variables)?)))
-                    .collect::<Result<HashMap<_, _>, AgentTypeError>>()?;
+                    .collect::<Result<BTreeMap<_, _>, AgentTypeError>>()?;
                 Ok(rendered::RenderedEntry::Dir { children })
             }
             FilesystemEntry::DirContentFromMap { source } => {
@@ -424,7 +425,7 @@ mod tests {
 
         let rendered = fs_input.template_with(&variables).unwrap();
 
-        let expected = rendered::FileSystem::new(HashMap::from([(
+        let expected = rendered::FileSystem::new(BTreeMap::from([(
             PathBuf::from("/base/dir/newrelic.yaml"),
             RenderedEntry::File {
                 content: rendered::FileContent::Text("hello".to_string()),
@@ -499,7 +500,7 @@ nri-redis:
 
         let rendered = fs_input.template_with(&variables).unwrap();
 
-        let expected = rendered::FileSystem::new(HashMap::from([(
+        let expected = rendered::FileSystem::new(BTreeMap::from([(
             agent_dir.join("nri-redis"),
             RenderedEntry::File {
                 content: rendered::FileContent::Copy(source),

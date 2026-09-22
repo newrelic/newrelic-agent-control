@@ -19,11 +19,9 @@ impl Logger {
         S: ToString + Send + 'static,
     {
         let dispatch = dispatcher::get_default(|d| d.clone());
-        let span = tracing::Span::current();
 
         spawn_named_thread("OnHost logger", move || {
             let _dispatch_guard = dispatcher::set_default(&dispatch);
-            let _span_guard = span.enter();
 
             match self {
                 Self::File(file_logger, agent_id) => {

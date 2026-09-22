@@ -10,7 +10,6 @@ use crate::agent_control::defaults::{
 };
 use crate::agent_control::health_checker::AgentControlHealthCheckerConfig;
 use crate::agent_type::runtime_config::on_host::package::rendered::{Repository, Version};
-use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::http::config::ProxyConfig;
 use crate::instrumentation::config::logs::config::LoggingConfig;
 use crate::opamp::auth::config::AuthConfig;
@@ -80,10 +79,6 @@ pub struct AgentControlConfig {
     /// Health-checker configuration.
     #[serde(default)]
     pub health_check: AgentControlHealthCheckerConfig,
-
-    /// A "key-value store" intended to modify agent type definitions, loaded at start time.
-    #[serde(default)]
-    pub agent_type_var_constraints: VariableConstraints,
 
     /// Configuration for every value provider that the current AgentControl instance should be able to access.
     /// `secrets_providers` is accepted as a legacy alias for backward compatibility.
@@ -1215,6 +1210,32 @@ agents: {}
             let from_crlf: AgentControlConfig = serde_saphyr::from_str(&cfg_crlf).unwrap();
             assert_eq!(from_lf, from_crlf);
         });
+    }
+
+    #[test]
+    fn parse_ignores_legacy_agent_type_var_constraints() {
+        // Configs from before `agent_type_var_constraints` was removed must still deserialize
+        // without erroring so upgrades don't crashloop AC on a stale on-disk config.
+        let legacy_yaml = r#"
+fleet_control:
+    endpoint: "https://opamp.example.com/v1"
+    auth_config:
+        token_url: "https://token.example.com"
+        client_id: "id"
+        provider: "local"
+        private_key_path: "/path/to/key"
+agent_type_var_constraints:
+    variants:
+        my_variable_variants: ["a", "b"]
+agents: {}
+"#;
+
+        let parsed: AgentControlConfig =
+            serde_saphyr::from_str(legacy_yaml).expect("legacy config should still parse");
+
+        // Sanity-check that the rest of the config still made it in.
+        assert!(parsed.fleet_control.is_some());
+        assert!(parsed.dynamic.agents.is_empty());
     }
 
     #[test]

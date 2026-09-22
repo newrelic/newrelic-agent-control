@@ -76,7 +76,7 @@ where
     agent_control_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
     agent_control_internal_consumer: EventConsumer<AgentControlInternalEvent>,
     agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,
-    remote_config_validator: RV,
+    remote_config_validator: Arc<RV>,
     dynamic_config_validator: DV,
     resource_cleaner: RC,
     version_updater: VU,
@@ -108,7 +108,7 @@ where
         agent_control_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
         agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,
         agent_control_internal_consumer: EventConsumer<AgentControlInternalEvent>,
-        remote_config_validator: RV,
+        remote_config_validator: Arc<RV>,
         dynamic_config_validator: DV,
         resource_cleaner: RC,
         version_updater: VU,
@@ -358,7 +358,6 @@ where
                                 },
                                 AgentControlInternalEvent::SelfUpdateRestartRequested() => {
                                     debug!("Stopping Agent Control to apply self-update");
-                                    self.agent_control_publisher.broadcast(AgentControlEvent::AgentControlStopped);
                                     sub_agents.stop();
                                     break GracefulShutdownReason::SelfUpdate;
                                 }}
@@ -369,8 +368,6 @@ where
                     let span = info_span!("process_application_event", id=AGENT_CONTROL_ID);
                     let _span_guard = span.enter();
                     let _= agent_control_event.inspect_err(|err| error!(error = %err, select_arm = "application_event_consumer", "Receiving application event"));
-                    debug!("Stopping Agent Control event processor");
-                    self.agent_control_publisher.broadcast(AgentControlEvent::AgentControlStopped);
                     sub_agents.stop();
                     break GracefulShutdownReason::ExternalRequested;
                 },
@@ -865,7 +862,7 @@ agents:
                 Arc::new(InMemoryAgentControlDynamicConfigRepository::default());
             let started_client = MockStartedOpAMPClient::new();
             // remote config is valid by default, set it up for other expectations
-            let remote_config_validator = TestRemoteConfigValidator { valid: true };
+            let remote_config_validator = Arc::new(TestRemoteConfigValidator { valid: true });
             let dynamic_config_validator = TestDynamicConfigValidator { valid: true };
             let sub_agent_builder = MockSubAgentBuilder::new();
             let (application_event_publisher, application_event_consumer) = pub_sub();
@@ -926,7 +923,7 @@ agents:
 
         /// Sets if opamp configuration should be valid or not
         fn set_remote_config_valid(&mut self, valid: bool) {
-            self.remote_config_validator = TestRemoteConfigValidator { valid }
+            self.remote_config_validator = Arc::new(TestRemoteConfigValidator { valid })
         }
 
         /// Sets if dynamic configuration should be valid or not
@@ -1303,7 +1300,7 @@ agents:
             &current_dynamic_config,
         );
         assert_matches!(result, Ok(dynamic_config) => {
-            assert!(dynamic_config != current_dynamic_config);
+            assert_ne!(dynamic_config, current_dynamic_config);
             assert_eq!(dynamic_config.agents.len(), 1);
             assert_eq!(dynamic_config.agents.into_iter().next().unwrap().0, local_identities[0].id);
         });
@@ -1674,34 +1671,6 @@ chart_version: 0.0.2 # not actually used, we rely on a mock
             let ev = t.channels.broadcast_subscriber.as_ref().recv().unwrap();
             assert_eq!(expected, ev);
         }
-    }
-
-    // Receive an StopRequest event should publish AgentControlStopped
-    #[test]
-    fn test_process_events_stop_request() {
-        let (t, mut agent_control) = TestAgentControl::setup();
-        agent_control.set_noop_resource_cleaner();
-        agent_control.set_noop_updater();
-
-        let sub_agents = StartedSubAgents::from(HashMap::default());
-        let event_processor = spawn({
-            move || {
-                agent_control.process_events(sub_agents);
-            }
-        });
-
-        sleep(Duration::from_millis(10));
-
-        t.channels
-            .app_publisher
-            .publish(ApplicationEvent::StopRequested)
-            .unwrap();
-
-        assert!(event_processor.join().is_ok());
-
-        let expected = AgentControlEvent::AgentControlStopped;
-        let ev = t.channels.broadcast_subscriber.as_ref().recv().unwrap();
-        assert_eq!(expected, ev);
     }
 
     /// A self-update defers sub-agent reconciliation to the restarted process (no double restart)

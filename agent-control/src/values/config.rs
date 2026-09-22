@@ -1,4 +1,4 @@
-//! Configuration value types: the local/remote [`Config`] enum and its variants.
+//! Configuration value types: the local/remote [`Config`] enum.
 
 use crate::opamp::remote_config::hash::{ConfigState, Hash};
 use crate::values::yaml_config::YAMLConfig;
@@ -21,7 +21,7 @@ impl Default for Config {
 }
 
 impl Config {
-    /// Returns the underlying [`YAMLConfig`] regardless of the variant.
+    /// Returns the underlying [`YAMLConfig`].
     pub fn get_yaml_config(&self) -> &YAMLConfig {
         match self {
             Config::LocalConfig(local_config) => &local_config.0,

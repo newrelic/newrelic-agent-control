@@ -26,9 +26,6 @@ variables:
       type: string
       required: false
       default: newrelic/ebpf-agent-artifacts
-      variants:
-        ac_config_field: "oci_repository_urls"
-        values: [ "newrelic/ebpf-agent-artifacts" ]
   version:
     description: "Agent version"
     type: string

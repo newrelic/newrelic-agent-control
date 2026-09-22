@@ -45,23 +45,23 @@ jobs:
         run: |
           # Create ansible playbook file
           cat <<EOF > playbook.yaml
-          - name: Install New Relic infrastructure and logs
+          - name: Install New Relic infrastructure
             hosts: all
             roles:
               - role: newrelic.newrelic_install
             vars:
               targets:
-                - logs-agent-control
                 - agent-control
+              verbosity: debug
             environment:
               NEW_RELIC_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
               NEW_RELIC_ACCOUNT_ID: "${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}"
               NEW_RELIC_REGION: US
               NEW_RELIC_CLI_SKIP_CORE: "true"
-              NR_CLI_FLEET_ID : "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTkyOGQyLTg3OTAtNzJlNC05ODgwLTJhYzE0NTRlZDUyZg"
+              # ac-e2e-no-deployment
+              NR_CLI_FLEET_ID : "NjQyNTg2NXxOR0VQfEZMRUVUfDAxYTA5ZjM5LTRhYWUtNzY2ZC1hZjM4LTM0MjljNDEzOGFkZA"
               NEW_RELIC_AUTH_PROVISIONED_CLIENT_ID : "${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}"
               NEW_RELIC_AUTH_PRIVATE_KEY_PATH : "/tmp/newrelic-agent-control/priv.key"
-              NEW_RELIC_AGENT_CONTROL_HOST_MONITORING_SOURCE: "infra-agent"
               NEW_RELIC_AGENT_CONTROL_PROXY_URL : ""
               NEW_RELIC_AGENT_CONTROL_PROXY_CA_BUNDLE_DIR : ""
               NEW_RELIC_AGENT_CONTROL_PROXY_CA_BUNDLE_FILE : ""
@@ -78,9 +78,18 @@ jobs:
             echo "Installation failed: Agent Control is not installed."
             exit 1
           fi
+      
+      - name: Print Ansible output on failure
+        if: failure()
+        run: cat output.log
+      
+      - name: Print cli logs
+        if: failure()
+        run: cat /tmp/newrelic-cli-debug.log
 
   notify-failure:
-    if: ${{ always() && failure() }}
+    # Notify ONLY on scheduled un-attended executions
+    if: ${{ always() && failure() && github.event_name != 'workflow_dispatch' && github.run_attempt == '1' }}
     needs: [ansible-install]
     uses: ./.github/workflows/component_send_warning_via_slack.yml
     with:

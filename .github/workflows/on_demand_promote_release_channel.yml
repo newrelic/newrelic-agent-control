@@ -48,9 +48,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # TODO: pin to a tagged release once feature/promote-channel-action lands on main.
       - name: Promote version to release channel
-        uses: newrelic/agent-metadata-action/promote-release-channel@4161b43175c63a647f6524df1dc71d90c5cfd941 # feature/promote-channel-action
+        uses: newrelic/agent-metadata-action/promote-release-channel@399d5ba876e7d03bf6215f8283d72ffb8dc8240b # v1.7.0
         with:
           agent-type: NRAgentControl
           version: ${{ inputs.version }}
@@ -60,4 +59,4 @@ jobs:
           note: ${{ inputs.note }}
           newrelic-client-id: ${{ secrets.AC_NEWRELIC_CLIENT_ID }}
           newrelic-private-key: ${{ secrets.AC_NEWRELIC_PRIVATE_KEY }}
-          apm-control-nr-license-key: ${{ secrets.APM_CONTROL_NR_LICENSE_KEY }}
+          newrelic-license-key: ${{ secrets.AGENT_METADATA_ACTION_LICENSE_KEY }}

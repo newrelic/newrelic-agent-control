@@ -104,11 +104,19 @@ Each variable name (i.e. every key in the tree, at every level) must match `[A-Z
 
 #### Variable definition
 
-For the *leaf nodes* of the variable definitions, we currently support the following fields:
+For the *leaf nodes* of the variable definitions, we currently support the following fields. Fields marked **not enforced** are accepted in the YAML but have no effect on validation or runtime behavior.
 
 ##### `description` (`String`)
 
 A description of the variable, for documentation purposes.
+
+##### `classification` (`String`, optional, not enforced)
+
+Sets whether this variable accepts an agent config file as input (`config`) or multiple agent config files (`multi-config`). This is used on Fleet.
+
+##### `deprecated` (`bool`, optional, not enforced)
+
+Flags this variable as being phased out. It exists purely as a marker for humans reading or generating agent type definitions.
 
 ##### `type` (`String`)
 
@@ -129,33 +137,6 @@ Specifies if providing a value for this variable is required or not. If `require
 A default value for this variable, for the cases where no configuration value has been passed for this variable when creating an instance for the agent type. Its value must be of the same type as the one declared for the variable.
 
 In the case of the `yaml` variable type, is recommended to explicitly set a 'null' default value as `default: null`.
-
-##### `variants` (optional)
-
-Only available for **String** variables.
-
-A list of accepted values for this variable. If any configuration includes a value for this variable that is not among the specified variants, the configuration will be invalid. The accepted values can be changed in the Agent Control configuration, as in the example below:
-
-Agent type:
-
-```yaml
-my_variable:
-  # ...
-  type: string
-  variants:
-    ac_config_field: "my_variable_variants" # If the field is set in `agent_type_var_constraints.variants`, the configures values will be used instead of the default ones.
-    values: ["value1", "value2"] # Otherwise the values defined here are used
-```
-
-AC config:
-
-```yaml
-agent_type_var_constraints:
-  variants: # map of variants
-    my_variable_variants: ["supported_value1", "supported_value2"] # The key should match what is defined in the Agent Type
-```
-
-By default, no variants are set, resulting in no variant validation.
 
 ### Agent Type Deployment
 
@@ -518,6 +499,8 @@ Every `file` and `dir` entry survives sub-agent stop, restart, and config-apply:
 **On start, Agent Control reclaims top-level paths that are no longer declared at all** under the sub-agent's filesystem directory. Declared `dir`'s contents are kept.
 
 **Removed from fleet.** When an agent is removed from the fleet config (via remote config or by being absent at AC startup after a previous deploy), its entire filesystem directory is deleted by `ResourceCleaner`, regardless of what it contains.
+
+**Write order is deterministic.** Within a `dir` (and among top-level `filesystem`/`shared_filesystem` entries), entries are written in alphabetical order by name, and each file is fsynced before the next one starts. An entry that depends on another can rely on this by naming convention — e.g. `infra-agent-ohi-binaries` is written, and durable on disk, before `infra-agent-ohi-configs`.
 
 ##### `shared_filesystem`
 

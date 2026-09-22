@@ -42,8 +42,6 @@ pub enum AgentControlEvent {
     HealthUpdated(HealthWithStartTime),
     /// A sub-agent was removed, identified by its `AgentID`.
     SubAgentRemoved(AgentID),
-    /// The AgentControl component stopped.
-    AgentControlStopped,
     /// The AgentControl agent description was updated.
     AgentDescriptionUpdated(AgentDescription),
     /// The AgentControl OpAMP client connected to the server.

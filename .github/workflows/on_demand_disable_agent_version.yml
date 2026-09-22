@@ -1,0 +1,30 @@
+name: 🚫 Disable Agent Version
+
+# Manually disables (soft-deletes) an already-published agent-control version
+# in instrumentation metadata, so it is no longer served to consumers.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Faulty agent-control version to disable (e.g. 1.22.0).'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  disable:
+    name: Disable Agent Version
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Disable agent version
+        uses: newrelic/agent-metadata-action/disable-agent@399d5ba876e7d03bf6215f8283d72ffb8dc8240b # v1.7.0
+        with:
+          agent-type: NRAgentControl
+          version: ${{ inputs.version }}
+          newrelic-client-id: ${{ secrets.AC_NEWRELIC_CLIENT_ID }}
+          newrelic-private-key: ${{ secrets.AC_NEWRELIC_PRIVATE_KEY }}
+          newrelic-license-key: ${{ secrets.AGENT_METADATA_ACTION_LICENSE_KEY }}

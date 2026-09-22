@@ -140,7 +140,8 @@ self_instrumentation:
   opentelemetry:
     insecure_level: "newrelic_agent_control=info,off" # It is considered insecure because setting it up for external dependencies could potentially leak secrets. The default `newrelic_agent_control=debug,opamp_client=debug,off` disables external dependencies and can be considered secure.
     endpoint: https://otlp.nr-data.net:4318 # HTTPS endpoint to report instrumentation to.
-    headers: {} # Headers that will be included in any request to the endpoint
+    headers:  # Headers that will be included in any request to the endpoint
+      api-key: LICENSE_KEY # This header is required to send data to NR 
     client_timeout: 10s # Timeout for performing requests, defaults to 30s.
     custom_attributes: {} # Attributes to be decorated in all metrics and logs
     metrics:
@@ -186,14 +187,6 @@ k8s:
 
 Notice that some of the fields in `k8s` are passed by the corresponding helm chart via Environment Variable to avoid race conditions.
 If set via config, after a failed upgrade we could have the "old" pod loading the new config and reading the new chart version, while the image is still the old one.
-
-### agent_type_var_constraints
-
-Allows setting up specific constraints in the agent types variables supporting it.
-
-- `variants`: if any agent-type defines a string variable with the `variants` fields and this configuration field defines the corresponding key. These variants will be used to validate values.
-
-See [variants documentation](/docs/INTEGRATING_AGENTS.md#variants-optional) for concrete example.
 
 ### value_providers
 

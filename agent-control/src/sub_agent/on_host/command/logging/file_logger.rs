@@ -1,6 +1,7 @@
 //! File logging for executable output, using a daily-rotating appender and a thread-local subscriber.
 
 use crate::agent_control::agent_id::AgentID;
+use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use serde::Deserialize;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -44,6 +45,12 @@ pub fn file_logger(
     file_name_suffix: &str,
 ) -> Result<FileLogger, FileLoggerError> {
     let file_dir = agent_log_dir(&file_logging_config.base_path, agent_id);
+
+    // TODO: Remove folder creation when https://github.com/tokio-rs/tracing/issues/3612 is resolved.
+    let directory_manager = DirectoryManagerFs;
+    directory_manager
+        .create(&file_dir)
+        .map_err(|e| FileLoggerError(format!("creating log directory: {}", e)))?;
 
     let file_appender = RollingFileAppender::builder()
         .rotation(Rotation::DAILY)

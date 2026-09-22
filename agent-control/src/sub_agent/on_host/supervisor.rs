@@ -393,11 +393,9 @@ where
         let agent_id = self.agent_identity.id.clone();
         let logging_config = self.file_logging_config.clone();
         let dispatch = dispatcher::get_default(|d: &Dispatch| d.clone());
-        let span = tracing::Span::current();
 
         let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
             let _guard = dispatcher::set_default(&dispatch);
-            let _enter = span.enter();
 
             let exec_id = exec_data.id.clone();
 
@@ -466,7 +464,8 @@ where
                 }
 
                 i += 1;
-                let restart_cancelled = wait_restart(&mut restart_policy, i, &stop_consumer);
+                let restart_cancelled =
+                    wait_restart(&mut restart_policy, i, &stop_consumer, &agent_id, &exec_id);
                 if restart_cancelled {
                     break;
                 }
@@ -578,9 +577,11 @@ fn wait_restart(
     restart_policy: &mut RestartPolicy,
     step: u32,
     stop_consumer: &EventConsumer<CancellationMessage>,
+    agent_id: &AgentID,
+    exec_id: &str,
 ) -> bool {
     let max_retries = restart_policy.backoff.max_retries();
-    info!("Waiting for restart policy backoff");
+    info!(%agent_id, %exec_id, "Waiting for restart policy backoff");
 
     let mut cancelled = false;
     restart_policy.backoff(|duration| {
@@ -595,9 +596,9 @@ fn wait_restart(
         n => n.to_string(),
     };
     if !cancelled {
-        info!("Restarting supervisor ({step}/{max_retries_str})");
+        info!(%agent_id, %exec_id, "Restarting supervisor ({step}/{max_retries_str})");
     } else {
-        info!("Restarting supervisor ({step}/{max_retries_str}) was cancelled");
+        info!(%agent_id, %exec_id, "Restarting supervisor ({step}/{max_retries_str}) was cancelled");
     }
 
     cancelled
@@ -615,9 +616,14 @@ fn handle_exit(
         return None;
     }
 
-    let ExecutableData { bin, args, .. } = &exec_data;
+    let ExecutableData {
+        id: exec_id,
+        bin,
+        args,
+        ..
+    } = &exec_data;
     warn!(%agent_id,supervisor = bin,exit_code = ?exit_status.code(),"Executable exited unsuccessfully");
-    debug!(%exit_status, "Error executing executable, marking as unhealthy");
+    debug!(%agent_id, %exec_id, %exit_status, "Error executing executable, marking as unhealthy");
 
     let args = args.join(" ");
     let error = format!("path '{bin}' with args '{args}' failed with '{exit_status}'",);
@@ -670,6 +676,7 @@ impl HealthHandler {
 pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::agent_id::tests::UniqueAgentID;
     use crate::agent_control::defaults::STDOUT_LOG_FILE_NAME_SUFFIX;
     use crate::agent_type::agent_attributes::AgentAttributes;
     use crate::agent_type::agent_type_id::AgentTypeID;
@@ -694,6 +701,7 @@ pub mod tests {
     use crate::sub_agent::agent_renderer::RenderedAgent;
     use crate::sub_agent::on_host::command::restart_policy::BackoffStrategy;
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
+    use crate::sub_agent::on_host::test_utils::global_logs_lines;
     use crate::sub_agent::supervisor::Supervisor;
     use crate::utils::retry::retry;
     use opamp_client::operation::settings::DescriptionValueType;
@@ -805,22 +813,18 @@ pub mod tests {
     #[traced_test]
     #[rstest::rstest]
     #[cfg_attr(target_family = "unix", case::long_running_process_shutdown_after_start(
-        "long-running",
         build_test_exec_data(r#"{"id":"sleep","path":"sleep","args":["10"]}"#),
         Some(Duration::from_secs(1)),
         vec!["Stopping executable", "Executable terminated"]))]
     #[cfg_attr(target_family = "windows", case::long_running_process_shutdown_after_start(
-        "long-running",
         build_test_exec_data(r#"{"id":"cmd","path":"cmd","args":["/C","timeout","/T","10","/NOBREAK"]}"#),
         Some(Duration::from_secs(1)),
         vec!["Stopping executable", "Executable terminated"]))]
     #[case::fail_process_shutdown_after_start(
-        "wrong-command",
         build_test_exec_data(r#"{"id":"wrong-command","path":"wrong-command"}"#),
         Some(Duration::from_secs(1)),
         vec!["Executable not running"])]
     fn test_supervisor_gracefully_shutdown(
-        #[case] agent_id: &str,
         #[case] executable: ExecutableData,
         #[case] run_warmup_time: Option<Duration>,
         #[case] contain_logs: Vec<&'static str>,
@@ -834,8 +838,9 @@ pub mod tests {
             executable.with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
+        let agent_id = UniqueAgentID::build();
         let agent_identity = AgentIdentity::from((
-            agent_id.to_owned().try_into().unwrap(),
+            agent_id.clone().into(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
@@ -871,8 +876,9 @@ pub mod tests {
             "stopping the supervisor took to much time: {duration:?}"
         );
 
+        let logs = global_logs_lines(agent_id);
         for log in contain_logs {
-            assert!(logs_contain(log), "log not found: {log}");
+            assert!(logs.iter().any(|l| l.contains(log)), "log not found: {log}");
         }
     }
 
@@ -1044,8 +1050,9 @@ declared-dir:
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
+        let agent_id = UniqueAgentID::build();
         let agent_identity = AgentIdentity::from((
-            "wrong-command".to_owned().try_into().unwrap(),
+            agent_id.clone().into(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
@@ -1075,7 +1082,11 @@ declared-dir:
         }
 
         thread::sleep(Duration::from_secs(1));
-        assert!(logs_contain("NR-command"));
+        assert!(
+            global_logs_lines(agent_id)
+                .iter()
+                .any(|l| l.contains("NR-command"))
+        );
     }
 
     #[test]
@@ -1139,8 +1150,9 @@ declared-dir:
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
+        let agent_id = UniqueAgentID::build();
         let agent_identity = AgentIdentity::from((
-            "echo".to_owned().try_into().unwrap(),
+            agent_id.clone().into(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
@@ -1171,18 +1183,14 @@ declared-dir:
 
         thread::sleep(Duration::from_secs(1));
 
-        logs_assert(|lines| {
-            let count = lines
-                .iter()
-                .filter(|l| l.contains("Restarting supervisor"))
-                .count();
-            match count {
-                3 => Ok(()),
-                n => Err(format!(
-                    "The supervisor should be restarted 3 times. Expected 3 lines, got {n}"
-                )),
-            }
-        });
+        let count = global_logs_lines(agent_id)
+            .iter()
+            .filter(|l| l.contains("Restarting supervisor"))
+            .count();
+        assert_eq!(
+            count, 3,
+            "The supervisor should be restarted 3 times. Expected 3 lines, got {count}"
+        );
     }
 
     #[test]

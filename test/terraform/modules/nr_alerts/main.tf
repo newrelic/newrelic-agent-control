@@ -114,6 +114,13 @@ resource "newrelic_nrql_alert_condition" "condition_nrql_canary" {
   aggregation_window = try(local.policies_with_instance_id[count.index].condition.aggregation_window, 60)
   slide_by           = try(local.policies_with_instance_id[count.index].condition.slide_by, 30)
 
+  # Loss-of-signal handling: opt-in per condition (defaults to null, i.e. unset/provider default,
+  # so existing conditions that don't set these keep their current behavior). Needed for count()-based
+  # presence checks, which otherwise never evaluate at all once the underlying signal stops entirely.
+  expiration_duration            = try(local.policies_with_instance_id[count.index].condition.expiration_duration, null)
+  open_violation_on_expiration   = try(local.policies_with_instance_id[count.index].condition.open_violation_on_expiration, null)
+  close_violations_on_expiration = try(local.policies_with_instance_id[count.index].condition.close_violations_on_expiration, null)
+  ignore_on_expected_termination = try(local.policies_with_instance_id[count.index].condition.ignore_on_expected_termination, null)
 
   nrql {
     query = templatefile(
