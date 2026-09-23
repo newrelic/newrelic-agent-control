@@ -1,0 +1,96 @@
+name: ⏯️🐤 On-Demand onhost self-update canaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "deploy triggers a Fleet Control deployment (default, most common); apply/destroy manage the canary infrastructure"
+        required: true
+        type: choice
+        default: deploy
+        options:
+          - deploy
+          - apply
+          - destroy
+
+permissions:
+  contents: read
+
+concurrency:
+  group: on-demand-onhost-self-update-canaries
+  cancel-in-progress: false
+
+env:
+  FLEET_ID_LINUX: ${{ vars.SELF_UPDATE_CANARY_FLEET_LINUX }}
+  FLEET_ID_WIN: ${{ vars.SELF_UPDATE_CANARY_FLEET_WIN }}
+  INFRA_CONFIG_VERSION_ID_LINUX: ${{ vars.SELF_UPDATE_CANARY_INFRA_CONFIG_VERSION_ID_LINUX }}
+  INFRA_CONFIG_VERSION_ID_WIN: ${{ vars.SELF_UPDATE_CANARY_INFRA_CONFIG_VERSION_ID_WIN }}
+
+jobs:
+  deploy:
+    if: ${{ inputs.operation == 'deploy' }}
+    name: Trigger Fleet Control deployment
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: ./.github/actions/load-latest-agent-versions
+
+      - name: Deploy to linux canary
+        env:
+          NEW_RELIC_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
+        run: |
+          test/scripts/fleet_deployment.sh \
+            "${{ env.FLEET_ID_LINUX }}" \
+            production \
+            "NRInfra:${{ env.INFRA_AGENT_VERSION }}:${{ env.INFRA_CONFIG_VERSION_ID_LINUX }}"
+
+      - name: Deploy to windows canary
+        env:
+          NEW_RELIC_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
+        run: |
+          test/scripts/fleet_deployment.sh \
+            "${{ env.FLEET_ID_WIN }}" \
+            production \
+            "NRInfra:${{ env.INFRA_AGENT_VERSION }}:${{ env.INFRA_CONFIG_VERSION_ID_WIN }}"
+
+  infra:
+    if: ${{ inputs.operation != 'deploy' }}
+    name: Canaries infrastructure ${{ inputs.operation }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    defaults:
+      run:
+        working-directory: test/onhost-self-update-canaries/terraform
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6
+        with:
+          # Dedicated role from test/terraform/onhost_canaries_iam.
+          role-to-assume: ${{ secrets.ONHOST_CANARIES_AWS_ROLE_ARN }}
+          aws-region: us-east-2
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform ${{ inputs.operation }}
+        env:
+          TF_VAR_linux_fleet_id: ${{ env.FLEET_ID_LINUX }}
+          TF_VAR_windows_fleet_id: ${{ env.FLEET_ID_WIN }}
+          TF_VAR_license_key: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
+          TF_VAR_api_key: ${{ secrets.AC_PROD_E2E_API_KEY }}
+          TF_VAR_account_id: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}
+          TF_VAR_system_identity_client_id: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
+          TF_VAR_system_identity_private_key: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
+        run: |
+          terraform init
+          terraform ${{ inputs.operation }} -auto-approve
