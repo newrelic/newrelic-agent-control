@@ -31,10 +31,6 @@ permissions:
   contents: read
   actions: read
 
-# NOTE: The below environment vars are bumped automatically by Renovate
-env:
-  HOST_E2E_INFRA_AGENT_VERSION: "1.80.4"
-
 jobs:
   build-packages:
     name: Build packages
@@ -53,6 +49,8 @@ jobs:
         run: echo "JOB_START_TIME=$(date +%s)" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: ./.github/actions/load-latest-agent-versions
 
       - uses: ./.github/actions/install-rust-toolchain
 
@@ -110,7 +108,7 @@ jobs:
             --agent-control-private-key "/tmp/newrelic-agent-control-priv.key" \
             --agent-control-version "0.200.${{ github.run_id }}" \
             --recipes-repo-branch "main" \
-            --infra-agent-version "${{ env.HOST_E2E_INFRA_AGENT_VERSION }}" \
+            --infra-agent-version "${{ env.INFRA_AGENT_VERSION }}" \
             --fleet-id "${{ inputs.fleet_id }}" \
             --fleet-control-token "${{ steps.get-token.outputs.token }}" \
             --fleet-type "linux-fleet" \

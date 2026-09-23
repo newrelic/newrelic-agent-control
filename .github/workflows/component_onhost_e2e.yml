@@ -25,21 +25,6 @@ permissions:
   contents: read
   actions: read
 
-# NOTE: The below environment vars are bumped automatically by Renovate so we always use the latest
-# versions of the packages in our E2E tests. If you change the names or move these values outside
-# the GitHub workflows please update `renovate.json` accordingly to avoid breaking the automation!
-env:
-  HOST_E2E_INFRA_AGENT_VERSION: "1.80.4"
-  HOST_E2E_NRDOT_VERSION: "2.5.0"
-  HOST_E2E_REDIS_VERSION: "1.15.3"
-  HOST_E2E_NGINX_VERSION: "3.8.3"
-  HOST_E2E_APACHE_VERSION: "1.18.0"
-  HOST_E2E_MEMCACHED_VERSION: "2.9.3"
-  HOST_E2E_EBPF_AGENT_VERSION: "1.5.0"
-  HOST_E2E_FLEX_VERSION: "1.18.12"
-  HOST_E2E_MYSQL_VERSION: "1.24.2"
-  HOST_E2E_POSTGRESQL_VERSION: "2.31.1"
-
 jobs:
   build-packages:
     name: Build packages
@@ -75,6 +60,9 @@ jobs:
         run: echo "JOB_START_TIME=$(date +%s)" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: ./.github/actions/load-latest-agent-versions
+
       - uses: ./.github/actions/install-rust-toolchain
       - uses: ./.github/actions/download-artifact-retry
         with:
@@ -95,16 +83,16 @@ jobs:
             --agent-control-private-key "/tmp/newrelic-agent-control-priv.key" \
             --agent-control-version "0.900.${{ github.run_id }}" \
             --recipes-repo-branch "main" \
-            --infra-agent-version "${{ env.HOST_E2E_INFRA_AGENT_VERSION }}" \
-            --nrdot-version "${{ env.HOST_E2E_NRDOT_VERSION }}" \
-            --redis-version "${{ env.HOST_E2E_REDIS_VERSION }}" \
-            --apache-version "${{ env.HOST_E2E_APACHE_VERSION }}" \
-            --nginx-version "${{ env.HOST_E2E_NGINX_VERSION }}" \
-            --memcached-version "${{ env.HOST_E2E_MEMCACHED_VERSION }}" \
-            --flex-version "${{ env.HOST_E2E_FLEX_VERSION }}" \
-            --mysql-version "${{ env.HOST_E2E_MYSQL_VERSION }}" \
-            --postgresql-version "${{ env.HOST_E2E_POSTGRESQL_VERSION }}" \
-            --ebpf-agent-version "${{ env.HOST_E2E_EBPF_AGENT_VERSION }}"
+            --infra-agent-version "${{ env.INFRA_AGENT_VERSION }}" \
+            --nrdot-version "${{ env.NRDOT_VERSION }}" \
+            --redis-version "${{ env.REDIS_VERSION }}" \
+            --apache-version "${{ env.APACHE_VERSION }}" \
+            --nginx-version "${{ env.NGINX_VERSION }}" \
+            --memcached-version "${{ env.MEMCACHED_VERSION }}" \
+            --flex-version "${{ env.FLEX_VERSION }}" \
+            --mysql-version "${{ env.MYSQL_VERSION }}" \
+            --postgresql-version "${{ env.POSTGRESQL_VERSION }}" \
+            --ebpf-agent-version "${{ env.EBPF_AGENT_VERSION }}"
 
       - name: Report test result to New Relic
         if: always()
@@ -153,6 +141,9 @@ jobs:
         run: echo "JOB_START_TIME=$(date +%s)" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: ./.github/actions/load-latest-agent-versions
+
       - uses: ./.github/actions/install-rust-toolchain
       - uses: ./.github/actions/download-artifact-retry
         with:
@@ -174,15 +165,15 @@ jobs:
             --agent-control-private-key "$env:TEMP\newrelic-agent-control-priv.key" `
             --agent-control-version "0.900.${{ github.run_id }}" `
             --recipes-repo-branch "main" `
-            --infra-agent-version "${{ env.HOST_E2E_INFRA_AGENT_VERSION }}" `
-            --nrdot-version "${{ env.HOST_E2E_NRDOT_VERSION }}" `
-            --apache-version "${{ env.HOST_E2E_APACHE_VERSION }}" `
-            --nginx-version "${{ env.HOST_E2E_NGINX_VERSION }}" `
-            --memcached-version "${{ env.HOST_E2E_MEMCACHED_VERSION }}" `
-            --redis-version "${{ env.HOST_E2E_REDIS_VERSION }}"  `
-            --flex-version "${{ env.HOST_E2E_FLEX_VERSION }}" `
-            --mysql-version "${{ env.HOST_E2E_MYSQL_VERSION }}" `
-            --postgresql-version "${{ env.HOST_E2E_POSTGRESQL_VERSION }}"
+            --infra-agent-version "${{ env.INFRA_AGENT_VERSION }}" `
+            --nrdot-version "${{ env.NRDOT_VERSION }}" `
+            --apache-version "${{ env.APACHE_VERSION }}" `
+            --nginx-version "${{ env.NGINX_VERSION }}" `
+            --memcached-version "${{ env.MEMCACHED_VERSION }}" `
+            --redis-version "${{ env.REDIS_VERSION }}"  `
+            --flex-version "${{ env.FLEX_VERSION }}" `
+            --mysql-version "${{ env.MYSQL_VERSION }}" `
+            --postgresql-version "${{ env.POSTGRESQL_VERSION }}"
 
       - name: Report test result to New Relic
         if: always()
