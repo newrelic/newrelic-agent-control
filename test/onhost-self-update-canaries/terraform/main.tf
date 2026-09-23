@@ -130,6 +130,14 @@ data "aws_ami" "windows" {
 
 locals {
   linux_private_key_path = "/etc/newrelic-agent-control/priv.key"
+
+  # Matches the per-region endpoints used for the other canaries (test/onhost-canaries/ansible/vars).
+  otlp_endpoints = {
+    US      = "https://otlp.nr-data.net:4318"
+    EU      = "https://otlp.eu01.nr-data.net:4318"
+    Staging = "https://staging-otlp.nr-data.net:4318"
+  }
+  otlp_endpoint = local.otlp_endpoints[var.nr_region]
 }
 
 data "cloudinit_config" "linux" {
@@ -159,7 +167,24 @@ data "cloudinit_config" "linux" {
           "NR_CLI_FLEET_ID=${var.linux_fleet_id}",
           "NEW_RELIC_AGENT_CONTROL_FLEET_ENABLED=true",
           "/usr/local/bin/newrelic install -n agent-control",
-        ])
+        ]),
+        # Match the debug logging + self-instrumentation the other canaries run with.
+        "echo 'NR_AC_LOG__LEVEL: DEBUG' >> /etc/newrelic-agent-control/environment_variables.yaml",
+        <<-EOT
+        cat >> /etc/newrelic-agent-control/local-data/agent-control/local_config.yaml <<'CONFIG'
+        self_instrumentation:
+          opentelemetry:
+            endpoint: ${local.otlp_endpoint}
+            headers:
+              api-key: ${var.license_key}
+            logs:
+              enabled: true
+            custom_attributes:
+              canary.name: ${var.ec2_prefix}-linux
+        CONFIG
+        EOT
+        ,
+        "systemctl restart newrelic-agent-control",
       ]
     })
   }
@@ -210,8 +235,22 @@ resource "aws_instance" "windows" {
     $env:NR_CLI_FLEET_ID='${var.windows_fleet_id}'
     $env:NEW_RELIC_AGENT_CONTROL_FLEET_ENABLED='true'
     & "C:\Program Files\New Relic\New Relic CLI\newrelic.exe" install -n agent-control
+
+    Add-Content -Path "C:\Program Files\New Relic\newrelic-agent-control\environment_variables.yaml" -Value 'NR_AC_LOG__LEVEL: DEBUG'
+    Add-Content -Path "C:\Program Files\New Relic\newrelic-agent-control\local-data\agent-control\local_config.yaml" -Value @'
+self_instrumentation:
+  opentelemetry:
+    endpoint: ${local.otlp_endpoint}
+    headers:
+      api-key: ${var.license_key}
+    logs:
+      enabled: true
+    custom_attributes:
+      canary.name: ${var.ec2_prefix}-windows
+'@
+    Restart-Service -Name newrelic-agent-control
     </powershell>
-  EOF
+EOF
   )
 
   tags = {
