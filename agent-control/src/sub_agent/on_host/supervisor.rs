@@ -204,6 +204,8 @@ where
             onhost_config.shared_filesystem,
         );
 
+        starter.check_subagent_version(internal_publisher.clone());
+
         let new_started_supervisor = starter.spin_up(internal_publisher)?;
 
         Ok(new_started_supervisor)
@@ -302,7 +304,7 @@ where
         };
 
         let version = package.download.oci.version.to_string();
-        info!(
+        debug!(
             agent_type=%self.agent_identity.agent_type_id,
             package_id=%package_id,
             version=%version,
@@ -362,8 +364,6 @@ where
             .iter()
             .map(|e| self.start_process_thread(e, health_publisher.clone()))
             .collect();
-
-        self.check_subagent_version(sub_agent_internal_publisher.clone());
 
         if let Some(ctx) = self.start_health_check(
             sub_agent_internal_publisher.clone(),
@@ -510,7 +510,7 @@ fn stop_supervisor_threads(
     for thread_context in thread_contexts {
         let thread_name = thread_context.thread_name().to_string();
         match thread_context.stop_blocking() {
-            Ok(_) => info!("{} stopped", thread_name),
+            Ok(_) => info!(thread_name, "Thread stopped"),
             Err(error_msg) => {
                 error!("Stopping '{thread_name}': {error_msg}");
                 if stop_result.is_ok() {

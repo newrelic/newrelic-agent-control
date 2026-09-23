@@ -20,6 +20,9 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ## Unreleased
 
+### bugfix
+- Fixed several minor logging issues: a redundant field, a duplicated log, wrong log levels, and inconsistent message casing.
+
 ## v1.25.0 - 2026-09-18
 
 ### 🛡️ Security notices

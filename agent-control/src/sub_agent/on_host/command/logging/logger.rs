@@ -8,7 +8,7 @@ use std::thread::JoinHandle;
 use tracing::{debug, dispatcher, info};
 
 pub(crate) enum Logger {
-    File(Box<FileLogger>, AgentID),
+    File(Box<FileLogger>),
     Stdout(AgentID),
     Stderr(AgentID),
 }
@@ -24,12 +24,12 @@ impl Logger {
             let _dispatch_guard = dispatcher::set_default(&dispatch);
 
             match self {
-                Self::File(file_logger, agent_id) => {
+                Self::File(file_logger) => {
                     // If the logger is a FileLogger, set this file logging as the default.
                     // `_guard` needs to exist in scope to keep persisting the logs in the file
                     let _guard = file_logger.set_file_logging();
-                    rx.iter()
-                        .for_each(|line| info!(%agent_id, "{}", line.to_string()));
+                    // No agent_id field here: the file already lives under a per-agent directory.
+                    rx.iter().for_each(|line| info!("{}", line.to_string()));
                 }
                 Self::Stderr(agent_id) => {
                     rx.iter()

@@ -32,7 +32,7 @@ pub fn run_async_sync_bridge(
                             let _ = async_sa_publisher.send(agent_control_event).inspect_err(|err| {
                                 error!(
                                     error_msg = %err,
-                                    "cannot forward agent control event"
+                                    "Cannot forward agent control event"
                                 );
                             });
                         }
@@ -45,7 +45,7 @@ pub fn run_async_sync_bridge(
                             let _ = async_suba_publisher.send(sub_agent_event).inspect_err(|err| {
                                 error!(
                                     error_msg = %err,
-                                    "cannot forward agent control event"
+                                    "Cannot forward agent control event"
                                 );
                             });
                         }

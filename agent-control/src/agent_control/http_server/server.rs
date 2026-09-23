@@ -124,7 +124,7 @@ async fn run_server(
     startup_publisher: std::sync::mpsc::Sender<Result<(), String>>,
 ) -> std::io::Result<()> {
     info!(
-        "starting HTTP server at http://{}:{}",
+        "Starting HTTP server at http://{}:{}",
         server_config.host, server_config.port
     );
 
