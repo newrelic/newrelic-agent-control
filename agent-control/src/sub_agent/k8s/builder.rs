@@ -7,6 +7,7 @@ use crate::event::SubAgentEvent;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::pub_sub;
 use crate::k8s::client::{K8sClient, SyncK8sClient};
+use crate::opamp::client_builder::COMPRESSION_ENABLED;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::sub_agent_start_settings;
 use crate::sub_agent::SubAgent;
@@ -82,6 +83,7 @@ where
                 CLUSTER_NAME_ATTRIBUTE_KEY.to_string(),
                 DescriptionValueType::String(self.k8s_config.cluster_name.to_string()),
             )]),
+            COMPRESSION_ENABLED,
         )
         .map_err(|e| SubAgentBuilderError::OpampClientBuilderError(e.to_string()))?;
 
@@ -403,6 +405,7 @@ pub mod tests {
             capabilities: default_capabilities(),
             custom_capabilities: Some(default_custom_capabilities().into()),
             agent_description,
+            enable_compression: COMPRESSION_ENABLED,
         };
 
         if opamp_builder_fails {
