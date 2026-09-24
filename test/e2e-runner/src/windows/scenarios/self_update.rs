@@ -1,6 +1,7 @@
 use crate::common::docker_hub::latest_published_ac_tag;
 use crate::common::oci::{OciRegistry, push_ac_package};
 use crate::common::on_drop::CleanUp;
+use crate::common::opamp_messages::check_dry_run_start_and_shutdown_messages;
 use crate::common::runtime::tokio_runtime;
 use crate::common::test::{TestResult, retry_panic};
 use crate::common::{InstallationArgs, RecipeData, config};
@@ -136,6 +137,15 @@ agents: {{}}
     );
     info!(version = new_version, "AC version updated successfully");
 
+    // The self-update flow spawns a pre-flight `verify` subprocess against the newly downloaded
+    // binary before self-replacing; it reports execution.mode=dry-run under the same instance ID
+    // as the running service, so this checks both a starting and a shutdown message carried it.
+    check_dry_run_start_and_shutdown_messages(&opamp_server, &instance_id).unwrap_or_else(|err| {
+        panic!(
+            "expected dry-run starting and shutdown messages from the pre-flight verify step: {err}"
+        )
+    });
+
     info!("Self-update test completed successfully");
 }
 
@@ -250,6 +260,15 @@ agents: {{}}
         },
     );
     info!(version = new_version, "AC version updated successfully");
+
+    // The self-update flow spawns a pre-flight `verify` subprocess against the newly downloaded
+    // binary before self-replacing; it reports execution.mode=dry-run under the same instance ID
+    // as the running service, so this checks both a starting and a shutdown message carried it.
+    check_dry_run_start_and_shutdown_messages(&opamp_server, &instance_id).unwrap_or_else(|err| {
+        panic!(
+            "expected dry-run starting and shutdown messages from the pre-flight verify step: {err}"
+        )
+    });
 
     info!("Self-update test completed successfully");
 }

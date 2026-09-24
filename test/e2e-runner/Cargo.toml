@@ -15,6 +15,7 @@ glob = "0.3"
 fake-opamp-server = { path = "../crates/fake-opamp-server" }
 oci-test-utils = { path = "../crates/oci-test-utils" }
 oci-client = { workspace = true }
+opamp-client = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 semver = { workspace = true }
 serde = { workspace = true, features = ["derive"] }

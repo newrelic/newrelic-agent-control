@@ -1407,6 +1407,7 @@ dependencies = [
  "glob",
  "oci-client",
  "oci-test-utils",
+ "opamp-client",
  "reqwest",
  "semver",
  "serde",

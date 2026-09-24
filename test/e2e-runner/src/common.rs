@@ -12,6 +12,7 @@ pub mod nrql;
 pub mod oci;
 pub mod ohi;
 pub mod on_drop;
+pub mod opamp_messages;
 pub mod runtime;
 pub mod test;
 
