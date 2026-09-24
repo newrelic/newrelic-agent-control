@@ -17,6 +17,9 @@ use thiserror::Error;
 use tracing::info;
 use wrapper_with_default::WrapperWithDefault;
 
+pub(crate) const COMPRESSION_ENABLED: bool = true;
+pub(crate) const COMPRESSION_DISABLED: bool = false;
+
 /// Default poll interval for the OpAMP http managed client
 pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(30);
 /// Interval between OpAMP poll requests, defaulting to [`DEFAULT_POLL_INTERVAL`].

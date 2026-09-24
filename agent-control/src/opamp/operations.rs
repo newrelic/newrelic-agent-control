@@ -20,6 +20,7 @@ pub fn sub_agent_start_settings<IG: InstanceIDGetter>(
     agent_identity: &AgentIdentity,
     additional_identifying_attributes: HashMap<String, DescriptionValueType>,
     mut non_identifying_attributes: HashMap<String, DescriptionValueType>,
+    enable_compression: bool,
 ) -> Result<StartSettings, OpAMPClientBuilderError> {
     let agent_control_id = AgentID::AgentControl;
     let parent_instance_id = instance_id_getter.get(&agent_control_id)?;
@@ -38,6 +39,7 @@ pub fn sub_agent_start_settings<IG: InstanceIDGetter>(
             additional_identifying_attributes,
             non_identifying_attributes,
         ),
+        enable_compression,
     })
 }
 
