@@ -9,6 +9,7 @@
 
 use crate::http::config::ProxyConfig;
 use serde::Deserialize;
+use std::collections::HashMap;
 
 pub mod logs;
 pub mod otel;
@@ -28,6 +29,16 @@ impl InstrumentationConfig {
             opentelemetry: self
                 .opentelemetry
                 .map(|otel_config| otel_config.with_proxy_config(proxy)),
+        }
+    }
+
+    /// Returns a new configuration with any headers from `defaults` injected into the
+    /// OpenTelemetry config if not already present. Existing headers take precedence.
+    pub fn with_headers_if_missing(self, defaults: HashMap<String, String>) -> Self {
+        Self {
+            opentelemetry: self
+                .opentelemetry
+                .map(|otel_config| otel_config.with_headers_if_missing(defaults)),
         }
     }
 }
