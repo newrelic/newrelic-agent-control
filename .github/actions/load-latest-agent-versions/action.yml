@@ -24,7 +24,7 @@ runs:
         # renovate: datasource=docker depName=newrelic/ebpf-agent-artifacts
         echo "EBPF_AGENT_VERSION=1.5.0" >> "$GITHUB_ENV"
         # renovate: datasource=docker depName=newrelic/nri-flex-artifacts
-        echo "FLEX_VERSION=1.18.12" >> "$GITHUB_ENV"
+        echo "FLEX_VERSION=1.18.14" >> "$GITHUB_ENV"
         # renovate: datasource=docker depName=newrelic/nri-mysql-artifacts
         echo "MYSQL_VERSION=1.24.2" >> "$GITHUB_ENV"
         # renovate: datasource=docker depName=newrelic/nri-postgresql-artifacts
