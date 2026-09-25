@@ -30,6 +30,12 @@
         "**/test/**/eks_cluster/variables.tf"
       ],
       "enabled": true
+    },
+    {
+      "matchFileNames": [
+        ".github/actions/load-latest-agent-versions/action.yml"
+      ],
+      "groupName": "agent versions"
     }
   ],
   "customManagers": [
