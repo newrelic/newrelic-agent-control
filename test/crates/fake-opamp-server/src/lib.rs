@@ -312,6 +312,19 @@ impl FakeServer {
             .unwrap_or_default()
     }
 
+    /// Counts the `AgentToServer` messages received from the given agent for which `predicate`
+    /// returns `true`.
+    pub fn count_messages_matching(
+        &self,
+        identifier: impl Into<InstanceUid>,
+        predicate: impl Fn(&AgentToServer) -> bool,
+    ) -> usize {
+        self.get_messages(identifier)
+            .iter()
+            .filter(|m| predicate(m))
+            .count()
+    }
+
     /// Returns the instance IDs of all connected agents that have an identifying attribute
     /// matching the given key–value pair. Matches string-typed attribute values only.
     pub fn find_agents_with_identifying_attr(&self, key: &str, value: &str) -> Vec<InstanceID> {
