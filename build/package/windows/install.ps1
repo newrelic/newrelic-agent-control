@@ -68,7 +68,29 @@ function Set-RestrictedAcl {
     # S-1-5-32-544 is the well-known SID for BUILTIN\Administrators.
     # Reference: https://learn.microsoft.com/es-es/windows-server/identity/ad-ds/manage/understand-security-identifiers
     & icacls $Path /inheritance:r | Out-Null
-    & icacls $Path /grant "*S-1-5-32-544:(OI)(CI)F" | Out-Null 
+    & icacls $Path /grant "*S-1-5-32-544:(OI)(CI)F" | Out-Null
+}
+
+function Remove-StandaloneInfraAgent {
+    # Removes the standalone infra agent, mirroring what Linux packaging already does via Conflicts/Replaces.
+    $infraAgent = Get-ItemProperty -Path @(
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+        'HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
+    ) -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq 'New Relic Infrastructure Agent' } | Select-Object -First 1
+
+    if (-not $infraAgent) { return }
+
+    Write-Host "Detected an existing standalone New Relic Infrastructure Agent installation. Removing it to avoid duplicate host reporting; if you still want it, add it as an Agent Control managed sub-agent in your configuration."
+
+    $infraService = Get-Service -Name "newrelic-infra" -ErrorAction SilentlyContinue
+    if ($infraService -and $infraService.Status -eq 'Running') {
+        Stop-Service -Name "newrelic-infra" -ErrorAction SilentlyContinue | Out-Null
+    }
+
+    $msiProcess = Start-Process -FilePath "msiexec.exe" -ArgumentList @('/x', $infraAgent.PSChildName, '/qn') -Wait -PassThru -ErrorAction SilentlyContinue
+    if (-not $msiProcess -or $msiProcess.ExitCode -ne 0) {
+        Write-Warning "Failed to remove the standalone New Relic Infrastructure Agent installation. Continuing with Agent Control installation; both agents may report data for this host until it's removed manually."
+    }
 }
 
 # Check for administrator privileges
@@ -77,6 +99,8 @@ if (-not $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Adm
     Write-Error "Admin permission is required. Please, open a Windows PowerShell session with administrative rights.";
     exit 1
 }
+
+Remove-StandaloneInfraAgent
 
 $serviceName = "newrelic-agent-control"
 $serviceDisplayName = "New Relic Agent Control"
