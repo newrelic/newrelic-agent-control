@@ -74,6 +74,17 @@ impl OtelConfig {
         }
     }
 
+    /// Returns a new configuration with any headers from `defaults` that are not already set.
+    /// Existing headers take precedence; this only fills in missing ones.
+    pub fn with_headers_if_missing(self, defaults: HashMap<String, String>) -> Self {
+        let mut merged = defaults;
+        merged.extend(self.headers);
+        Self {
+            headers: merged,
+            ..self
+        }
+    }
+
     /// Returns the otel endpoint to report metrics to.
     pub(crate) fn metrics_endpoint(&self) -> String {
         self.target_endpoint(METRICS_SUFFIX)
