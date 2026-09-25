@@ -251,7 +251,7 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
 /// but reconnects with the same persisted instance_uid, so the fake server (like a real one) sees a
 /// sequence-number discontinuity and asks for a full state report via `ReportFullState`.
 ///
-/// This test assert that, even the OpAMP's state is stored in-memory (and lost after restart),
+/// This test asserts that, even the OpAMP's state is stored in-memory (and lost after restart),
 /// the re-started Agent Control reports the status Applied when the full state is requested.
 #[test]
 fn onhost_opamp_agent_control_reconfirms_remote_config_status_after_restart() {
