@@ -20,6 +20,9 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ## Unreleased
 
+### enhancement
+- Linux and Windows: Agent Control and its sub-agents now report OS version (`os.version`, parsed from `/etc/os-release` on Linux or the registry's `CurrentBuildNumber` on Windows) as an OpAMP attribute, alongside the existing `os.type`.
+
 ## v1.25.0 - 2026-09-18
 
 ### 🛡️ Security notices
