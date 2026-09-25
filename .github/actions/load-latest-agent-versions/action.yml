@@ -28,4 +28,4 @@ runs:
         # renovate: datasource=docker depName=newrelic/nri-mysql-artifacts
         echo "MYSQL_VERSION=1.24.2" >> "$GITHUB_ENV"
         # renovate: datasource=docker depName=newrelic/nri-postgresql-artifacts
-        echo "POSTGRESQL_VERSION=2.31.1" >> "$GITHUB_ENV"
+        echo "POSTGRESQL_VERSION=2.32.0" >> "$GITHUB_ENV"
