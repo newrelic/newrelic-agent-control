@@ -62,13 +62,13 @@ impl RenderedEntry {
         dir_manager: &impl DirectoryManager,
     ) -> Result<(), FileSystemEntriesError> {
         match self {
-            Self::File { content, .. } => {
-                match content {
-                    FileContent::Text(text) => write_file(file_ops, dir_manager, path, text)?,
-                    FileContent::Copy(source) => copy_file(file_ops, dir_manager, path, source)?,
+            Self::File { content, .. } => match content {
+                FileContent::Text(text) => {
+                    // No explicit sync needed, FileWriter::write already calls sync_all().
+                    write_file(file_ops, dir_manager, path, text)
                 }
-                sync_file_to_disk(path)
-            }
+                FileContent::Copy(source) => copy_file(file_ops, dir_manager, path, source),
+            },
             Self::Dir { children, .. } => {
                 ensure_dir(file_ops, dir_manager, path)?;
                 for (sub_path, child) in children {
@@ -79,16 +79,26 @@ impl RenderedEntry {
                 Ok(())
             }
             Self::DirContentFromMap { files, .. } => {
-                // Without this clear, a remote cfg that removes a file from the map would leave
-                // the old file on disk until the agent control is stopped.
-                delete_path(path, file_ops, dir_manager)
-                    .map_err(|err| FileSystemEntriesError(format!("clearing {path:?}: {err}")))?;
                 ensure_dir(file_ops, dir_manager, path)?;
+                let declared: HashSet<PathBuf> = files.keys().cloned().collect();
                 for (file_name, content) in files {
                     let entry = Self::File {
                         content: FileContent::Text(content.clone()),
                     };
                     entry.write(&path.join(file_name), file_ops, dir_manager)?;
+                }
+                // Prune files no longer in the map (including untracked content written by the
+                // managed agent). Done after the writes so any error leaves declared files intact.
+                for child in dir_manager
+                    .list(path)
+                    .map_err(|err| FileSystemEntriesError(format!("listing {path:?}: {err}")))?
+                {
+                    let name = PathBuf::from(child.file_name().unwrap_or_default());
+                    if !declared.contains(&name) {
+                        delete_path(&child, file_ops, dir_manager).map_err(|err| {
+                            FileSystemEntriesError(format!("deleting {child:?}: {err}"))
+                        })?;
+                    }
                 }
                 Ok(())
             }
@@ -238,12 +248,9 @@ fn copy_file(
         .map_err(|err| FileSystemEntriesError(format!("clearing {path:?}: {err}")))?;
     file_ops
         .copy(source, path)
-        .map_err(|err| FileSystemEntriesError(format!("copying {source:?} to {path:?}: {err}")))
-}
-
-/// Flushes `path` to disk so it's durable before the next sibling is written. Opened with write
-/// access because `sync_all` on Windows needs `GENERIC_WRITE` for `FlushFileBuffers`.
-fn sync_file_to_disk(path: &Path) -> Result<(), FileSystemEntriesError> {
+        .map_err(|err| FileSystemEntriesError(format!("copying {source:?} to {path:?}: {err}")))?;
+    // Flushes `path` to disk so it's durable before the next sibling is written. Opened with write
+    // access because `sync_all` on Windows needs `GENERIC_WRITE` for `FlushFileBuffers`.
     let file = std::fs::OpenOptions::new()
         .write(true)
         .open(path)
@@ -531,7 +538,7 @@ mod tests {
     }
 
     #[test]
-    fn write_dir_content_from_map_clears_directory_before_rewrite() {
+    fn write_dir_content_from_map_prunes_undeclared_files_on_rewrite() {
         let tmp = TempDir::new().unwrap();
         let base = tmp.path();
 
@@ -543,8 +550,8 @@ mod tests {
             )])),
         )]));
         first.write(&LocalFile, &DirectoryManagerFs).unwrap();
-        // Content that lands in the directory by other means (e.g. the agent process) is not
-        // tracked by the map, but is still cleared: the whole directory is wiped before rewrite.
+        // Files that land in the directory by other means (e.g. the managed agent) are pruned
+        // when the map is rewritten, even if they are not tracked by the map.
         std::fs::write(base.join("logging.d/untracked.txt"), "stray").unwrap();
 
         let second = FileSystem::new(BTreeMap::from([(
@@ -562,7 +569,7 @@ mod tests {
         );
         assert!(
             !base.join("logging.d/untracked.txt").exists(),
-            "untracked content must be gone: the directory is cleared before rewrite"
+            "untracked content must be pruned on rewrite"
         );
         assert_eq!(
             std::fs::read_to_string(base.join("logging.d/b.yaml")).unwrap(),
