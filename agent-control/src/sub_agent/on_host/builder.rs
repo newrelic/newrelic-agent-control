@@ -8,6 +8,7 @@ use crate::event::SubAgentEvent;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::pub_sub;
 use crate::opamp::client_builder::BuildOpAMPClient;
+use crate::opamp::client_builder::COMPRESSION_ENABLED;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::sub_agent_start_settings;
 use crate::package::manager::PackageManager;
@@ -90,6 +91,7 @@ where
                     DescriptionValueType::String(OS_ATTRIBUTE_VALUE.to_string()),
                 ),
             ]),
+            COMPRESSION_ENABLED,
         )
         .map_err(|e| SubAgentBuilderError::OpampClientBuilderError(e.to_string()))?;
         self.sub_agent_publisher
@@ -309,6 +311,7 @@ mod tests {
                     (OS_ATTRIBUTE_KEY.to_string(), OS_ATTRIBUTE_VALUE.into()),
                 ]),
             },
+            enable_compression: COMPRESSION_ENABLED,
         }
     }
 }

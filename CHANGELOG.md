@@ -22,6 +22,10 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ## v1.25.0 - 2026-09-18
 
+### bugfix
+- On-host: the OpAMP compression for the verify client is disabled so that the server can read the `execution.mode` attribute
+
+
 ### 🛡️ Security notices
 - Update rustls
 

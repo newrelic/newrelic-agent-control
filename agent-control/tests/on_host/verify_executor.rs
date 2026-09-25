@@ -9,6 +9,7 @@ use newrelic_agent_control::agent_control::version_updater::on_host::verify::{
 use opamp_client::opamp::proto::any_value::Value;
 
 use crate::common::base_paths::TempBasePaths;
+use crate::common::opamp_messages::check_dry_run_start_and_shutdown_messages;
 use crate::{
     common::runtime::tokio_runtime, on_host::tools::config::OnHostAgentControlConfigBuilder,
     on_host::tools::instance_id::get_instance_id,
@@ -78,6 +79,13 @@ fn test_verify_executor() {
         }
         _ => panic!("execution.mode attribute should be a string value with 'dry-run'"),
     }
+
+    // Verify that the execution.mode=dry-run attribute is carried by both a starting message
+    // and the shutdown (AgentDisconnect) message. This does not assume anything about message
+    // order or count, since the same instance ID can be shared by other OpAMP clients (e.g. the
+    // process being replaced during a self-update) that interleave their own messages.
+    check_dry_run_start_and_shutdown_messages(&opamp_server, &agent_control_instance_id)
+        .expect("expected dry-run starting and shutdown messages from the verify subprocess");
 }
 
 #[test]
