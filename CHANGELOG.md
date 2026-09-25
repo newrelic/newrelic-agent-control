@@ -20,6 +20,13 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ## Unreleased
 
+## v1.25.1 - 2026-09-25
+
+### ⛓️ Dependencies
+- Updated rust crate nr-auth to v0.6.0
+- Updated rust crate config to 0.15.26
+- Updated rust crate thiserror to 2.0.21
+
 ## v1.25.0 - 2026-09-18
 
 ### bugfix
