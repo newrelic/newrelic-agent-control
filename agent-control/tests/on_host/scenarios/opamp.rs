@@ -247,6 +247,67 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
     unsafe { env::remove_var("my_env_var") };
 }
 
+/// After Agent Control restarts, the OpAMP client is brand new (fresh in-memory sequence counter)
+/// but reconnects with the same persisted instance_uid, so the fake server (like a real one) sees a
+/// sequence-number discontinuity and asks for a full state report via `ReportFullState`.
+///
+/// This test assert that, even the OpAMP's state is stored in-memory (and lost after restart),
+/// the re-started Agent Control reports the status Applied when the full state is requested.
+#[test]
+fn onhost_opamp_agent_control_reconfirms_remote_config_status_after_restart() {
+    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
+
+    let dirs = TempBasePaths::default();
+
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .write(dirs.local_dir());
+
+    let agent_control =
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
+
+    let agent_control_instance_id = get_instance_id(&AgentID::AgentControl, dirs.base_paths());
+
+    opamp_server.set_config_response(agent_control_instance_id.clone(), "agents: {}\n");
+
+    retry(60, Duration::from_secs(1), || {
+        check_latest_remote_config_status_is_expected(
+            &opamp_server,
+            &agent_control_instance_id,
+            RemoteConfigStatuses::Applied as i32,
+        )
+    });
+    let reports_before_restart =
+        opamp_server.count_messages_matching(agent_control_instance_id.clone(), |m| {
+            m.remote_config_status
+                .as_ref()
+                .is_some_and(|rc| rc.status() == RemoteConfigStatuses::Applied)
+        });
+
+    // Restart: same base_paths (so the same persisted instance_uid and remote config store)
+    drop(agent_control);
+    let _restarted_agent_control =
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
+
+    // Give the restarted client time for the mismatched-sequence round trip (which should get
+    // ReportFullState back) plus the resend that should follow it.
+    retry(30, Duration::from_secs(1), || {
+        let reports_after_restart =
+            opamp_server.count_messages_matching(agent_control_instance_id.clone(), |m| {
+                m.remote_config_status
+                    .as_ref()
+                    .is_some_and(|rc| rc.status() == RemoteConfigStatuses::Applied)
+            });
+        if reports_after_restart > reports_before_restart {
+            Ok(())
+        } else {
+            Err(
+                "expected Agent Control to re-report Applied after the post-restart full-state request, but the remote config status report count did not increase"
+                    .into(),
+            )
+        }
+    });
+}
+
 /// The agent-control is configured with on agent with local configuration and a remote configuration was also set for the
 /// corresponding sub-agent. This test checks that the latest effective config reported corresponds to the remote.
 #[test]
