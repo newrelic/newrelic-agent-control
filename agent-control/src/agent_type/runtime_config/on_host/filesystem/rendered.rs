@@ -67,10 +67,7 @@ impl RenderedEntry {
                     // No explicit sync needed, FileWriter::write already calls sync_all().
                     write_file(file_ops, dir_manager, path, text)
                 }
-                FileContent::Copy(source) => {
-                    copy_file(file_ops, dir_manager, path, source)?;
-                    sync_file_to_disk(path)
-                }
+                FileContent::Copy(source) => copy_file(file_ops, dir_manager, path, source),
             },
             Self::Dir { children, .. } => {
                 ensure_dir(file_ops, dir_manager, path)?;
@@ -251,12 +248,9 @@ fn copy_file(
         .map_err(|err| FileSystemEntriesError(format!("clearing {path:?}: {err}")))?;
     file_ops
         .copy(source, path)
-        .map_err(|err| FileSystemEntriesError(format!("copying {source:?} to {path:?}: {err}")))
-}
-
-/// Flushes `path` to disk so it's durable before the next sibling is written. Opened with write
-/// access because `sync_all` on Windows needs `GENERIC_WRITE` for `FlushFileBuffers`.
-fn sync_file_to_disk(path: &Path) -> Result<(), FileSystemEntriesError> {
+        .map_err(|err| FileSystemEntriesError(format!("copying {source:?} to {path:?}: {err}")))?;
+    // Flushes `path` to disk so it's durable before the next sibling is written. Opened with write
+    // access because `sync_all` on Windows needs `GENERIC_WRITE` for `FlushFileBuffers`.
     let file = std::fs::OpenOptions::new()
         .write(true)
         .open(path)
