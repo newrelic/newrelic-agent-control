@@ -16,7 +16,7 @@ runs:
         # renovate: datasource=docker depName=newrelic/nri-redis-artifacts
         echo "REDIS_VERSION=1.15.3" >> "$GITHUB_ENV"
         # renovate: datasource=docker depName=newrelic/nri-nginx-artifacts
-        echo "NGINX_VERSION=3.8.3" >> "$GITHUB_ENV"
+        echo "NGINX_VERSION=3.9.0" >> "$GITHUB_ENV"
         # renovate: datasource=docker depName=newrelic/nri-apache-artifacts
         echo "APACHE_VERSION=1.18.0" >> "$GITHUB_ENV"
         # renovate: datasource=docker depName=newrelic/nri-memcached-artifacts
