@@ -14,7 +14,7 @@ runs:
         # renovate: datasource=docker depName=newrelic/nrdot-agent-artifacts
         echo "NRDOT_VERSION=2.5.0" >> "$GITHUB_ENV"
         # renovate: datasource=docker depName=newrelic/nri-redis-artifacts
-        echo "REDIS_VERSION=1.15.3" >> "$GITHUB_ENV"
+        echo "REDIS_VERSION=1.16.0" >> "$GITHUB_ENV"
         # renovate: datasource=docker depName=newrelic/nri-nginx-artifacts
         echo "NGINX_VERSION=3.8.3" >> "$GITHUB_ENV"
         # renovate: datasource=docker depName=newrelic/nri-apache-artifacts
