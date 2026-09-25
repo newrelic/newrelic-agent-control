@@ -36,6 +36,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 - Linux: `uninstall.sh` now uses `apt-get purge` instead of `apt-get remove`, preventing a dpkg state inconsistency that caused reinstallation to fail, the service could not start because the `systemd-env.conf` conffile was not recreated by the package manager.
 - Windows: the uninstall script now warns instead of silently succeeding when the install or runtime-data directory cannot be removed (e.g. Windows Explorer has it open), and preserves the script itself so it can be re-run once the lock is released.
 - On-host: filesystem entries under `filesystem:`/`shared_filesystem:` are now written to disk in alphabetical order and fsynced after each write, making the write order deterministic.
+- On-host: self-update no longer deletes the downloaded package's binary when replacing the running binary, fixing rollback and same-version reinstall after a self-update.
 - On-host: fixed a spurious `Error reading the log directory/files: No such file or directory` message printed to stderr the first time Agent Control's or a sub-agent's log directory is created.
 - On-host: executable output and lifecycle logs are no longer misleadingly tagged with the `start_agent` span for the entire lifetime of agent processes and supervisors, they carry the explicit fields instead.
 - On exit, the process-terminated log line (success or error) is no longer dropped from the log file: it used to be emitted after the file logger had already shut down, so it only ever reached `journalctl`/stderr.
