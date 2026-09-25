@@ -161,11 +161,9 @@ where
                     warn!("Failed getting remote config from the store: {}", e);
                 }
                 Ok(Some(rc)) => {
-                    if rc.state != build_and_start_config_state {
-                        report_state(build_and_start_config_state.clone(), rc.hash, opamp_client)?;
-                        self.sa_dynamic_config_store
-                            .update_state(build_and_start_config_state)?;
-                    }
+                    report_state(build_and_start_config_state.clone(), rc.hash, opamp_client)?;
+                    self.sa_dynamic_config_store
+                        .update_state(build_and_start_config_state)?;
                 }
                 Ok(None) => {
                     info!("OpAMP enabled but no previous remote configuration found");
