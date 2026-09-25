@@ -138,9 +138,10 @@ where
         agent_identity: AgentIdentity,
         start_settings: StartSettings,
     ) -> Result<(Self::Client, EventConsumer<OpAMPEvent>), OpAMPClientBuilderError> {
+        let agent_id = agent_identity.id.clone();
         let (not_started_client, consumer) = self.build(agent_identity, start_settings)?;
 
-        info!("OpAMP client started");
+        info!(%agent_id, "OpAMP client started");
         Ok((not_started_client.start()?, consumer))
     }
 }
