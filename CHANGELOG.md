@@ -20,6 +20,9 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ## Unreleased
 
+### bugfix
+- Agent Control now always re-reports its remote config status on startup, fixing a missed resend after restart when the server requests a full-state sync.
+
 ## v1.25.1 - 2026-09-25
 
 ### ⛓️ Dependencies
