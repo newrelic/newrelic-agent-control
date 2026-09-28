@@ -23,8 +23,13 @@ use tracing::info;
 
 pub mod config;
 
-/// Environment variable name used to pass the New Relic license key to the agents.
+/// onHost: Environment variable name used to pass the New Relic license key to the agents.
 pub const NR_LICENSE_ENV_VAR: &str = "NEW_RELIC_LICENSE_KEY";
+/// k8s: Environment variable name used in k8s to pass the New Relic license key to the agents.
+pub const K8S_NR_LICENSE_ENV_VAR: &str = "NR_LICENSE_KEY";
+/// Header name required by the New Relic OTLP ingest endpoint for authentication.
+/// See: <https://docs.newrelic.com/docs/more-integrations/open-source-telemetry-integrations/opentelemetry/best-practices/opentelemetry-best-practices-resources/#api-key>
+pub const NR_OTLP_API_KEY_HEADER: &str = "api-key";
 const OTLP_ENDPOINT_ENV_VAR: &str = "OTEL_EXPORTER_OTLP_ENDPOINT";
 
 /// Generates the Agent Control configuration for host environments.
