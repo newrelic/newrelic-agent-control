@@ -47,8 +47,9 @@ enum LinuxScenarios {
     /// when instructed via OpAMP, to the current compiled version (pushed to local registry).
     SelfUpdateLatestToCurrent(InstallationArgs),
     /// Self-updates from the current branch build to a published version, then to another, then
-    /// rolls back to the first one, verifying the rollback succeeds. Regression test for the OCI
-    /// package binary being deleted by self-update (also covers plain consecutive upgrades).
+    /// rolls back, verifying that it succeeds. See
+    /// `returning_to_a_self_updated_version_after_a_cli_reinstall_reuses_the_retained_package`
+    /// for the regression test covering the OCI package retention fix specifically.
     SelfUpdateRollback(InstallationArgs),
     /// Installs Agent Control with the infra-agent and nri-redis, spins up a local Redis instance, and verifies that
     /// RedisSample data lands in NRDB.
@@ -90,8 +91,9 @@ enum WindowsScenarios {
     /// when instructed via OpAMP, to the current compiled version (pushed to local registry).
     SelfUpdateLatestToCurrent(InstallationArgs),
     /// Self-updates from the current branch build to a published version, then to another, then
-    /// rolls back to the first one, verifying the rollback succeeds. Regression test for the OCI
-    /// package binary being deleted by self-update (also covers plain consecutive upgrades).
+    /// rolls back, verifying that it succeeds. See
+    /// `returning_to_a_self_updated_version_after_a_cli_reinstall_reuses_the_retained_package`
+    /// for the regression test covering the OCI package retention fix specifically.
     SelfUpdateRollback(InstallationArgs),
     /// Simple installation of Agent Control on Windows with update to wrong and correct config
     /// to test service stop and start.

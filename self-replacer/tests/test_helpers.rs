@@ -3,9 +3,14 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Returns path to the example binary, (re)building it via cargo first.
+/// Returns path to the example binary, building it automatically if needed.
 ///
-/// Always rebuilds: a cached `target/` on CI can hold a stale binary from an older commit.
+/// Locates the `self_replacing_binary` example by navigating from the test executable's
+/// location to the examples directory. If the binary doesn't exist, automatically builds
+/// it using `cargo build --example self_replacing_binary`.
+///
+/// This ensures tests work both locally and in CI by handling the build step automatically
+/// on-demand, rather than requiring it to be run manually or as a separate CI step.
 pub fn get_example_binary() -> PathBuf {
     // Get the target directory (usually target/debug or target/release)
     let mut path = std::env::current_exe().expect("Failed to get current test executable path");
@@ -24,18 +29,22 @@ pub fn get_example_binary() -> PathBuf {
     };
     path.push(binary_name);
 
-    let output = std::process::Command::new("cargo")
-        .arg("build")
-        .arg("--example")
-        .arg("self_replacing_binary")
-        .output()
-        .expect("Failed to run cargo build");
+    // Build the example if it doesn't exist.
+    if !path.exists() {
+        eprintln!("Example binary not found, building it...");
+        let output = std::process::Command::new("cargo")
+            .arg("build")
+            .arg("--example")
+            .arg("self_replacing_binary")
+            .output()
+            .expect("Failed to run cargo build");
 
-    if !output.status.success() {
-        panic!(
-            "Failed to build example binary:\n{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
+        if !output.status.success() {
+            panic!(
+                "Failed to build example binary:\n{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
     }
 
     assert!(

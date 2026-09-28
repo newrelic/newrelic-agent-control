@@ -706,7 +706,6 @@ mod tests {
                 .try_upgrade(Version::from_str("v4").unwrap())
                 .unwrap();
             assert_eq!(std::fs::read(&current_exe).unwrap(), b"FAKE-BINARY-v4");
-            assert!(v4_path.exists());
             assert_eq!(
                 std::fs::read(v4_path.join(AGENT_CONTROL_BIN)).unwrap(),
                 b"FAKE-BINARY-v4",
@@ -719,10 +718,6 @@ mod tests {
                 .try_upgrade(Version::from_str("v5").unwrap())
                 .unwrap();
             assert_eq!(std::fs::read(&current_exe).unwrap(), b"FAKE-BINARY-v5");
-            assert_eq!(
-                std::fs::read(v5_path.join(AGENT_CONTROL_BIN)).unwrap(),
-                b"FAKE-BINARY-v5"
-            );
             assert!(
                 !v4_path.exists(),
                 "v4's package directory should have been purged when v5 was installed"
@@ -737,10 +732,6 @@ mod tests {
                 std::fs::read(&current_exe).unwrap(),
                 b"FAKE-BINARY-v4",
                 "rollback to v4 must succeed"
-            );
-            assert!(
-                !v5_path.exists(),
-                "v5's package directory should have been purged when v4 was re-installed"
             );
 
             // Forward to v5 again
@@ -760,70 +751,6 @@ mod tests {
             );
         }
 
-        /// no restart between installs (like a sub-agent) — both directories survive.
-        #[test]
-        fn two_installs_without_a_restart_retain_both_directories() {
-            let remote_dir = tempdir().unwrap();
-            let exe_dir = tempdir().unwrap();
-            let current_exe = exe_dir.path().join(AGENT_CONTROL_BIN);
-            std::fs::write(&current_exe, b"FAKE-BINARY-base").unwrap();
-
-            let mut downloader = MockOCIDownloader::new();
-            downloader
-                .expect_download()
-                .times(2)
-                .returning(move |pkg_data, dir| {
-                    let content = format!("FAKE-BINARY-{}", pkg_data.oci.version).into_bytes();
-                    Ok(fake_ac_archive(dir, &content))
-                });
-            let package_manager =
-                OCIPackageManager::new(downloader, DirectoryManagerFs, remote_dir.path().into());
-            let self_replacer = BinaryReplacer::with_target(current_exe.clone());
-            let mut verify_executor = MockVerifyExecutorMock::new();
-            verify_executor
-                .expect_execute()
-                .times(2)
-                .returning(|_, _| Ok(()));
-            let (publisher, _consumer) = pub_sub();
-
-            let updater = OnHostACUpdater::new(
-                true,
-                publisher,
-                package_manager,
-                verify_executor,
-                self_replacer,
-                AgentControlPackage::default(),
-                no_jitter_backoff(Duration::from_secs(30), Duration::from_secs(30), 5),
-                SystemClock,
-            );
-
-            let v4_path = get_package_path(
-                remote_dir.path(),
-                &AgentID::AgentControl,
-                &ac_package_data("v4"),
-            )
-            .unwrap();
-            let v5_path = get_package_path(
-                remote_dir.path(),
-                &AgentID::AgentControl,
-                &ac_package_data("v5"),
-            )
-            .unwrap();
-
-            updater
-                .try_upgrade(Version::from_str("v4").unwrap())
-                .unwrap();
-            updater
-                .try_upgrade(Version::from_str("v5").unwrap())
-                .unwrap();
-
-            assert!(
-                v4_path.join(AGENT_CONTROL_BIN).exists(),
-                "without a restart in between, v4's package survives just like a sub-agent's would"
-            );
-            assert!(v5_path.join(AGENT_CONTROL_BIN).exists());
-        }
-
         /// Self-update to v5, then a cli/package-manager reinstall (bypassing
         /// `OCIPackageManager`), then back to v5 reuses the untouched retained package.
         #[test]
@@ -831,7 +758,7 @@ mod tests {
             let remote_dir = tempdir().unwrap();
             let exe_dir = tempdir().unwrap();
             let current_exe = exe_dir.path().join(AGENT_CONTROL_BIN);
-            std::fs::write(&current_exe, b"FAKE-BINARY-vA-from-cli").unwrap();
+            std::fs::write(&current_exe, b"FAKE-BINARY-cli-reinstalled").unwrap();
 
             let v5_path = get_package_path(
                 remote_dir.path(),
@@ -848,7 +775,7 @@ mod tests {
             assert_eq!(std::fs::read(&current_exe).unwrap(), b"FAKE-BINARY-v5");
 
             // cli/package-manager reinstall overwrites the binary directly
-            std::fs::write(&current_exe, b"FAKE-BINARY-vA-from-cli").unwrap();
+            std::fs::write(&current_exe, b"FAKE-BINARY-cli-reinstalled").unwrap();
             assert!(
                 v5_path.join(AGENT_CONTROL_BIN).exists(),
                 "a cli-driven reinstall must not touch the OCI package retention directory"

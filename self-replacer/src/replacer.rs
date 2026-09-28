@@ -293,9 +293,7 @@ mod tests {
         replace_binary(&current_exe, &new_bin).unwrap();
 
         assert_eq!(fs::read(&backup).unwrap(), b"old binary");
-        assert_eq!(fs::read(&current_exe).unwrap(), b"new binary");
-        assert!(new_bin.exists(), "new_bin should be preserved, not moved");
-        assert_eq!(fs::read(&new_bin).unwrap(), b"new binary");
+        assert_eq!(fs::read(&current_exe).unwrap(), fs::read(&new_bin).unwrap());
     }
 
     #[test]

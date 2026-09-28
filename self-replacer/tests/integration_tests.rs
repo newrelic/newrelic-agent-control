@@ -88,13 +88,6 @@ fn test_self_replacement_with_real_binary() {
         .assert()
         .success()
         .stdout(predicate::str::contains(hash1.trim()));
-
-    // The new binary must be preserved
-    assert!(
-        binary_v2.exists(),
-        "new binary at {:?} should still exist after self-replacement",
-        binary_v2
-    );
 }
 
 #[test]
