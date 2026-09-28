@@ -18,14 +18,18 @@ pub trait FileCopier {
 
 impl FileCopier for LocalFile {
     /// Copies `from` to `to` byte-for-byte, leaving the destination with the permissions a plain
-    /// copy yields (the source's mode on Unix; the default ACL on Windows).
+    /// copy yields (the source's mode on Unix; the default ACL on Windows), then fsyncs the
+    /// destination so the data is durable before the caller proceeds.
     #[instrument(skip_all, fields(from = %from.display(), to = %to.display()))]
     fn copy(&self, from: &Path, to: &Path) -> io::Result<()> {
         validate_path(to)?;
 
         fs::copy(from, to)?;
 
-        Ok(())
+        // Opened with write access because sync_all on Windows needs
+        // GENERIC_WRITE for FlushFileBuffers.
+        let file = fs::OpenOptions::new().write(true).open(to)?;
+        file.sync_all()
     }
 }
 
