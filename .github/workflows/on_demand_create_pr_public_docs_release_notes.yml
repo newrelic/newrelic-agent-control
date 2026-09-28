@@ -23,8 +23,8 @@ jobs:
   release-notes:
     uses: ./.github/workflows/shared_create_pr_public_docs_release_notes.yml
     with:
-      version: ${{ github.event.inputs.version }}
-      remove_existing_branch: ${{ github.event.inputs.remove_existing_branch }}
+      version: ${{ inputs.version }}
+      remove_existing_branch: ${{ inputs.remove_existing_branch }}
     secrets:
-      app_id: ${{ secrets.AGENT_CONTROL_APP_ID }}
-      app_private_key: ${{ secrets.AGENT_CONTROL_APP_PKEY }}
+      APP_ID: ${{ secrets.AGENT_CONTROL_APP_ID }}
+      APP_PRIVATE_KEY: ${{ secrets.AGENT_CONTROL_APP_PKEY }}
