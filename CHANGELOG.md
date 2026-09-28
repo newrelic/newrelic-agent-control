@@ -37,7 +37,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ### bugfix
 - On-host: the OpAMP compression for the verify client is disabled so that the server can read the `execution.mode` attribute
-
+- Windows: `install.ps1` now detects and removes a standalone New Relic Infrastructure Agent installation to avoid duplicate host reporting; it must be reconfigured as an Agent Control managed sub-agent afterwards if still needed.
 
 ### 🛡️ Security notices
 - Update rustls
