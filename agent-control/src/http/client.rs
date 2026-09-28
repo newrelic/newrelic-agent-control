@@ -227,10 +227,13 @@ impl From<HttpResponseError> for OauthHttpClientError {
 #[async_trait]
 impl opentelemetry_http::HttpClient for HttpClient {
     async fn send_bytes(&self, request: Request<Bytes>) -> Result<Response<Bytes>, HttpError> {
+        let url = request.uri().to_string();
         let (parts, body) = request.into_parts();
         let req_vec = Request::from_parts(parts, Vec::from(body));
 
-        let response_vec = self.send(req_vec)?;
+        let response_vec = self.send(req_vec).inspect_err(|err| {
+            warn!(url, "Self-instrumentation export failed: {err}");
+        })?;
 
         let (parts, body) = response_vec.into_parts();
         Ok(Response::from_parts(parts, Bytes::from(body)))
