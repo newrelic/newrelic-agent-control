@@ -24,7 +24,7 @@ repository = "https://github.com/newrelic/newrelic-agent-control"
 serde_json = "1.0.151"
 serde = "1.0.229"
 tempfile = "3.27.0"
-thiserror = "2.0.20"
+thiserror = "2.0.21"
 tracing = "0.1.44"
 regex = "1.13.1"
 mockall = "0.15.0"
@@ -49,8 +49,8 @@ rstest = "0.27.0"
 serial_test = "4.0.1"
 windows = "0.62.2"
 aws-lc-rs = "1.18.1"
-opamp-client = { git = "https://github.com/newrelic/newrelic-opamp-rs.git", tag = "0.1.0" }
-oci-client = { version = "0.17.0", default-features = false }
+opamp-client = { git = "https://github.com/newrelic/newrelic-opamp-rs.git", tag = "0.2.0" }
+oci-client = { version = "0.18.0", default-features = false }
 tokio = "1.53.1"
 base64 = "0.23.1"
 actix-web = { version = "4.15.0", default-features = false }

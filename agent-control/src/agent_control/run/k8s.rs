@@ -32,8 +32,8 @@ use crate::event::channel::{EventPublisher, pub_sub};
 use crate::event::{AgentControlEvent, AgentControlInternalEvent};
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::capabilities::CustomCapability;
-use crate::opamp::client_builder::BuildOpAMPClient;
 use crate::opamp::client_builder::OpAMPClientBuilder;
+use crate::opamp::client_builder::{BuildOpAMPClient, COMPRESSION_ENABLED};
 use crate::opamp::effective_config::loader::EffectiveConfigLoaderBuilder;
 use crate::opamp::http::builder::OpAMPHttpClientBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
@@ -144,6 +144,7 @@ impl AgentControlRunner {
                     &agent_identity,
                     agent_description,
                     &custom_capabilities,
+                    COMPRESSION_ENABLED,
                 )?;
                 builder
                     .build_and_start(agent_identity, opamp_start_settings)

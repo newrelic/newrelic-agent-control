@@ -20,10 +20,25 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ## Unreleased
 
+### bugfix
+- On-host: fixed integration restarts caused by redundant filesystem sync and full directory recreation when writing OHI config files to the shared filesystem.
+
 ### enhancement
 - Linux and Windows: Agent Control and its sub-agents now report OS version (`os.version`, parsed from `/etc/os-release` on Linux or the registry's `CurrentBuildNumber` on Windows) as an OpAMP attribute, alongside the existing `os.type`.
+- Self instrumentation now gets the injected license key as header if none is set in all systems.
+
+## v1.25.1 - 2026-09-25
+
+### ⛓️ Dependencies
+- Updated rust crate nr-auth to v0.6.0
+- Updated rust crate config to 0.15.26
+- Updated rust crate thiserror to 2.0.21
 
 ## v1.25.0 - 2026-09-18
+
+### bugfix
+- On-host: the OpAMP compression for the verify client is disabled so that the server can read the `execution.mode` attribute
+- Windows: `install.ps1` now detects and removes a standalone New Relic Infrastructure Agent installation to avoid duplicate host reporting; it must be reconfigured as an Agent Control managed sub-agent afterwards if still needed.
 
 ### 🛡️ Security notices
 - Update rustls

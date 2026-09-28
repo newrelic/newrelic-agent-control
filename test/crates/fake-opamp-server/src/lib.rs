@@ -47,6 +47,7 @@ struct AgentState {
     pub(crate) remote_config: Option<RemoteConfig>,
     pub(crate) effective_config: EffectiveConfig,
     pub(crate) config_status: RemoteConfigStatus,
+    pub(crate) messages: Vec<AgentToServer>,
 }
 
 impl ServerState {
@@ -301,6 +302,16 @@ impl FakeServer {
             .map(|s| s.config_status.clone())
     }
 
+    /// Returns every `AgentToServer` message received from the given agent, in receipt order.
+    pub fn get_messages(&self, identifier: impl Into<InstanceUid>) -> Vec<AgentToServer> {
+        let state = self.state.lock().unwrap();
+        state
+            .agent_state
+            .get(&identifier.into())
+            .map(|s| s.messages.clone())
+            .unwrap_or_default()
+    }
+
     /// Returns the instance IDs of all connected agents that have an identifying attribute
     /// matching the given key–value pair. Matches string-typed attribute values only.
     pub fn find_agents_with_identifying_attr(&self, key: &str, value: &str) -> Vec<InstanceID> {
@@ -367,6 +378,8 @@ async fn opamp_handler(state: web::Data<Arc<Mutex<ServerState>>>, req: web::Byte
         .agent_state
         .entry(identifier.clone())
         .or_default();
+
+    agent_state.messages.push(message.clone());
 
     let mut flags = ServerToAgentFlags::Unspecified as u64;
     if message.sequence_num == (agent_state.sequence_number + 1) {

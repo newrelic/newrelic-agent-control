@@ -276,13 +276,37 @@ impl Command {
 
         let config_folder_name = base_paths.local_dir.display().to_string();
 
+        // On-host deployments set NEW_RELIC_LICENSE_KEY; K8s deployments set NR_LICENSE_KEY.
+        let api_key = bootstrap_config
+            .fleet_control
+            .as_ref()
+            .and_then(|fc| {
+                fc.headers
+                    .get(crate::cli::on_host::config_gen::NR_OTLP_API_KEY_HEADER)
+            })
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string())
+            .or_else(|| std::env::var(crate::cli::on_host::config_gen::NR_LICENSE_ENV_VAR).ok())
+            .or_else(|| {
+                std::env::var(crate::cli::on_host::config_gen::K8S_NR_LICENSE_ENV_VAR).ok()
+            });
+        let default_otel_headers: std::collections::HashMap<String, String> = api_key
+            .map(|key| {
+                [(
+                    crate::cli::on_host::config_gen::NR_OTLP_API_KEY_HEADER.to_string(),
+                    key,
+                )]
+                .into()
+            })
+            .unwrap_or_default();
         let tracing_config = TracingConfig::from_logging_path(base_paths.log_dir.clone())
             .with_logging_config(bootstrap_config.log.clone())
             .with_instrumentation_config(
                 bootstrap_config
                     .self_instrumentation
                     .clone()
-                    .with_proxy_config(bootstrap_config.proxy.clone()),
+                    .with_proxy_config(bootstrap_config.proxy.clone())
+                    .with_headers_if_missing(default_otel_headers),
             );
         let tracer = try_init_tracing(tracing_config)
             .map_err(|e| format!("Error on Agent Control tracing initialization: {e}"))?;

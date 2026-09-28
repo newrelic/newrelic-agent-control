@@ -1,8 +1,4 @@
-use std::sync::Arc;
-
-use opamp_client::StartedClient;
-use tracing::info;
-
+use crate::opamp::client_builder::COMPRESSION_DISABLED;
 use crate::{
     agent_control::run::{
         RunningMode, build_ac_opamp_start_settings,
@@ -15,6 +11,9 @@ use crate::{
     opamp::instance_id::{getter::InstanceIDWithIdentifiersGetter, storer::Storer},
     sub_agent::identity::AgentIdentity,
 };
+use opamp_client::StartedClient;
+use std::sync::Arc;
+use tracing::info;
 
 pub fn check_connectivity(
     verified_config: VerifiedConfig,
@@ -58,6 +57,7 @@ pub fn check_connectivity(
         &agent_identity,
         agent_description,
         &[],
+        COMPRESSION_DISABLED,
     )?;
     let (client, _consumer) =
         start_ac_opamp_client(&opamp_client_builder, agent_identity, start_settings)?;

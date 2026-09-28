@@ -30,8 +30,8 @@ use crate::on_host::file_store::FileStore;
 use crate::opamp::attributes::insert_os_version_attribute;
 use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
 use crate::opamp::callbacks::AgentCallbacks;
-use crate::opamp::client_builder::BuildOpAMPClient;
 use crate::opamp::client_builder::OpAMPClientBuilder;
+use crate::opamp::client_builder::{BuildOpAMPClient, COMPRESSION_ENABLED};
 use crate::opamp::effective_config::loader::{EffectiveConfigLoader, EffectiveConfigLoaderBuilder};
 use crate::opamp::http::builder::OpAMPHttpClientBuilder;
 use crate::opamp::http::client::HttpOpAMPClient;
@@ -188,6 +188,7 @@ impl AgentControlRunner {
                     &agent_identity,
                     agent_description,
                     &self.dynamic_custom_capabilities,
+                    COMPRESSION_ENABLED,
                 )?;
                 start_ac_opamp_client(builder, agent_identity, opamp_start_settings)
             })

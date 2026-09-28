@@ -1,0 +1,30 @@
+name: ⏯️ On-Demand create PR for public docs release notes
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: >-
+          Released version to publish notes for, without a `v` prefix
+          (e.g. `1.19.0`). Must match an existing git tag and the version
+          in the CHANGELOG.md heading (`## v<version> - <date>`).
+        required: true
+        type: string
+      remove_existing_branch:
+        description: Whether to remove the existing branch if it already exists.
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  release-notes:
+    uses: ./.github/workflows/shared_create_pr_public_docs_release_notes.yml
+    with:
+      version: ${{ github.event.inputs.version }}
+      remove_existing_branch: ${{ github.event.inputs.remove_existing_branch }}
+    secrets:
+      app_id: ${{ secrets.AGENT_CONTROL_APP_ID }}
+      app_private_key: ${{ secrets.AGENT_CONTROL_APP_PKEY }}

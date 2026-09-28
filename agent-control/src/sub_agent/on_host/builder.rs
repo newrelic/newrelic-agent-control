@@ -9,6 +9,7 @@ use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::pub_sub;
 use crate::opamp::attributes::insert_os_version_attribute;
 use crate::opamp::client_builder::BuildOpAMPClient;
+use crate::opamp::client_builder::COMPRESSION_ENABLED;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::sub_agent_start_settings;
 use crate::package::manager::PackageManager;
@@ -94,6 +95,7 @@ where
                 agent_identity.agent_type_id.version().to_string().into(),
             )]),
             non_identifying_attributes,
+            COMPRESSION_ENABLED,
         )
         .map_err(|e| SubAgentBuilderError::OpampClientBuilderError(e.to_string()))?;
         self.sub_agent_publisher
@@ -318,6 +320,7 @@ mod tests {
                 identifying_attributes,
                 non_identifying_attributes,
             },
+            enable_compression: COMPRESSION_ENABLED,
         }
     }
 }

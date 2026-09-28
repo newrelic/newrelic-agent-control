@@ -64,6 +64,17 @@ inputs:
 runs:
   using: "composite"
   steps:
+    # actions/cache with a `post` step (i.e. save-cache: true below) re-evaluates its `key` input's
+    # `${{ }}` expressions a second time when the post step runs at job cleanup, not just once at
+    # step execution. hashFiles('**/Cargo.lock') walks the whole workspace, and by cleanup time that
+    # walk is prone to flaking (races with build output, runner-side hashFiles flakiness) with
+    # "hashFiles(...) failed. Fail to hash files under directory". Hashing once upfront into a step
+    # output sidesteps that second, late evaluation, since the output is a plain stored string.
+    - name: Compute Cargo.lock hash
+      id: lockfile-hash
+      shell: bash
+      run: echo "hash=${{ hashFiles('**/Cargo.lock') }}" >> "$GITHUB_OUTPUT"
+
     - name: Restore rust cache (nearest match)
       if: ${{ inputs.save-cache == 'false' && inputs.restore-strategy == 'nearest' }}
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
@@ -74,9 +85,9 @@ runs:
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
           target/
-        key: ${{ runner.os }}-${{ inputs.identifier }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-${{ inputs.identifier }}-cargo-${{ steps.lockfile-hash.outputs.hash }}
         restore-keys: ${{ runner.os }}-${{ inputs.identifier }}-cargo-
-    
+
     - name: Restore rust cache (exact match)
       if: ${{ inputs.save-cache == 'false' && inputs.restore-strategy == 'exact' }}
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
@@ -87,8 +98,8 @@ runs:
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
           target/
-        key: ${{ runner.os }}-${{ inputs.identifier }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-    
+        key: ${{ runner.os }}-${{ inputs.identifier }}-cargo-${{ steps.lockfile-hash.outputs.hash }}
+
     - name: Restore and Save rust cache (nearest match)
       if: ${{ inputs.save-cache == 'true' && inputs.restore-strategy == 'nearest' }}
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
@@ -99,7 +110,7 @@ runs:
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
           target/
-        key: ${{ runner.os }}-${{ inputs.identifier }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-${{ inputs.identifier }}-cargo-${{ steps.lockfile-hash.outputs.hash }}
         restore-keys: ${{ runner.os }}-${{ inputs.identifier }}-cargo-
 
     - name: Restore and Save rust cache (exact match)
@@ -112,4 +123,4 @@ runs:
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
           target/
-        key: ${{ runner.os }}-${{ inputs.identifier }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-${{ inputs.identifier }}-cargo-${{ steps.lockfile-hash.outputs.hash }}

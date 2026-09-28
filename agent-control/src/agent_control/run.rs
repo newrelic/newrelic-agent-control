@@ -264,7 +264,6 @@ pub fn setup_config_repository_and_store<D: DataStore + Send + Sync + 'static>(
     let store = Arc::new(AgentControlConfigStore::new(repository.clone()));
     (repository, store)
 }
-
 /// Builds the OpAMP [StartSettings] for Agent Control.
 /// `dynamic_custom_capabilities` are additional custom capabilities computed by the caller
 /// (e.g. from startup probes, or environment-specific config), appended to the default custom capabilities.
@@ -273,6 +272,7 @@ pub fn build_ac_opamp_start_settings(
     agent_identity: &AgentIdentity,
     agent_description: AgentDescription,
     dynamic_custom_capabilities: &[CustomCapability],
+    enable_compression: bool,
 ) -> Result<StartSettings, RunError> {
     let instance_id = instance_id_getter
         .get(&agent_identity.id)
@@ -286,5 +286,6 @@ pub fn build_ac_opamp_start_settings(
         capabilities: default_capabilities(),
         custom_capabilities: Some(custom_capabilities.into()),
         agent_description,
+        enable_compression,
     })
 }

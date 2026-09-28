@@ -1329,7 +1329,7 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 
-* ISC
+* MIT
 
 ## jsonpath-rust <https://crates.io/crates/jsonpath-rust>
 
