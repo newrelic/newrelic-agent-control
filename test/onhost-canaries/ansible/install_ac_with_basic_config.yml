@@ -67,8 +67,6 @@
           self_instrumentation:
             opentelemetry:
               endpoint: "{{ otlp_endpoint }}"
-              headers:
-                api-key: "{{ nr_license_key }}"
               logs:
                 enabled: true
               custom_attributes:
@@ -191,8 +189,6 @@
           self_instrumentation:
             opentelemetry:
               endpoint: "{{ otlp_endpoint }}"
-              headers:
-                api-key: "{{ nr_license_key }}"
               logs:
                 enabled: true
               custom_attributes:

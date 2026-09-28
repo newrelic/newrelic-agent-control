@@ -5,10 +5,10 @@ use httpmock::MockServer;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
 };
+use newrelic_agent_control::cli::on_host::config_gen::{NR_LICENSE_ENV_VAR, NR_OTLP_API_KEY_HEADER};
 use newrelic_agent_control::on_host::file_store::build_config_name;
 use tempfile::TempDir;
 
-const API_KEY_HEADER: &str = "api-key";
 const API_KEY_VALUE: &str = "test-api-key";
 
 #[test]
@@ -19,13 +19,13 @@ fn self_instrumentation_otel_exports_logs_and_metrics_as_root() {
     let logs_mock = server.mock(|when, then| {
         when.method(POST)
             .path("/v1/logs")
-            .header(API_KEY_HEADER, API_KEY_VALUE);
+            .header(NR_OTLP_API_KEY_HEADER, API_KEY_VALUE);
         then.status(200);
     });
     let metrics_mock = server.mock(|when, then| {
         when.method(POST)
             .path("/v1/metrics")
-            .header(API_KEY_HEADER, API_KEY_VALUE);
+            .header(NR_OTLP_API_KEY_HEADER, API_KEY_VALUE);
         then.status(200);
     });
 
@@ -43,8 +43,6 @@ uptime_report:
 self_instrumentation:
   opentelemetry:
     endpoint: {endpoint}
-    headers:
-      {API_KEY_HEADER}: {API_KEY_VALUE}
     metrics:
       enabled: true
       interval: 200ms
@@ -65,6 +63,7 @@ self_instrumentation:
 
     // The binary runs until a timeout kills it.
     let mut cmd = cmd_with_config_file(dir.path());
+    cmd.env(NR_LICENSE_ENV_VAR, API_KEY_VALUE);
     let output = cmd.output().expect("running newrelic-agent-control binary");
 
     let ac_stdout = String::from_utf8_lossy(&output.stdout);
