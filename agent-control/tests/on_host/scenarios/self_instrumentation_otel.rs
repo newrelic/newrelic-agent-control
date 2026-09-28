@@ -5,7 +5,9 @@ use httpmock::MockServer;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
 };
-use newrelic_agent_control::cli::on_host::config_gen::{NR_LICENSE_ENV_VAR, NR_OTLP_API_KEY_HEADER};
+use newrelic_agent_control::cli::on_host::config_gen::{
+    NR_LICENSE_ENV_VAR, NR_OTLP_API_KEY_HEADER,
+};
 use newrelic_agent_control::on_host::file_store::build_config_name;
 use tempfile::TempDir;
 
