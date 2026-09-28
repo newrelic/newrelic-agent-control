@@ -102,6 +102,13 @@ pub const OS_ATTRIBUTE_VALUE: &str = "windows";
 /// like "26100" on Windows). Linux and Windows only today.
 pub const OS_VERSION_ATTRIBUTE_KEY: &str = "os.version";
 
+/// OpAMP attribute key for the OS distro id (e.g. "debian", "ubuntu" on
+/// Linux). Disambiguates `os.version` values that collide across distros
+/// (Debian 12 and openSUSE Leap 12 both report version "12"). Linux only:
+/// `os.type` plus `os.version`'s build number already unambiguously
+/// identify a Windows release, so there's no equivalent need there.
+pub const OS_NAME_ATTRIBUTE_KEY: &str = "os.name";
+
 // Paths
 cfg_if::cfg_if! {
     if #[cfg(target_os = "macos")] {

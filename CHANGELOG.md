@@ -24,7 +24,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 - On-host: fixed integration restarts caused by redundant filesystem sync and full directory recreation when writing OHI config files to the shared filesystem.
 
 ### enhancement
-- Linux and Windows: Agent Control and its sub-agents now report OS version (`os.version`, parsed from `/etc/os-release` on Linux or the registry's `CurrentBuildNumber` on Windows) as an OpAMP attribute, alongside the existing `os.type`.
+- Linux and Windows: Agent Control and its sub-agents now report OS version (`os.version`, parsed from `/etc/os-release` on Linux or the registry's `CurrentBuildNumber` on Windows) as an OpAMP attribute, alongside the existing `os.type`. Linux also reports the distro id (`os.name`, e.g. "debian", "ubuntu") so that `os.version` values that collide across distros (e.g. Debian 12 and openSUSE Leap 12 both report "12") can be told apart.
 - Self instrumentation now gets the injected license key as header if none is set in all systems.
 
 ## v1.25.1 - 2026-09-25

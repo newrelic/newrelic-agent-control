@@ -3,6 +3,8 @@ pub mod detector;
 /// hostname retriever
 pub mod hostname;
 mod machine_identifier;
+/// cross-platform OS distro-id detection
+pub mod os_name;
 /// os-release parser (Linux)
 mod os_release;
 /// cross-platform OS version detection

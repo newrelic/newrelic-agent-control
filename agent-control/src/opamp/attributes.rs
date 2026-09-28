@@ -7,7 +7,7 @@ use opamp_client::operation::settings::{AgentDescription, DescriptionValueType};
 use opamp_client::{ClientError, StartedClient};
 use tracing::error;
 
-use crate::agent_control::defaults::OS_VERSION_ATTRIBUTE_KEY;
+use crate::agent_control::defaults::{OS_NAME_ATTRIBUTE_KEY, OS_VERSION_ATTRIBUTE_KEY};
 use crate::event::channel::EventPublisher;
 
 /// Adds the `os.version` non-identifying attribute when it's available.
@@ -18,6 +18,21 @@ use crate::event::channel::EventPublisher;
 pub fn insert_os_version_attribute(attributes: &mut HashMap<String, DescriptionValueType>) {
     if let Some(version_id) = resource_detection::system::os_version::detect_os_version() {
         attributes.insert(OS_VERSION_ATTRIBUTE_KEY.to_string(), version_id.into());
+    }
+}
+
+/// Adds the `os.name` non-identifying attribute when it's available.
+///
+/// Disambiguates `os.version` values that collide across Linux distros (e.g.
+/// Debian 12 and openSUSE Leap 12 both report version "12"): this carries
+/// the distro's short id (e.g. "debian", "ubuntu") from `/etc/os-release`'s
+/// `ID` field, not its marketing product string.
+///
+/// Best-effort, Linux only today: on other targets, or if `/etc/os-release`
+/// has no `ID` line, this leaves `attributes` untouched.
+pub fn insert_os_name_attribute(attributes: &mut HashMap<String, DescriptionValueType>) {
+    if let Some(os_id) = resource_detection::system::os_name::detect_os_name() {
+        attributes.insert(OS_NAME_ATTRIBUTE_KEY.to_string(), os_id.into());
     }
 }
 
