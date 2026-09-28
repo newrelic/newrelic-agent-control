@@ -63,10 +63,7 @@ impl RenderedEntry {
     ) -> Result<(), FileSystemEntriesError> {
         match self {
             Self::File { content, .. } => match content {
-                FileContent::Text(text) => {
-                    // No explicit sync needed, FileWriter::write already calls sync_all().
-                    write_file(file_ops, dir_manager, path, text)
-                }
+                FileContent::Text(text) => write_file(file_ops, dir_manager, path, text),
                 FileContent::Copy(source) => copy_file(file_ops, dir_manager, path, source),
             },
             Self::Dir { children, .. } => {
@@ -248,15 +245,7 @@ fn copy_file(
         .map_err(|err| FileSystemEntriesError(format!("clearing {path:?}: {err}")))?;
     file_ops
         .copy(source, path)
-        .map_err(|err| FileSystemEntriesError(format!("copying {source:?} to {path:?}: {err}")))?;
-    // Flushes `path` to disk so it's durable before the next sibling is written. Opened with write
-    // access because `sync_all` on Windows needs `GENERIC_WRITE` for `FlushFileBuffers`.
-    let file = std::fs::OpenOptions::new()
-        .write(true)
-        .open(path)
-        .map_err(|err| FileSystemEntriesError(format!("opening {path:?} for sync: {err}")))?;
-    file.sync_all()
-        .map_err(|err| FileSystemEntriesError(format!("syncing {path:?}: {err}")))
+        .map_err(|err| FileSystemEntriesError(format!("copying {source:?} to {path:?}: {err}")))
 }
 
 /// Removes whatever currently occupies `path` if it exists and its on-disk shape (directory vs.
