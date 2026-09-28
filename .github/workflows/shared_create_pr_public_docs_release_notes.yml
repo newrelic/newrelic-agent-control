@@ -74,10 +74,11 @@ jobs:
   
       - name: Generate public docs release notes
         id: generate
-        run: |
-          git show "refs/tags/${{ inputs.version }}:CHANGELOG.md" > "${RUNNER_TEMP}/CHANGELOG.md"
-          release_notes=$(./tools/generate_docs_release_notes/run.sh "${RUNNER_TEMP}/CHANGELOG.md" "${{ inputs.version }}")
-          echo "release_notes=${release_notes}" >> "$GITHUB_OUTPUT"
+        uses: newrelic/release-toolkit/release-notes-mdx@feat/release-notes-to-mdx
+        with:
+          subject: "Agent Control"
+          version: ${{ inputs.version }}
+          repo: ${{ github.repository }}
 
       # Commits are created via the GraphQL `createCommitOnBranch` mutation so GitHub signs them automatically.
       - name: Commit release notes to docs-website branch (signed via API)
@@ -94,7 +95,7 @@ jobs:
 
           # Write the mutation to a file and feed it to gh via --input <file>.
           jq -n \
-            --rawfile mdx "${{ steps.generate.outputs.release_notes }}" \
+            --rawfile mdx "${{ steps.generate.outputs.mdx-path }}" \
             --arg repo "${{ env.PUBLIC_DOCS_REPO }}" \
             --arg branch "${{ steps.metadata.outputs.branch_name }}" \
             --arg msg "chore(agent control): add release notes for v${{ inputs.version }}" \
