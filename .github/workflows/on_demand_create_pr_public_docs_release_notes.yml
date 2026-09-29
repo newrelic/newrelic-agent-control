@@ -26,5 +26,5 @@ jobs:
       version: ${{ inputs.version }}
       remove_existing_branch: ${{ inputs.remove_existing_branch }}
     secrets:
-      APP_ID: ${{ secrets.AGENT_CONTROL_APP_ID }}
-      APP_PRIVATE_KEY: ${{ secrets.AGENT_CONTROL_APP_PKEY }}
+      app_id: ${{ secrets.AGENT_CONTROL_APP_ID }}
+      app_private_key: ${{ secrets.AGENT_CONTROL_APP_PKEY }}
