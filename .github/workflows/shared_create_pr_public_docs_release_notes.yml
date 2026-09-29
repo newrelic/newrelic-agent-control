@@ -74,7 +74,7 @@ jobs:
   
       - name: Generate public docs release notes
         id: generate
-        uses: newrelic/release-toolkit/contrib/nr-docs-release-notes@feat/release-notes-to-mdx
+        uses: newrelic/release-toolkit/contrib/nr-docs-release-notes@3ebaab2626ccc759b0ca2d89bdf02dd337aa9684 # v1
         with:
           subject: "Agent Control"
           version: ${{ inputs.version }}
