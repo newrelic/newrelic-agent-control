@@ -4,6 +4,8 @@
 use tracing::info;
 use tracing::warn;
 
+#[cfg(target_os = "linux")]
+use super::process_record;
 use super::{
     error::CommandError,
     logging::{
@@ -12,8 +14,6 @@ use super::{
         logger::Logger,
     },
 };
-#[cfg(target_os = "linux")]
-use super::process_record;
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{STDERR_LOG_FILE_NAME_SUFFIX, STDOUT_LOG_FILE_NAME_SUFFIX};
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
@@ -143,8 +143,7 @@ impl AdoptedProcess {
     fn kill(&self) -> io::Result<()> {
         use nix::sys::signal;
         use nix::unistd::Pid;
-        signal::kill(Pid::from_raw(self.pid as i32), signal::SIGKILL)
-            .map_err(std::io::Error::from)
+        signal::kill(Pid::from_raw(self.pid as i32), signal::SIGKILL).map_err(std::io::Error::from)
     }
 
     #[cfg(target_family = "windows")]

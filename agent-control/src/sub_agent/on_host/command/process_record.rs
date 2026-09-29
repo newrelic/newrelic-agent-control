@@ -113,9 +113,8 @@ where
         let path = self.file_path(agent_id);
         match self.file_rw.read(&path) {
             Ok(content) => {
-                let record = serde_saphyr::from_str(&content).map_err(|err| {
-                    io::Error::other(format!("parsing process record: {err}"))
-                })?;
+                let record = serde_saphyr::from_str(&content)
+                    .map_err(|err| io::Error::other(format!("parsing process record: {err}")))?;
                 Ok(Some(record))
             }
             Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
