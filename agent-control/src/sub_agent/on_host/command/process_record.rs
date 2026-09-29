@@ -28,9 +28,12 @@ pub struct ProcessRecordError(#[from] io::Error);
 pub struct ProcessRecord {
     /// The OS process id at the time Agent Control spawned it.
     pub pid: u32,
-    /// The process's start time, seconds since the Unix epoch, read from `/proc/<pid>/stat`
-    /// at spawn time. Cross-checked on restart to reject a reused PID.
-    pub started_at_unix_secs: u64,
+    /// An opaque marker distinguishing this exact process instance from any future process
+    /// that reuses the same pid, read from `/proc/<pid>/stat` field 22 (starttime) at spawn
+    /// time. This is clock ticks since the current boot, not wall-clock time; it isn't
+    /// meant to survive a host reboot, only an Agent Control crash/restart within the same
+    /// boot session. Cross-checked on restart to reject a reused PID.
+    pub start_time_marker: u64,
 }
 
 /// Persists and retrieves a [`ProcessRecord`] per agent, keyed by [`AgentID`].
@@ -141,7 +144,7 @@ mod tests {
         let agent_id = AgentID::try_from("test-agent").unwrap();
         let record = ProcessRecord {
             pid: 4242,
-            started_at_unix_secs: 1_700_000_000,
+            start_time_marker: 1_700_000_000,
         };
 
         storer.set(&agent_id, &record).unwrap();
@@ -160,7 +163,7 @@ mod tests {
                 &agent_id,
                 &ProcessRecord {
                     pid: 1,
-                    started_at_unix_secs: 1,
+                    start_time_marker: 1,
                 },
             )
             .unwrap();
@@ -169,7 +172,7 @@ mod tests {
                 &agent_id,
                 &ProcessRecord {
                     pid: 2,
-                    started_at_unix_secs: 2,
+                    start_time_marker: 2,
                 },
             )
             .unwrap();
@@ -178,7 +181,7 @@ mod tests {
             storer.get(&agent_id).unwrap(),
             Some(ProcessRecord {
                 pid: 2,
-                started_at_unix_secs: 2,
+                start_time_marker: 2,
             })
         );
     }
@@ -193,7 +196,7 @@ mod tests {
                 &agent_id,
                 &ProcessRecord {
                     pid: 1,
-                    started_at_unix_secs: 1,
+                    start_time_marker: 1,
                 },
             )
             .unwrap();
@@ -224,7 +227,7 @@ mod tests {
                 &agent_a,
                 &ProcessRecord {
                     pid: 1,
-                    started_at_unix_secs: 1,
+                    start_time_marker: 1,
                 },
             )
             .unwrap();
