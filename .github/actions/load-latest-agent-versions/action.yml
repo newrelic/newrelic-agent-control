@@ -10,7 +10,7 @@ runs:
     - shell: bash
       run: |
         # renovate: datasource=docker depName=newrelic/infrastructure-agent-artifacts
-        echo "INFRA_AGENT_VERSION=1.80.4" >> "$GITHUB_ENV"
+        echo "INFRA_AGENT_VERSION=1.80.5" >> "$GITHUB_ENV"
         # renovate: datasource=docker depName=newrelic/nrdot-agent-artifacts
         echo "NRDOT_VERSION=2.5.0" >> "$GITHUB_ENV"
         # renovate: datasource=docker depName=newrelic/nri-redis-artifacts
