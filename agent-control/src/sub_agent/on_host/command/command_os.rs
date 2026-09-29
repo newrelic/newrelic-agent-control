@@ -170,6 +170,61 @@ fn unknown_exit_status() -> ExitStatus {
     }
 }
 
+/// PoC, Linux only: checks the bookkeeping for `agent_id` and, if it points at a pid that's
+/// still alive with a matching start-time marker, returns it as adoptable.
+#[cfg(target_os = "linux")]
+fn adoptable_process(agent_id: &AgentID) -> Option<AdoptedProcess> {
+    use process_record::ProcessRecordStorer;
+
+    let record = process_record_storer().get(agent_id).ok().flatten()?;
+    let current_marker = process_record::read_proc_start_time_marker(record.pid)?;
+    if current_marker != record.start_time_marker {
+        return None;
+    }
+    Some(AdoptedProcess {
+        pid: record.pid,
+        start_time_marker: record.start_time_marker,
+    })
+}
+
+/// PoC, Linux only: persists the bookkeeping for a process this run just spawned, so a
+/// future Agent Control restart can recognize it. Best-effort: a failure to persist only
+/// means a future restart won't be able to adopt this process, not that this run's spawn
+/// itself failed.
+#[cfg(target_os = "linux")]
+fn record_spawned_process(agent_id: &AgentID, pid: u32) {
+    use process_record::ProcessRecordStorer;
+
+    let Some(start_time_marker) = process_record::read_proc_start_time_marker(pid) else {
+        warn!(%agent_id, pid, "PoC: could not read start-time marker for freshly spawned process, adoption bookkeeping skipped");
+        return;
+    };
+    let record = process_record::ProcessRecord {
+        pid,
+        start_time_marker,
+    };
+    if let Err(err) = process_record_storer().set(agent_id, &record) {
+        warn!(%agent_id, pid, "PoC: failed to persist process record: {err}");
+    }
+}
+
+/// PoC: a `runtime-state`-rooted storer built fresh per call. A real implementation would
+/// inject this the same way `DataStore`/`InstanceIDStorer` are injected elsewhere, instead
+/// of constructing it here.
+#[cfg(target_os = "linux")]
+fn process_record_storer() -> process_record::FileProcessRecordStorer<
+    fs::file::LocalFile,
+    fs::directory_manager::DirectoryManagerFs,
+> {
+    use crate::agent_control::defaults::AGENT_CONTROL_DATA_DIR;
+
+    process_record::FileProcessRecordStorer::new(
+        fs::file::LocalFile,
+        fs::directory_manager::DirectoryManagerFs,
+        std::path::PathBuf::from(AGENT_CONTROL_DATA_DIR),
+    )
+}
+
 ////////////////////////////////////////////////////////////////////////////////////
 // Not Started Command OS
 ////////////////////////////////////////////////////////////////////////////////////
@@ -195,7 +250,21 @@ impl CommandOSNotStarted {
     }
 
     /// Spawns the process, setting up file loggers and (on Windows) a job object.
+    ///
+    /// PoC, Linux only: before spawning, checks whether a previous Agent Control instance's
+    /// bookkeeping points at a still-running process for this `agent_id`; if so, adopts it
+    /// instead of spawning a duplicate. See the on-host crash-survival CDD.
     pub fn start(mut self) -> Result<CommandOSStarted, CommandError> {
+        #[cfg(target_os = "linux")]
+        if let Some(adopted) = adoptable_process(&self.agent_id) {
+            return Ok(CommandOSStarted {
+                agent_id: self.agent_id,
+                process: ManagedProcess::Adopted(adopted),
+                loggers: None,
+                shutdown_timeout: self.shutdown_timeout,
+            });
+        }
+
         let loggers = if self.file_logging_config.enabled {
             Some(FileSystemLoggers::new(
                 file_logger(
@@ -213,6 +282,9 @@ impl CommandOSNotStarted {
             None
         };
         let child = self.cmd.spawn()?;
+
+        #[cfg(target_os = "linux")]
+        record_spawned_process(&self.agent_id, child.id());
 
         #[cfg(target_family = "unix")]
         {
