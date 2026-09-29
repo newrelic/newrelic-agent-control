@@ -242,11 +242,8 @@ where
                 })
         });
 
-        // After all operations, set the hash to a final state
-        // only if it was in the `applying` state.
-        if let Config::RemoteConfig(remote_config) = config
-            && remote_config.is_applying()
-        {
+        // Report the remote-config state on startup
+        if let Config::RemoteConfig(remote_config) = config {
             let state = match &started_supervisor {
                 Ok(_) => ConfigState::Applied,
                 Err(e) => ConfigState::Failed {
@@ -1979,6 +1976,7 @@ deployment:
         let supervisor_builder = expect_build_supervisor_with(TestAgent::valid_config_value());
 
         opamp_client.should_update_effective_config(1);
+        opamp_client.should_set_remote_config_status(TestAgent::status_applied());
 
         let supervisor = test_sub_agent(
             Some(opamp_client),
@@ -2074,15 +2072,13 @@ deployment:
         );
     }
     #[test]
-    fn test_bootstrap_stored_remote_config_failed_to_failed() {
+    fn test_bootstrap_stored_remote_config_failed_to_applied() {
         let (config_repository, mut opamp_client) = test_mocks();
 
-        // In case a remote_config was marked as failed after being in applying state,
-        // if init_supervisor is called again, the supervisor will use the current config even if
-        // it doesn't work but won't report the failure again since the hash was already reported.
-        // The remote config will always be used not falling back to local,
-        // if it has been stored in the repository, even if the hash is failed, but a remote_config
-        // detected as failed by any validator, won't be saved into the repository at all.
+        // A remote_config was marked as failed on a previous run, but this run's supervisor
+        // is built successfully from that same config: init_supervisor always re-evaluates and
+        // reports/persists the outcome of the current run, so the state moves to applied rather
+        // than keeping the stale failed status.
         let hash = TestAgent::hash();
         let state = ConfigState::Failed {
             error_message: "some failure".to_string(),
@@ -2105,6 +2101,7 @@ deployment:
         let supervisor_builder = expect_build_supervisor_with(TestAgent::valid_config_value());
 
         opamp_client.should_update_effective_config(1);
+        opamp_client.should_set_remote_config_status(TestAgent::status_applied());
 
         let supervisor = test_sub_agent(
             Some(opamp_client),
@@ -2118,7 +2115,7 @@ deployment:
         assert_remote_config(
             config_repository.deref(),
             &TestAgent::id(),
-            |remote_config| assert!(remote_config.state.is_failed()),
+            |remote_config| assert!(remote_config.state.is_applied()),
         );
     }
 
