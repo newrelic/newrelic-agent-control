@@ -17,6 +17,21 @@ use crate::agent_control::defaults::FOLDER_NAME_RUNTIME_STATE;
 
 const PROCESS_RECORD_FILE_NAME: &str = "process.yaml";
 
+/// PoC: reads a process's start-time marker (field 22, `starttime`, of `/proc/<pid>/stat`),
+/// clock ticks since the current boot, opaque and not meant to survive a host reboot. Used
+/// to tell the exact process instance a [`ProcessRecord`] was made for apart from any later
+/// process that happens to reuse the same pid.
+#[cfg(target_os = "linux")]
+pub fn read_proc_start_time_marker(pid: u32) -> Option<u64> {
+    let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    // `comm` (field 2) is parenthesized and may itself contain spaces or parens, so split on
+    // the *last* ')' rather than whitespace to find where the numeric fields resume.
+    let after_comm = stat.rsplit_once(')')?.1;
+    let fields: Vec<&str> = after_comm.split_whitespace().collect();
+    // `state` (field 3) lands at index 0 of `fields`, so `starttime` (field 22) is index 19.
+    fields.get(19)?.parse().ok()
+}
+
 /// Error reading or writing a [`ProcessRecord`].
 #[derive(Debug, Error)]
 #[error("process record I/O: {0}")]
@@ -213,6 +228,25 @@ mod tests {
         let agent_id = AgentID::try_from("test-agent").unwrap();
 
         storer.delete(&agent_id).unwrap();
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn start_time_marker_is_stable_for_the_same_process() {
+        let pid = std::process::id();
+
+        let first = read_proc_start_time_marker(pid);
+        let second = read_proc_start_time_marker(pid);
+
+        assert!(first.is_some());
+        assert_eq!(first, second);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn start_time_marker_is_none_for_a_nonexistent_pid() {
+        // PID 0 is never a real process on Linux.
+        assert_eq!(read_proc_start_time_marker(0), None);
     }
 
     #[test]
