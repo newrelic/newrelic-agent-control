@@ -130,6 +130,9 @@ cfg_if::cfg_if! {
 pub const FOLDER_NAME_LOCAL_DATA: &str = "local-data";
 /// Name used for fleet (remote) data: a directory on-host, a ConfigMap prefix on k8s.
 pub const FOLDER_NAME_FLEET_DATA: &str = "fleet-data";
+/// PoC: on-host-only directory for AC's internal process-adoption bookkeeping (pid, start
+/// time), separate from `fleet-data` since it isn't Fleet-Control-relevant state.
+pub const FOLDER_NAME_RUNTIME_STATE: &str = "runtime-state";
 
 /// - **On-host**: Used as the base filename, combined with ".yaml" (e.g., `local_config.yaml`).
 /// - **k8s**: Used as the data key within the local ConfigMap.
