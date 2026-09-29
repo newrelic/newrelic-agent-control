@@ -144,7 +144,6 @@ jobs:
     needs: [ molecule-packaging-tests ]
     with:
       version: ${{ github.event.release.tag_name }}
-      remove_existing_branch: false
     secrets:
       app_id: ${{ secrets.AGENT_CONTROL_APP_ID }}
       app_private_key: ${{ secrets.AGENT_CONTROL_APP_PKEY }}

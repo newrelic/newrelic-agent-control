@@ -16,11 +16,6 @@ on:
           in the CHANGELOG.md heading (`## v<version> - <date>`).
         required: true
         type: string
-      remove_existing_branch:
-        description: Whether to remove the existing branch if it already exists.
-        type: boolean
-        required: false
-        default: false
     secrets:
       app_id:
         description: >-
@@ -64,13 +59,6 @@ jobs:
           private-key: ${{ secrets.app_private_key }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ env.PUBLIC_DOCS_REPO_NAME }}
-      
-      - name: Delete branch
-        if: inputs.remove_existing_branch
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          gh api -X DELETE "repos/${{ env.PUBLIC_DOCS_REPO }}/git/refs/heads/${{ steps.metadata.outputs.branch_name }}" || true
   
       - name: Generate public docs release notes
         id: generate
