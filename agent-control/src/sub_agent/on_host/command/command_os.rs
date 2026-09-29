@@ -1,5 +1,7 @@
 //! OS-level command wrapper with not-started/started states, output streaming, and shutdown handling.
 
+#[cfg(target_os = "linux")]
+use tracing::info;
 use tracing::warn;
 
 use super::{
@@ -257,6 +259,7 @@ impl CommandOSNotStarted {
     pub fn start(mut self) -> Result<CommandOSStarted, CommandError> {
         #[cfg(target_os = "linux")]
         if let Some(adopted) = adoptable_process(&self.agent_id) {
+            info!(agent_id = %self.agent_id, pid = adopted.pid, "PoC: adopted a still-running process from a previous Agent Control instance instead of respawning it");
             return Ok(CommandOSStarted {
                 agent_id: self.agent_id,
                 process: ManagedProcess::Adopted(adopted),
