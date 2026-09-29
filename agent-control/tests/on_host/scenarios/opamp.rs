@@ -282,6 +282,7 @@ fn onhost_opamp_agent_control_reconfirms_remote_config_status_after_restart() {
                 .as_ref()
                 .is_some_and(|rc| rc.status() == RemoteConfigStatuses::Applied)
         });
+    assert_eq!(reports_before_restart, 1);
 
     // Restart: same base_paths (so the same persisted instance_uid and remote config store)
     drop(agent_control);
@@ -348,6 +349,7 @@ fn onhost_opamp_sub_agent_reconfirms_remote_config_status_after_restart() {
                 .as_ref()
                 .is_some_and(|rc| rc.status() == RemoteConfigStatuses::Applied)
         });
+    assert_eq!(reports_before_restart, 1);
 
     // Restart: same base_paths (so the same persisted instance_uid and remote config store, with the
     // sub-agent's remote config already persisted as `Applied`).
