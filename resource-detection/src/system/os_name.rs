@@ -3,10 +3,8 @@
 //!
 //! `os.version` alone can collide across distros (e.g. Debian 12 and
 //! openSUSE Leap 12 both report `VERSION_ID=12`), so this pairs with it to
-//! disambiguate. Windows doesn't need an equivalent: `os.type=windows` plus
-//! the `CurrentBuildNumber` from `os_version` already identifies a specific
-//! Windows release unambiguously, there's no second Windows-like OS it could
-//! collide with.
+//! disambiguate. Windows doesn't need it, since its build number is already
+//! unambiguous.
 
 /// The distro's `ID` from `/etc/os-release` (e.g. "debian", "ubuntu").
 #[cfg(target_os = "linux")]

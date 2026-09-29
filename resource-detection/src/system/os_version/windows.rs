@@ -5,6 +5,7 @@
 //! `GetVersionEx`, reading the registry directly isn't affected by application
 //! compatibility manifests lying about the OS version.
 
+use tracing::warn;
 use windows_registry::LOCAL_MACHINE;
 
 const CURRENT_VERSION_KEY_PATH: &str = "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion";
@@ -16,6 +17,9 @@ pub fn detect_os_version() -> Option<String> {
     LOCAL_MACHINE
         .open(CURRENT_VERSION_KEY_PATH)
         .and_then(|key| key.get_string(CURRENT_BUILD_NUMBER_KEY_NAME))
+        .inspect_err(|err| {
+            warn!("Failed to read {CURRENT_BUILD_NUMBER_KEY_NAME} from registry: {err}")
+        })
         .ok()
 }
 

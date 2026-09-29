@@ -7,8 +7,7 @@ use crate::agent_control::config_validator::on_host::SharedFilesystemPathValidat
 use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, AGENT_FILESYSTEM_FOLDER_NAME, EXECUTION_MODE_ATTRIBUTE_KEY,
     FLEET_ID_ATTRIBUTE_KEY, FOLDER_NAME_FLEET_DATA, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
-    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
-    SHARED_FILESYSTEM_FOLDER_NAME,
+    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, SHARED_FILESYSTEM_FOLDER_NAME,
 };
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::on_host::OnHostCleaner;
@@ -27,7 +26,7 @@ use crate::event::channel::{EventConsumer, pub_sub};
 use crate::event::{AgentControlEvent, OpAMPEvent};
 use crate::http::config::ProxyConfig;
 use crate::on_host::file_store::FileStore;
-use crate::opamp::attributes::{insert_os_name_attribute, insert_os_version_attribute};
+use crate::opamp::attributes::os_attributes;
 use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
 use crate::opamp::callbacks::AgentCallbacks;
 use crate::opamp::client_builder::OpAMPClientBuilder;
@@ -390,14 +389,8 @@ fn ac_non_identifying_attributes(
             FLEET_ID_ATTRIBUTE_KEY.to_string(),
             identifiers.fleet_id.clone().into(),
         ),
-        (
-            OS_ATTRIBUTE_KEY.to_string(),
-            OS_ATTRIBUTE_VALUE.to_string().into(),
-        ),
     ]);
-
-    insert_os_version_attribute(&mut attributes);
-    insert_os_name_attribute(&mut attributes);
+    attributes.extend(os_attributes());
 
     // Only add execution mode attribute in verify mode
     if running_mode == RunningMode::Verify {

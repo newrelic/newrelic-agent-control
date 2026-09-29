@@ -15,8 +15,8 @@ use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_NAMESPACE, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
     OPAMP_PACKAGE_VERSION_ATTRIBUTE_KEY_PREFIX, OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE,
-    OPAMP_SERVICE_VERSION, OPAMP_SUPERVISOR_KEY, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
-    OS_NAME_ATTRIBUTE_KEY, OS_VERSION_ATTRIBUTE_KEY, PARENT_AGENT_ID_ATTRIBUTE_KEY,
+    OPAMP_SERVICE_VERSION, OPAMP_SUPERVISOR_KEY, OS_NAME_ATTRIBUTE_KEY, OS_TYPE_ATTRIBUTE_KEY,
+    OS_TYPE_ATTRIBUTE_VALUE, OS_VERSION_ATTRIBUTE_KEY, PARENT_AGENT_ID_ATTRIBUTE_KEY,
 };
 use newrelic_agent_control::agent_control::run::on_host::{
     AGENT_CONTROL_MODE_ON_HOST, OCI_TEST_REGISTRY_URL,
@@ -91,8 +91,8 @@ fn test_attributes() {
 
     let mut expected_non_identifying_attributes = convert_to_vec_key_value(Vec::from([
         (
-            OS_ATTRIBUTE_KEY,
-            Value::StringValue(OS_ATTRIBUTE_VALUE.to_string()),
+            OS_TYPE_ATTRIBUTE_KEY,
+            Value::StringValue(OS_TYPE_ATTRIBUTE_VALUE.to_string()),
         ),
         (
             HOST_NAME_ATTRIBUTE_KEY,
@@ -267,8 +267,8 @@ agents:
 
     let mut expected_non_identifying_attributes = convert_to_vec_key_value(Vec::from([
         (
-            OS_ATTRIBUTE_KEY,
-            Value::StringValue(OS_ATTRIBUTE_VALUE.to_string()),
+            OS_TYPE_ATTRIBUTE_KEY,
+            Value::StringValue(OS_TYPE_ATTRIBUTE_VALUE.to_string()),
         ),
         (
             HOST_NAME_ATTRIBUTE_KEY,
