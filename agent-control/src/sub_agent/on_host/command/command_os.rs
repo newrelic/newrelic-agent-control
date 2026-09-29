@@ -409,3 +409,53 @@ impl CommandOSStarted {
         Ok(())
     }
 }
+
+/// PoC: standalone repro for the on-host crash-survival CDD's logging hazard. Not an
+/// AC-integration test, this is deliberately bare `std::process` to isolate the OS/std
+/// behavior the CDD's design depends on, independent of anything AC-specific.
+///
+/// Rewriting AC's actual sub-agent logging pipeline (`FileLogger`, built on
+/// `tracing_appender`'s rotating file writer, fed formatted lines from the pipe-reading
+/// thread) to redirect a child's stdio to a plain file instead of a pipe is real, separate
+/// work the CDD already scopes out, not something this PoC attempts. This only proves the
+/// specific claim that motivates that work: closing a piped child's stdout read end without
+/// the child's cooperation is not safe to do casually.
+#[cfg(all(test, target_family = "unix"))]
+mod sigpipe_poc {
+    use std::process::{Command, Stdio};
+
+    /// Confirms that closing a piped child's stdout read end (without the child's
+    /// cooperation) delivers it a fatal `SIGPIPE` on its next write, the exact hazard the
+    /// CDD's Logging section describes for "spawn then forget" without switching away from
+    /// `Stdio::piped()` first.
+    ///
+    /// Windows has no `SIGPIPE` equivalent: a write to a broken pipe there fails with an
+    /// `ERROR_BROKEN_PIPE`-flavored error return instead of being forcibly signaled, so
+    /// whether the child dies depends on whether it handles that error, not on the OS. This
+    /// test is Unix-only because the hazard it demonstrates is a Unix-specific one.
+    #[test]
+    fn closing_piped_stdout_sigpipes_the_writer() {
+        use nix::sys::signal::Signal;
+        use std::os::unix::process::ExitStatusExt;
+
+        // `yes` writes to stdout in a tight loop and is a real executable, not a shell
+        // builtin, so its signal handling isn't muddied by the shell's own builtin dispatch.
+        let mut child = Command::new("yes")
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("failed to spawn `yes`");
+
+        // Close the read end without ever draining it, the "spawn then forget by dropping
+        // the pipe" case the CDD flags as unsafe, while still holding `child` itself so we
+        // can observe how it died afterward.
+        drop(child.stdout.take());
+
+        let status = child.wait().expect("failed to wait on `yes`");
+
+        assert_eq!(
+            status.signal(),
+            Some(Signal::SIGPIPE as i32),
+            "expected `yes` to be killed by SIGPIPE once its stdout pipe closed, got: {status:?}"
+        );
+    }
+}
