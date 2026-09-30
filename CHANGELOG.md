@@ -21,6 +21,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 ## Unreleased
 
 ### bugfix
+- Windows: `install.ps1` now detects and removes a standalone New Relic Infrastructure Agent installation to avoid duplicate host reporting; it must be reconfigured as an Agent Control managed sub-agent afterwards if still needed.
 - On-host: fixed integration restarts caused by redundant filesystem sync and full directory recreation when writing OHI config files to the shared filesystem.
 - Make health-check threads initial delay cancellable, to reduce graceful shutdown idle waiting periods.
 - Fixed minor logging issues: a redundant field, a duplicated log, wrong log levels, and inconsistent message casing.
@@ -31,16 +32,15 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ## v1.25.1 - 2026-09-25
 
+### 🐞 Bug fixes
+- On-host: the OpAMP compression for the verify client is disabled so that the server can read the `execution.mode` attribute
+
 ### ⛓️ Dependencies
 - Updated rust crate nr-auth to v0.6.0
 - Updated rust crate config to 0.15.26
 - Updated rust crate thiserror to 2.0.21
 
 ## v1.25.0 - 2026-09-18
-
-### bugfix
-- On-host: the OpAMP compression for the verify client is disabled so that the server can read the `execution.mode` attribute
-- Windows: `install.ps1` now detects and removes a standalone New Relic Infrastructure Agent installation to avoid duplicate host reporting; it must be reconfigured as an Agent Control managed sub-agent afterwards if still needed.
 
 ### 🛡️ Security notices
 - Update rustls
@@ -115,6 +115,8 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 - Add support for variables override through `variable.agentConfig` syntax in Remote Configuration keys.
 - Add support for a single entry of a `string_map` variable override through `variable.agentConfig.<variable>:<map-key>` syntax in Remote Configuration keys.
 - On-host infrastructure agent type (linux): expose the `nri-docker` integration configuration through a new `config_docker` variable.
+- Agent type: enforce variable name format to `[A-Za-z0-9_-]` starting with a letter and maximum length of 64 characters.
+- On-Host: enable self-update capability by default. Self updates are only executed when commanded by Fleet Control.
 
 ### 🐞 Bug fixes
 - K8s supervisor: force a Flux reconciliation on stalled HelmReleases (e.g. after exhausting install/upgrade retries) when a new remote config
@@ -132,8 +134,6 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ### 🚀 Enhancements
 - On-host: enforce a 2400 MiB hard memory limit on the Agent Control process tree (AC + all child agents) via systemd `MemoryMax` on Linux.
-- Agent type: enforce variable name format to `[A-Za-z0-9_-]` starting with a letter and maximum length of 64 characters.
-- On-Host: enable self-update capability by default. Self updates are only executed when commanded by Fleet Control. 
 
 ### 🐞 Bug fixes
 - Linux: prevent systemd service disable after RPM package update
@@ -148,6 +148,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 ### 🚀 Enhancements
 - Windows filesystem: Removed unused code and use higher-level APIs for Windows interaction.
 - Reports the `com.newrelic.remoteAgentTypeRepoReachable` OpAMP custom capability when the configured Agent Type OCI repository is reachable at startup.
+- On-host: added nri-flex agentType.
 
 ### 🐞 Bug fixes
 - Windows: fixed files under Agent Control's managed directories being left with permissions it could not use. Managed directories now use an inheritable Administrators ACE, and Agent Control tries to repair ACEs on startup.
@@ -171,7 +172,6 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 - On-host: added nri-postgresql agentType.
 - On-host: added nri-mysql agentType.
 - On-host: added nri-memcached Agent Type.
-- On-host: added nri-flex agentType.
 - Log files rotated have now 30 days of retention.
 - Added `agent-type validate --file <path>` subcommand to `newrelic-agent-control-cli` and `newrelic-agent-control-k8s-cli` for schema-level validation of agent type definition files.
 - Extended `agent-type validate` with semantic validation: every `${nr-var:X}` reference in `deployment` must have a matching `variables` declaration.
