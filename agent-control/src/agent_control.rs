@@ -161,11 +161,9 @@ where
                     warn!("Failed getting remote config from the store: {}", e);
                 }
                 Ok(Some(rc)) => {
-                    if rc.state != build_and_start_config_state {
-                        report_state(build_and_start_config_state.clone(), rc.hash, opamp_client)?;
-                        self.sa_dynamic_config_store
-                            .update_state(build_and_start_config_state)?;
-                    }
+                    report_state(build_and_start_config_state.clone(), rc.hash, opamp_client)?;
+                    self.sa_dynamic_config_store
+                        .update_state(build_and_start_config_state)?;
                 }
                 Ok(None) => {
                     info!("OpAMP enabled but no previous remote configuration found");
@@ -1129,8 +1127,10 @@ agents:
         let identities = t.identities_from_agents_config(TestData::SINGLE_AGENT_CONFIG);
         agent_control.set_sub_agent_build_success(identities);
 
+        let hash = Hash::new(TestData::SINGLE_AGENT_CONFIG);
         agent_control.set_opamp_expectations(|client| {
-            // It does not report RemoteConfig status because it hasn't changed from last time
+            client
+                .should_set_remote_config_status_matching_seq(vec![t.status_applied(hash.clone())]);
             client.should_update_effective_config(1);
             client.should_stop(1);
         });

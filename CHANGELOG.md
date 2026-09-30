@@ -24,6 +24,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 - On-host: fixed integration restarts caused by redundant filesystem sync and full directory recreation when writing OHI config files to the shared filesystem.
 - Make health-check threads initial delay cancellable, to reduce graceful shutdown idle waiting periods.
 - Fixed minor logging issues: a redundant field, a duplicated log, wrong log levels, and inconsistent message casing.
+- Agent Control now always re-reports its remote config status on startup, fixing a missed resend after restart when the server requests a full-state sync.
 
 ### enhancement
 - Self instrumentation now gets the injected license key as header if none is set in all systems.
