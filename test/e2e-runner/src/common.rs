@@ -13,6 +13,7 @@ pub mod oci;
 pub mod ohi;
 pub mod on_drop;
 pub mod runtime;
+pub mod self_update;
 pub mod test;
 
 /// Common Fleet Control arguments shared across different commands

@@ -53,8 +53,8 @@ pub fn run_linux_e2e() {
         LinuxScenarios::SelfUpdateLatestToCurrent(args) => {
             scenarios::self_update::test_self_update_from_latest_to_current(args);
         }
-        LinuxScenarios::SelfUpdateCurrentToLatest(args) => {
-            scenarios::self_update::test_self_update_from_current_to_latest(args);
+        LinuxScenarios::SelfUpdateRollback(args) => {
+            scenarios::self_update::test_self_update_rollback(args);
         }
         LinuxScenarios::NriRedis(args) => {
             scenarios::nri_redis::test_nri_redis(args);

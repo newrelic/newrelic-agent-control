@@ -1,7 +1,10 @@
-use crate::common::docker_hub::latest_published_ac_tag;
-use crate::common::oci::{OciRegistry, push_ac_package};
+use crate::common::oci::{OciRegistry, PushedPackage};
 use crate::common::on_drop::CleanUp;
 use crate::common::runtime::tokio_runtime;
+use crate::common::self_update::{
+    AGENT_VERSION_ATTR, run_self_update_latest_to_current_scenario,
+    run_self_update_rollback_scenario,
+};
 use crate::common::test::{TestResult, retry_panic};
 use crate::common::{InstallationArgs, RecipeData, config};
 use crate::windows::install::{
@@ -9,30 +12,31 @@ use crate::windows::install::{
 };
 use crate::windows::service::{STATUS_RUNNING, restart_service};
 use crate::windows::{self};
-use fake_opamp_server::FakeServer;
+use fake_opamp_server::{FakeServer, InstanceID};
 use std::time::Duration;
 use tracing::info;
 
-const AGENT_VERSION_ATTR: &str = "agent.version";
-
 pub fn test_self_update_from_latest_to_current(args: InstallationArgs) {
-    info!("Starting self-update scenario");
+    let _clean_up = CleanUp::new(tear_down_test);
+    run_self_update_latest_to_current_scenario(args, start_self_update_from_latest_test);
+}
 
-    let registry = OciRegistry::start();
-    let pushed_package = push_ac_package(&args);
-
-    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
+fn start_self_update_from_latest_test(
+    args: InstallationArgs,
+    registry: &OciRegistry,
+    pushed_package: &PushedPackage,
+) -> (FakeServer, InstanceID, String) {
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
     info!("Fake OpAMP server started at {}", opamp_server.endpoint());
 
-    let _clean_up = CleanUp::new(tear_down_test);
-
     install_latest_agent_control(&RecipeData {
-        args: args.clone(),
+        args,
         ..Default::default()
     });
 
     let self_update_config = format!(
         r#"
+agents: {{}}
 fleet_control:
   endpoint: {}
   signature_validation:
@@ -40,7 +44,7 @@ fleet_control:
 oci:
   registry: {}
 log:
-  file: 
+  file:
     enabled: true
   level: debug
 self_update:
@@ -89,66 +93,22 @@ self_update:
         "Verified initial AC version before self-update"
     );
 
-    let new_version = pushed_package.reference.tag().unwrap();
-    assert_ne!(
-        initial_version, new_version,
-        "initial and new version must differ for self-update to be meaningful"
-    );
-
-    let update_config = format!(
-        r#"
-version: "{new_version}"
-agents: {{}}
-"#
-    );
-    opamp_server.set_config_response(instance_id.clone(), update_config);
-    info!(tag = new_version, "Sent self-update remote config");
-
-    info!("Verifying remote config status is Applied");
-    retry_panic(
-        120,
-        Duration::from_secs(2),
-        "waiting for remote config Applied status",
-        || {
-            opamp_server
-                .is_config_status_applied(instance_id.clone())
-                .map_err(|e| e.into())
-        },
-    );
-
-    info!("Verifying agent.version attribute reflects the updated version");
-    retry_panic(
-        120,
-        Duration::from_secs(2),
-        "verifying updated agent.version attribute",
-        || {
-            let Some(reported_version) =
-                opamp_server.get_identifying_attr_value(instance_id.clone(), AGENT_VERSION_ATTR)
-            else {
-                return Err("agent.version attribute not set yet".into());
-            };
-            if reported_version == new_version {
-                Ok(())
-            } else {
-                Err(format!("expected version {new_version}, got {reported_version}").into())
-            }
-        },
-    );
-    info!(version = new_version, "AC version updated successfully");
-
-    info!("Self-update test completed successfully");
+    (opamp_server, instance_id, initial_version)
 }
 
-pub fn test_self_update_from_current_to_latest(args: InstallationArgs) {
-    let mut opamp_server = FakeServer::start(tokio_runtime().handle());
+pub fn test_self_update_rollback(args: InstallationArgs) {
+    let _clean_up = CleanUp::new(tear_down_test);
+    run_self_update_rollback_scenario(args, start_self_update_test);
+}
+
+fn start_self_update_test(args: InstallationArgs) -> (FakeServer, InstanceID, String) {
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
     info!("Fake OpAMP server started at {}", opamp_server.endpoint());
 
     let recipe_data = RecipeData {
         args,
         ..Default::default()
     };
-
-    let _clean_up = CleanUp::new(tear_down_test);
 
     install_agent_control_from_recipe(&recipe_data);
 
@@ -199,57 +159,5 @@ log:
         "Verified initial AC version before self-update"
     );
 
-    let new_version = retry_panic(
-        10,
-        Duration::from_secs(2),
-        "fetching latest AC tag from Docker Hub",
-        latest_published_ac_tag,
-    );
-    assert_ne!(
-        initial_version, new_version,
-        "initial and new version must differ for self-update to be meaningful"
-    );
-
-    let update_config = format!(
-        r#"
-version: "{new_version}"
-agents: {{}}
-"#
-    );
-    opamp_server.set_config_response(instance_id.clone(), update_config);
-    info!(tag = new_version, "Sent self-update remote config");
-
-    info!("Verifying remote config status is Applied");
-    retry_panic(
-        120,
-        Duration::from_secs(2),
-        "waiting for remote config Applied status",
-        || {
-            opamp_server
-                .is_config_status_applied(instance_id.clone())
-                .map_err(|e| e.into())
-        },
-    );
-
-    info!("Verifying agent.version attribute reflects the updated version");
-    retry_panic(
-        120,
-        Duration::from_secs(2),
-        "verifying updated agent.version attribute",
-        || {
-            let Some(reported_version) =
-                opamp_server.get_identifying_attr_value(instance_id.clone(), AGENT_VERSION_ATTR)
-            else {
-                return Err("agent.version attribute not set yet".into());
-            };
-            if reported_version == new_version {
-                Ok(())
-            } else {
-                Err(format!("expected version {new_version}, got {reported_version}").into())
-            }
-        },
-    );
-    info!(version = new_version, "AC version updated successfully");
-
-    info!("Self-update test completed successfully");
+    (opamp_server, instance_id, initial_version)
 }

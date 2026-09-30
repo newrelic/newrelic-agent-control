@@ -48,7 +48,7 @@ jobs:
           - nrdot-agent
           - proxy
           - self-update-latest-to-current
-          - self-update-current-to-latest
+          - self-update-rollback
           - nri-redis
           - nri-flex
           - all-ohis-no-service
@@ -128,7 +128,7 @@ jobs:
           - remote-config
           - switch-infra-agent-version
           - self-update-latest-to-current
-          - self-update-current-to-latest
+          - self-update-rollback
           - nri-redis
           - nri-flex
           - all-ohis-no-service
