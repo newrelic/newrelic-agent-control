@@ -75,7 +75,11 @@ pub fn test_ac_crash_survival_and_process_adoption(args: InstallationArgs) {
     install_agent_control_from_recipe(&recipe_data);
 
     info!("Registering the crash-survival sub-agent's custom agent type");
-    write(DYNAMIC_AGENT_TYPE_PATH, CRASH_SURVIVAL_AGENT_TYPE);
+    let dynamic_agent_type_path = std::path::Path::new(DYNAMIC_AGENT_TYPE_PATH);
+    std::fs::create_dir_all(dynamic_agent_type_path.parent().unwrap()).unwrap_or_else(|err| {
+        panic!("could not create dynamic agent types directory: {err}");
+    });
+    write(dynamic_agent_type_path, CRASH_SURVIVAL_AGENT_TYPE);
 
     update_config(
         linux::DEFAULT_AC_CONFIG_PATH,
