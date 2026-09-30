@@ -70,6 +70,10 @@ enum LinuxScenarios {
     /// Breaks the config to force immediate exits, then asserts systemd auto-restarted
     /// ≥5 times without setting StartLimitHit.
     ServiceRestartPolicy(InstallationArgs),
+    /// PoC: kills Agent Control's real main PID and verifies that, under the packaged unit's
+    /// `KillMode=process`, a sub-agent survives unsupervised and the restarted Agent Control
+    /// adopts it instead of respawning a duplicate. See the on-host crash-survival CDD/PoC.
+    CrashSurvivalAdoption(InstallationArgs),
 }
 
 #[derive(Debug, clap::Subcommand)]

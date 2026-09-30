@@ -74,5 +74,8 @@ pub fn run_linux_e2e() {
         LinuxScenarios::ServiceRestartPolicy(args) => {
             scenarios::service_restart_policy::test_service_restarts_indefinitely_on_failure(args);
         }
+        LinuxScenarios::CrashSurvivalAdoption(args) => {
+            scenarios::crash_survival_adoption::test_ac_crash_survival_and_process_adoption(args);
+        }
     };
 }
