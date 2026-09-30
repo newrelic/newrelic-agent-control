@@ -16,11 +16,6 @@ on:
           in the CHANGELOG.md heading (`## v<version> - <date>`).
         required: true
         type: string
-      remove_existing_branch:
-        description: Whether to remove the existing branch if it already exists.
-        type: boolean
-        required: false
-        default: false
     secrets:
       app_id:
         description: >-
@@ -31,7 +26,7 @@ on:
         required: true
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   PUBLIC_DOCS_REPO: newrelic/docs-website
@@ -60,24 +55,18 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
-          app-id: ${{ secrets.app_id }}
+          client-id: ${{ secrets.app_id }}
           private-key: ${{ secrets.app_private_key }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ env.PUBLIC_DOCS_REPO_NAME }}
-      
-      - name: Delete branch
-        if: inputs.remove_existing_branch
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          gh api -X DELETE "repos/${{ env.PUBLIC_DOCS_REPO }}/git/refs/heads/${{ steps.metadata.outputs.branch_name }}" || true
   
       - name: Generate public docs release notes
         id: generate
-        run: |
-          git show "refs/tags/${{ inputs.version }}:CHANGELOG.md" > "${RUNNER_TEMP}/CHANGELOG.md"
-          release_notes=$(./tools/generate_docs_release_notes/run.sh "${RUNNER_TEMP}/CHANGELOG.md" "${{ inputs.version }}")
-          echo "release_notes=${release_notes}" >> "$GITHUB_OUTPUT"
+        uses: newrelic/release-toolkit/contrib/nr-docs-release-notes@3ebaab2626ccc759b0ca2d89bdf02dd337aa9684 # v1
+        with:
+          subject: "Agent Control"
+          version: ${{ inputs.version }}
+          repo: ${{ github.repository }}
 
       # Commits are created via the GraphQL `createCommitOnBranch` mutation so GitHub signs them automatically.
       - name: Commit release notes to docs-website branch (signed via API)
@@ -94,12 +83,12 @@ jobs:
 
           # Write the mutation to a file and feed it to gh via --input <file>.
           jq -n \
-            --rawfile mdx "${{ steps.generate.outputs.release_notes }}" \
+            --rawfile mdx "${{ steps.generate.outputs.mdx-path }}" \
             --arg repo "${{ env.PUBLIC_DOCS_REPO }}" \
             --arg branch "${{ steps.metadata.outputs.branch_name }}" \
             --arg msg "chore(agent control): add release notes for v${{ inputs.version }}" \
             --arg oid "$BASE_SHA" \
-            --arg mdx_path "src/content/docs/release-notes/agent-control-release-notes/${{ steps.generate.outputs.release_notes }}" \
+            --arg mdx_path "src/content/docs/release-notes/agent-control-release-notes/${{ steps.generate.outputs.mdx-path }}" \
             '{
               query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid url } } }",
               variables: {
