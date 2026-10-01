@@ -492,6 +492,160 @@ mod sigpipe_poc {
     }
 }
 
+/// PoC: standalone proof that redirecting a child's stdio straight to a [`std::fs::File`]
+/// instead of `Stdio::piped()` sidesteps `sigpipe_poc`'s hazard entirely, because there is no
+/// shared pipe for the parent to forget to drain in the first place.
+///
+/// `Command::stdout(file)` (via `File`'s `Into<Stdio>` impl) dup2()s the file's fd into the
+/// child at spawn time; the parent's own copy of that fd is closed right after — same as what
+/// happens to the child-side end of a pipe. The difference from `Stdio::piped()` is that there
+/// is no parent-side counterpart handed back (nothing analogous to `child.stdout`): the parent
+/// has nothing left to hold, forget to drain, or accidentally drop. The child's fd is its own
+/// from that point on, entirely independent of whether the parent (Agent Control) is still
+/// alive, which is exactly the property the on-host crash-survival CDD's Logging section wants.
+///
+/// This is proof of the mechanism only, exactly like `sigpipe_poc`: it does not rewire Agent
+/// Control's actual sub-agent logging (`FileLogger`, the pipe-reading thread in
+/// `logging::thread`, or `CommandOSStarted::stream()`) to use this instead of
+/// `Stdio::piped()`. Doing that for real would also mean:
+/// - giving up the dual fan-out that today mirrors sub-agent output into Agent Control's own
+///   `debug!(%agent_id, ...)` stream (visible via `journalctl -u newrelic-agent-control`),
+///   since nothing in Agent Control's own process reads these bytes anymore;
+/// - replacing `tracing_appender`'s rotating-file scheme, which assumes a tracing-side writer
+///   reopening/renaming the file itself, not a bare fd duped into another process — e.g.
+///   rotating by filename on each new spawn/adopt rather than by calendar day, as sketched by
+///   `reopening_in_append_mode_preserves_earlier_generations_content` below.
+///
+/// Both are real, separate follow-ups, not attempted here. Unix-only, matching `sigpipe_poc`:
+/// the hazard this contrasts with is itself Unix-specific (see that module's doc comment).
+#[cfg(all(test, target_family = "unix"))]
+mod file_stdio_poc {
+    use std::fs::OpenOptions;
+    use std::process::Command;
+    use std::time::Duration;
+
+    /// Mirrors `sigpipe_poc`'s `yes`-based setup, but with stdout redirected to a `File`
+    /// instead of a pipe. Confirms the child keeps writing successfully for as long as it
+    /// runs, even though the parent holds no reference to the file at all after `spawn()`
+    /// returns — `Command::stdout` takes the `File` by value, and there is nothing analogous
+    /// to `child.stdout` for the parent to keep, forget, or drop afterward.
+    #[test]
+    fn file_backed_stdout_keeps_growing_with_no_parent_side_handle() {
+        use nix::sys::signal::Signal;
+        use std::os::unix::process::ExitStatusExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sub-agent.stdout.log");
+
+        let file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .expect("failed to open log file");
+
+        // After this call, the test itself holds no fd on `path` at all: `file` was moved
+        // into `Command::stdout`, consumed into the child's fd table by `spawn()`.
+        let mut child = Command::new("yes")
+            .stdout(file)
+            .spawn()
+            .expect("failed to spawn `yes`");
+
+        // Polling for growth rather than a fixed sleep-then-check: how long `yes` takes to
+        // get scheduled and perform its first write is a function of host load, not of
+        // anything this test cares about proving.
+        let size_before = wait_for_file_size_at_least(&path, 1, Duration::from_secs(5));
+
+        // Nothing on "our" side references the file during this wait either; a real Agent
+        // Control crash at this exact moment would change nothing for the child.
+        wait_for_file_size_at_least(&path, size_before + 1, Duration::from_secs(5));
+
+        // `yes` runs forever, so we have to stop it ourselves. That it died from our own
+        // SIGKILL (not SIGPIPE, unlike sigpipe_poc) is itself part of the proof: it was still
+        // happily writing right up until we forced it to stop.
+        child.kill().expect("failed to kill `yes`");
+        let status = child.wait().expect("failed to wait on `yes`");
+        assert_eq!(
+            status.signal(),
+            Some(Signal::SIGKILL as i32),
+            "expected `yes` to still be alive and killed by us, got: {status:?}"
+        );
+    }
+
+    /// Documents the one real caveat of this approach: reusing the same path across multiple
+    /// spawns (e.g. Agent Control restarting and spawning a *new* instance of a sub-agent that
+    /// logs to the same per-agent file) is only safe in append mode. Contrast with
+    /// `reopening_with_truncate_loses_earlier_generations_content` below.
+    #[test]
+    fn reopening_in_append_mode_preserves_earlier_generations_content() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sub-agent.stdout.log");
+
+        run_and_wait(&path, "first-generation", true);
+        run_and_wait(&path, "second-generation", true);
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.contains("first-generation"));
+        assert!(content.contains("second-generation"));
+    }
+
+    /// The negative case: opening with `truncate(true)` instead of `append(true)` on the
+    /// second spawn silently destroys the first "generation"'s content, exactly as it would
+    /// for any other file. Not a hazard specific to this approach, but worth pinning down
+    /// explicitly since nothing about `Into<Stdio>` for `File` prevents getting this wrong.
+    #[test]
+    fn reopening_with_truncate_loses_earlier_generations_content() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sub-agent.stdout.log");
+
+        run_and_wait(&path, "first-generation", true);
+        run_and_wait(&path, "second-generation", false);
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(!content.contains("first-generation"));
+        assert!(content.contains("second-generation"));
+    }
+
+    /// Opens `path` (append or truncate per `append`), spawns a short-lived child that writes
+    /// `line` to it, and waits for the child to exit.
+    fn run_and_wait(path: &std::path::Path, line: &str, append: bool) {
+        let file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .append(append)
+            .truncate(!append)
+            .open(path)
+            .expect("failed to open log file");
+
+        let mut child = Command::new("echo")
+            .arg(line)
+            .stdout(file)
+            .spawn()
+            .expect("failed to spawn `echo`");
+        child.wait().expect("failed to wait on `echo`");
+    }
+
+    /// Polls `path`'s size until it reaches at least `min_size`, panicking after `timeout`.
+    fn wait_for_file_size_at_least(
+        path: &std::path::Path,
+        min_size: u64,
+        timeout: Duration,
+    ) -> u64 {
+        let deadline = std::time::Instant::now() + timeout;
+        loop {
+            let size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+            if size >= min_size {
+                return size;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "file at {path:?} did not reach size {min_size} within {timeout:?} \
+                 (last observed size: {size})"
+            );
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+}
+
 /// PoC: drives the adoption feature itself, answering "is this testable at all" concretely
 /// rather than leaving it as an unexercised code path. Two levels: the bookkeeping-matching
 /// logic directly (`adoptable_process`/`record_spawned_process`), and the real call site
