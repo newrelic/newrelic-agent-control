@@ -112,6 +112,13 @@ mod tests {
     /// `kill()`/`Drop` code entirely) reproduces exactly what the kernel does on process
     /// death. If `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` were still set, that handle close alone
     /// would terminate the child; without it, as asserted below, the child keeps running.
+    //
+    // TEMPORARY DIAGNOSTIC: #[ignore]'d to isolate whether this test's own concurrent
+    // JobObject creation (racing against supervisor.rs's tests under cargo's default
+    // parallel `--lib` run) is what's causing `AssignProcessToJobObject: Access is denied`
+    // elsewhere in the suite on windows-latest CI — not a permanent change. Revert once
+    // the root cause is confirmed.
+    #[ignore]
     #[test]
     fn job_handle_closing_without_an_explicit_kill_does_not_kill_the_child() {
         let job = JobObject::new().expect("Failed to create JobObject");
