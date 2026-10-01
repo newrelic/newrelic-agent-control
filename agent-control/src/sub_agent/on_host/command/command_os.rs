@@ -139,7 +139,7 @@ impl AdoptedProcess {
     fn is_alive(&self) -> bool {
         #[cfg(target_os = "linux")]
         {
-            process_record::read_proc_start_time_marker(self.pid) == Some(self.start_time_marker)
+            process_record::read_process_creation_marker(self.pid) == Some(self.start_time_marker)
         }
         #[cfg(not(target_os = "linux"))]
         {
@@ -189,7 +189,7 @@ fn adoptable_process(
     storer: &dyn process_record::ProcessRecordStorer,
 ) -> Option<AdoptedProcess> {
     let record = storer.get(agent_id).ok().flatten()?;
-    let current_marker = process_record::read_proc_start_time_marker(record.pid)?;
+    let current_marker = process_record::read_process_creation_marker(record.pid)?;
     if current_marker != record.start_time_marker {
         return None;
     }
@@ -209,7 +209,7 @@ fn record_spawned_process(
     pid: u32,
     storer: &dyn process_record::ProcessRecordStorer,
 ) {
-    let Some(start_time_marker) = process_record::read_proc_start_time_marker(pid) else {
+    let Some(start_time_marker) = process_record::read_process_creation_marker(pid) else {
         warn!(%agent_id, pid, "PoC: could not read start-time marker for freshly spawned process, adoption bookkeeping skipped");
         return;
     };
@@ -688,7 +688,7 @@ mod adoption_poc {
         let agent_id = AgentID::try_from("adopt-alive").unwrap();
         let mut sleeper = spawn_sleeper();
         let pid = sleeper.id();
-        let marker = process_record::read_proc_start_time_marker(pid)
+        let marker = process_record::read_process_creation_marker(pid)
             .expect("should be able to read the freshly spawned process's start-time marker");
         storer
             .set(
@@ -719,7 +719,7 @@ mod adoption_poc {
         let agent_id = AgentID::try_from("adopt-reused").unwrap();
         let mut sleeper = spawn_sleeper();
         let pid = sleeper.id();
-        let real_marker = process_record::read_proc_start_time_marker(pid).unwrap();
+        let real_marker = process_record::read_process_creation_marker(pid).unwrap();
         // Deliberately wrong marker: simulates this pid having been reused by a different
         // process than the one the bookkeeping record was made for.
         storer
@@ -750,7 +750,7 @@ mod adoption_poc {
         let agent_id = AgentID::try_from("adopt-gone").unwrap();
         let mut sleeper = spawn_sleeper();
         let pid = sleeper.id();
-        let marker = process_record::read_proc_start_time_marker(pid).unwrap();
+        let marker = process_record::read_process_creation_marker(pid).unwrap();
         storer
             .set(
                 &agent_id,
@@ -796,7 +796,7 @@ mod adoption_poc {
         let agent_id = AgentID::try_from("start-adopts").unwrap();
         let mut pre_existing = spawn_sleeper();
         let pid = pre_existing.id();
-        let marker = process_record::read_proc_start_time_marker(pid).unwrap();
+        let marker = process_record::read_process_creation_marker(pid).unwrap();
         storer
             .set(
                 &agent_id,

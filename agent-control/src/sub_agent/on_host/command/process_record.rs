@@ -1,6 +1,7 @@
 //! PoC: on-host bookkeeping of the last-known PID for each spawned sub-agent, so a
 //! restarted Agent Control can recognize a still-running process instead of respawning
-//! it. Not yet wired into the spawn/adopt path; see the on-host crash-survival CDD/PoC.
+//! it. See `command_os.rs`'s `adoptable_process`/`record_spawned_process` for how this is
+//! wired into the spawn/adopt path, and the on-host crash-survival CDD/PoC for the design.
 
 use std::io;
 use std::path::PathBuf;
@@ -17,12 +18,16 @@ use crate::agent_control::defaults::FOLDER_NAME_RUNTIME_STATE;
 
 const PROCESS_RECORD_FILE_NAME: &str = "process.yaml";
 
-/// PoC: reads a process's start-time marker (field 22, `starttime`, of `/proc/<pid>/stat`),
-/// clock ticks since the current boot, opaque and not meant to survive a host reboot. Used
+/// Reads a process's creation-time marker: opaque, not meant to survive a host reboot, used
 /// to tell the exact process instance a [`ProcessRecord`] was made for apart from any later
-/// process that happens to reuse the same pid.
+/// process that happens to reuse the same pid. On Linux: field 22 (`starttime`) of
+/// `/proc/<pid>/stat`, clock ticks since the current boot. On Windows: the process creation
+/// time from `GetProcessTimes`, a `FILETIME` (100ns ticks since 1601-01-01 UTC). Both are
+/// stable for the process's whole lifetime and unique enough across any realistic pid-reuse
+/// window; neither needs to survive a reboot, since a reboot kills every supervised process
+/// anyway, mooting the whole adoption question.
 #[cfg(target_os = "linux")]
-pub fn read_proc_start_time_marker(pid: u32) -> Option<u64> {
+pub fn read_process_creation_marker(pid: u32) -> Option<u64> {
     let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
     // `comm` (field 2) is parenthesized and may itself contain spaces or parens, so split on
     // the *last* ')' rather than whitespace to find where the numeric fields resume.
@@ -30,6 +35,31 @@ pub fn read_proc_start_time_marker(pid: u32) -> Option<u64> {
     let fields: Vec<&str> = after_comm.split_whitespace().collect();
     // `state` (field 3) lands at index 0 of `fields`, so `starttime` (field 22) is index 19.
     fields.get(19)?.parse().ok()
+}
+
+/// Windows counterpart of the Linux `read_process_creation_marker` above: opens the process
+/// with the minimal `PROCESS_QUERY_LIMITED_INFORMATION` access (sufficient for a same-user
+/// process, no `SeDebugPrivilege` needed) and reads its creation `FILETIME` via
+/// `GetProcessTimes`, packed into a `u64` the same way the two `u32` halves of a `FILETIME`
+/// normally are.
+#[cfg(target_os = "windows")]
+pub fn read_process_creation_marker(pid: u32) -> Option<u64> {
+    use windows::Win32::Foundation::{CloseHandle, FILETIME};
+    use windows::Win32::System::Threading::{
+        GetProcessTimes, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+
+    unsafe {
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).ok()?;
+        let mut creation = FILETIME::default();
+        let mut exit = FILETIME::default();
+        let mut kernel = FILETIME::default();
+        let mut user = FILETIME::default();
+        let result = GetProcessTimes(handle, &mut creation, &mut exit, &mut kernel, &mut user);
+        let _ = CloseHandle(handle);
+        result.ok()?;
+        Some(((creation.dwHighDateTime as u64) << 32) | creation.dwLowDateTime as u64)
+    }
 }
 
 /// Error reading or writing a [`ProcessRecord`].
@@ -44,10 +74,11 @@ pub struct ProcessRecord {
     /// The OS process id at the time Agent Control spawned it.
     pub pid: u32,
     /// An opaque marker distinguishing this exact process instance from any future process
-    /// that reuses the same pid, read from `/proc/<pid>/stat` field 22 (starttime) at spawn
-    /// time. This is clock ticks since the current boot, not wall-clock time; it isn't
-    /// meant to survive a host reboot, only an Agent Control crash/restart within the same
-    /// boot session. Cross-checked on restart to reject a reused PID.
+    /// that reuses the same pid, read via [`read_process_creation_marker`] at spawn time
+    /// (clock ticks since boot on Linux, a creation `FILETIME` on Windows — see that
+    /// function for details). Not meant to survive a host reboot, only an Agent Control
+    /// crash/restart within the same boot session. Cross-checked on restart to reject a
+    /// reused PID.
     pub start_time_marker: u64,
 }
 
@@ -229,13 +260,13 @@ mod tests {
         storer.delete(&agent_id).unwrap();
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "windows"))]
     #[test]
     fn start_time_marker_is_stable_for_the_same_process() {
         let pid = std::process::id();
 
-        let first = read_proc_start_time_marker(pid);
-        let second = read_proc_start_time_marker(pid);
+        let first = read_process_creation_marker(pid);
+        let second = read_process_creation_marker(pid);
 
         assert!(first.is_some());
         assert_eq!(first, second);
@@ -245,7 +276,16 @@ mod tests {
     #[test]
     fn start_time_marker_is_none_for_a_nonexistent_pid() {
         // PID 0 is never a real process on Linux.
-        assert_eq!(read_proc_start_time_marker(0), None);
+        assert_eq!(read_process_creation_marker(0), None);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn start_time_marker_is_none_for_a_nonexistent_pid() {
+        // PID 0 is the "System Idle Process" pseudo-process on Windows; `OpenProcess` on it
+        // reliably fails (`ERROR_INVALID_PARAMETER`), making it a deterministic stand-in for
+        // "nothing to query" without racing a real process's pid getting reused.
+        assert_eq!(read_process_creation_marker(0), None);
     }
 
     #[test]
