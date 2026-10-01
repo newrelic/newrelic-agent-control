@@ -59,7 +59,7 @@ jobs:
         env:
           # Limits the calculated version from dependencies to be a patch bump (by default it propagates the bump type from the dependency).
           DEPENDENCY_CAP: patch
-        uses: newrelic/release-toolkit/contrib/ohi-release-notes@3ebaab2626ccc759b0ca2d89bdf02dd337aa9684 # v1
+        uses: newrelic/release-toolkit/contrib/ohi-release-notes@80550d3a26d8d47937ed98ddfa7614d273d44aef # v1
         with:
           # overrides the default "v" prefix for the version.
           output-prefix: ""
