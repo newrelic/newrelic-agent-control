@@ -43,9 +43,14 @@ jobs:
             false
           fi
 
+      - name: Get CHANGELOG from base branch
+        run: git show origin/${{ github.base_ref }}:CHANGELOG.md > CHANGELOG.base.md
+
       - name: Check if CHANGELOG is valid
         id: validate-changelog
         uses: newrelic/release-toolkit/validate-markdown@c4b929a3b392141fa89af042a907da8694d38c3a # v1
+        with:
+          previous-markdown: CHANGELOG.base.md
 
       - name: Print expected CHANGELOG format
         if: failure() && steps.validate-changelog.conclusion == 'failure'
