@@ -119,7 +119,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 - On-Host: enable self-update capability by default. Self updates are only executed when commanded by Fleet Control.
 
 ### 🐞 Bug fixes
-- K8s supervisor: force a Flux reconciliation on stalled HelmReleases (e.g. after exhausting install/upgrade retries) when a new remote config
+- K8s supervisor: force a Flux reconciliation on stalled HelmReleases (e.g. after exhausting install/upgrade retries) when a new remote config arrives and restarts the sub-agent supervisor.
 - On-host: report the actual last failure (launch error or non-zero exit) in the `lastErrorMessage` of the unhealthy status once the restart policy is exceeded, instead of the generic "Restart policy exceeded" message.
 - On-host: persist fluent-bit's home directory (`fb.db`) across infra-agent package updates instead of storing it in the replaced package directory
 
