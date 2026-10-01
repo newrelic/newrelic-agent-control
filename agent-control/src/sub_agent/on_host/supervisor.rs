@@ -93,6 +93,10 @@ where
     pub internal_publisher: EventPublisher<SubAgentInternalEvent>,
     /// Directory where executable output is logged when file logging is enabled.
     pub logging_base_path: PathBuf,
+    /// The same `BasePaths::remote_dir` every other piece of Agent Control's runtime state
+    /// is rooted at; passed to `CommandOSNotStarted::new` so its adoption bookkeeping stays
+    /// test-isolated the same way everything else already is.
+    pub process_record_base_dir: PathBuf,
     /// The agent's filesystem.
     pub filesystem: FileSystem,
 }
@@ -111,6 +115,7 @@ where
     reported_version_package: Option<PackageID>,
     filesystem: FileSystem,
     shared_filesystem: SharedFileSystem,
+    process_record_base_dir: PathBuf,
 }
 
 impl<PM> SupervisorStarter for NotStartedSupervisorOnHost<PM>
@@ -160,6 +165,7 @@ where
             internal_publisher,
             thread_contexts,
             logging_base_path,
+            process_record_base_dir,
             ..
         } = self;
 
@@ -202,6 +208,7 @@ where
             },
             onhost_config.filesystem,
             onhost_config.shared_filesystem,
+            process_record_base_dir,
         );
 
         starter.check_subagent_version(internal_publisher.clone());
@@ -233,6 +240,7 @@ where
         file_logging_config: SubAgentFileLoggingConfig,
         filesystem: FileSystem,
         shared_filesystem: SharedFileSystem,
+        process_record_base_dir: PathBuf,
     ) -> Self {
         NotStartedSupervisorOnHost {
             agent_identity,
@@ -244,6 +252,7 @@ where
             reported_version_package,
             filesystem,
             shared_filesystem,
+            process_record_base_dir,
         }
     }
 
@@ -379,6 +388,7 @@ where
             agent_identity: self.agent_identity,
             internal_publisher: sub_agent_internal_publisher,
             logging_base_path: self.file_logging_config.base_path,
+            process_record_base_dir: self.process_record_base_dir,
             filesystem: self.filesystem,
         })
     }
@@ -392,6 +402,7 @@ where
         let exec_data = executable_data.clone();
         let agent_id = self.agent_identity.id.clone();
         let logging_config = self.file_logging_config.clone();
+        let process_record_base_dir = self.process_record_base_dir.clone();
         let dispatch = dispatcher::get_default(|d: &Dispatch| d.clone());
 
         let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
@@ -416,8 +427,12 @@ where
                 let health_handler = HealthHandler::new(exec_id.clone(), health_publisher.clone());
 
                 info!(%agent_id, %exec_id, "Starting executable");
-                let command =
-                    CommandOSNotStarted::new(agent_id.clone(), &exec_data, logging_config.clone());
+                let command = CommandOSNotStarted::new(
+                    agent_id.clone(),
+                    &exec_data,
+                    logging_config.clone(),
+                    &process_record_base_dir,
+                );
 
                 let started = command.start().and_then(|cmd| cmd.stream());
 
@@ -743,6 +758,7 @@ pub mod tests {
             ("plugin-b".to_string(), test_package_with_version("2.3.4")),
         ]);
 
+        let test_process_record_dir = tempfile::tempdir().unwrap();
         let supervisor = NotStartedSupervisorOnHost::new(
             agent_identity,
             vec![],
@@ -753,6 +769,7 @@ pub mod tests {
             SubAgentFileLoggingConfig::default(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            test_process_record_dir.path().to_path_buf(),
         );
 
         let (publisher, consumer) = pub_sub();
@@ -844,6 +861,7 @@ pub mod tests {
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
+        let test_process_record_dir = tempfile::tempdir().unwrap();
         let supervisor = NotStartedSupervisorOnHost::new(
             agent_identity,
             executable_data,
@@ -854,6 +872,7 @@ pub mod tests {
             SubAgentFileLoggingConfig::default(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            test_process_record_dir.path().to_path_buf(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -891,6 +910,7 @@ pub mod tests {
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
+        let test_process_record_dir = tempfile::tempdir().unwrap();
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
             executables,
@@ -901,6 +921,7 @@ pub mod tests {
             SubAgentFileLoggingConfig::default(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            test_process_record_dir.path().to_path_buf(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -957,6 +978,7 @@ declared-dir:
             "start-test-agent".to_owned().try_into().unwrap(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
+        let test_process_record_dir = tempfile::tempdir().unwrap();
         let supervisor = NotStartedSupervisorOnHost::new(
             agent_identity,
             vec![],
@@ -967,6 +989,7 @@ declared-dir:
             SubAgentFileLoggingConfig::default(),
             filesystem,
             SharedFileSystem::test_empty(),
+            test_process_record_dir.path().to_path_buf(),
         );
 
         let (publisher, _consumer) = pub_sub();
@@ -1005,6 +1028,7 @@ declared-dir:
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
+        let test_process_record_dir = tempfile::tempdir().unwrap();
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
             executables,
@@ -1015,6 +1039,7 @@ declared-dir:
             SubAgentFileLoggingConfig::default(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            test_process_record_dir.path().to_path_buf(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1056,6 +1081,7 @@ declared-dir:
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
+        let test_process_record_dir = tempfile::tempdir().unwrap();
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
             executables,
@@ -1066,6 +1092,7 @@ declared-dir:
             SubAgentFileLoggingConfig::default(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            test_process_record_dir.path().to_path_buf(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1110,6 +1137,7 @@ declared-dir:
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
+        let test_process_record_dir = tempfile::tempdir().unwrap();
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
             executables,
@@ -1120,6 +1148,7 @@ declared-dir:
             SubAgentFileLoggingConfig::default(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            test_process_record_dir.path().to_path_buf(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1156,6 +1185,7 @@ declared-dir:
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
+        let test_process_record_dir = tempfile::tempdir().unwrap();
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
             executables,
@@ -1166,6 +1196,7 @@ declared-dir:
             SubAgentFileLoggingConfig::default(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            test_process_record_dir.path().to_path_buf(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1216,6 +1247,7 @@ declared-dir:
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
+        let test_process_record_dir = tempfile::tempdir().unwrap();
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
             executables,
@@ -1226,6 +1258,7 @@ declared-dir:
             SubAgentFileLoggingConfig::default(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            test_process_record_dir.path().to_path_buf(),
         );
 
         let (health_publisher, health_consumer) = pub_sub();
@@ -1311,6 +1344,7 @@ declared-dir:
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
+        let test_process_record_dir = tempfile::tempdir().unwrap();
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
             executables,
@@ -1321,6 +1355,7 @@ declared-dir:
             SubAgentFileLoggingConfig::default(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            test_process_record_dir.path().to_path_buf(),
         );
 
         let (health_publisher, health_consumer) = pub_sub();
@@ -1373,10 +1408,12 @@ declared-dir:
             .with_args(vec!["/T".to_owned(), "3".to_owned(), "/NOBREAK".to_owned()]);
 
         let agent_id = AgentID::AgentControl;
+        let test_process_record_dir = tempfile::tempdir().unwrap();
         let command = CommandOSNotStarted::new(
             agent_id.clone(),
             &exec_data,
             SubAgentFileLoggingConfig::default(),
+            test_process_record_dir.path(),
         )
         .start()
         .unwrap();
@@ -1427,10 +1464,12 @@ declared-dir:
         ]);
 
         let agent_id = AgentID::AgentControl;
+        let test_process_record_dir = tempfile::tempdir().unwrap();
         let command = CommandOSNotStarted::new(
             agent_id.clone(),
             &exec_data,
             SubAgentFileLoggingConfig::default(),
+            test_process_record_dir.path(),
         )
         .start()
         .unwrap();
@@ -1482,6 +1521,7 @@ declared-dir:
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
+        let test_process_record_dir = tempfile::tempdir().unwrap();
         let supervisor = NotStartedSupervisorOnHost::new(
             agent_identity.clone(),
             vec![exec_data_1],
@@ -1495,6 +1535,7 @@ declared-dir:
             },
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            test_process_record_dir.path().to_path_buf(),
         );
 
         let (pub_internal, _sub_internal) = pub_sub();
@@ -1614,6 +1655,7 @@ declared-dir:
         ));
 
         // Start with logging DISABLED
+        let test_process_record_dir = tempfile::tempdir().unwrap();
         let supervisor = NotStartedSupervisorOnHost::new(
             agent_identity.clone(),
             vec![exec_data_1],
@@ -1627,6 +1669,7 @@ declared-dir:
             },
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            test_process_record_dir.path().to_path_buf(),
         );
 
         let (pub_internal, _sub_internal) = pub_sub();
@@ -1744,6 +1787,7 @@ declared-dir:
         ));
 
         // Start with logging ENABLED
+        let test_process_record_dir = tempfile::tempdir().unwrap();
         let supervisor = NotStartedSupervisorOnHost::new(
             agent_identity.clone(),
             vec![exec_data_1],
@@ -1757,6 +1801,7 @@ declared-dir:
             },
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            test_process_record_dir.path().to_path_buf(),
         );
 
         let (pub_internal, _sub_internal) = pub_sub();
@@ -1859,6 +1904,7 @@ declared-dir:
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
+        let test_process_record_dir = tempfile::tempdir().unwrap();
         let supervisor = NotStartedSupervisorOnHost::new(
             agent_identity,
             vec![],
@@ -1869,6 +1915,7 @@ declared-dir:
             SubAgentFileLoggingConfig::default(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            test_process_record_dir.path().to_path_buf(),
         );
 
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
@@ -1932,6 +1979,7 @@ declared-dir:
         ));
 
         // Start with logging DISABLED
+        let test_process_record_dir = tempfile::tempdir().unwrap();
         let supervisor = NotStartedSupervisorOnHost::new(
             agent_identity.clone(),
             vec![exec_data_1],
@@ -1942,6 +1990,7 @@ declared-dir:
             SubAgentFileLoggingConfig::default(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            test_process_record_dir.path().to_path_buf(),
         );
 
         let (pub_internal, _sub_internal) = pub_sub();

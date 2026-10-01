@@ -233,29 +233,27 @@ fn record_spawned_process(
     }
 }
 
-/// PoC: the real `runtime-state`-rooted storer, used as [`CommandOSNotStarted::new`]'s
-/// default. A real implementation would inject this the same way `DataStore`/
-/// `InstanceIDStorer` are injected elsewhere, instead of constructing it here.
-#[cfg(any(target_os = "linux", target_os = "windows"))]
-fn default_process_record_storer() -> Arc<dyn process_record::ProcessRecordStorer + Send + Sync> {
-    use crate::agent_control::defaults::AGENT_CONTROL_DATA_DIR;
-
-    Arc::new(process_record::FileProcessRecordStorer::new(
-        fs::file::LocalFile,
-        fs::directory_manager::DirectoryManagerFs,
-        std::path::PathBuf::from(AGENT_CONTROL_DATA_DIR),
-    ))
-}
-
 ////////////////////////////////////////////////////////////////////////////////////
 // Not Started Command OS
 ////////////////////////////////////////////////////////////////////////////////////
 impl CommandOSNotStarted {
-    /// Creates a not-started command for the given executable, configuring stdio pipes and logging.
+    /// Creates a not-started command for the given executable, configuring stdio pipes and
+    /// logging.
+    ///
+    /// `remote_dir` roots the `runtime-state` process-record storer used for adoption, the
+    /// same `BasePaths::remote_dir` every other piece of Agent Control's runtime state
+    /// (OpAMP instance IDs, remote config, etc.) is already rooted at. PoC fix: this used to
+    /// hardcode the real `AGENT_CONTROL_DATA_DIR` constant directly, which meant every
+    /// on-host integration test shared the *same real* bookkeeping file across unrelated
+    /// test runs reusing the same agent/exec ids (several already do) — a genuinely alive
+    /// leftover process from one test could get adopted by a completely different test.
+    /// Threading the real, already-test-isolated `remote_dir` through here instead fixes it
+    /// the same way every other test-isolated piece of state already is.
     pub fn new(
         agent_id: AgentID,
         executable_data: &ExecutableData,
         file_logging_config: SubAgentFileLoggingConfig,
+        remote_dir: &std::path::Path,
     ) -> Self {
         let mut cmd = Command::new(&executable_data.bin);
         cmd.args(&executable_data.args)
@@ -263,13 +261,20 @@ impl CommandOSNotStarted {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
+        #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+        let _ = remote_dir;
+
         Self {
             agent_id,
             cmd,
             file_logging_config,
             shutdown_timeout: executable_data.shutdown_timeout,
             #[cfg(any(target_os = "linux", target_os = "windows"))]
-            process_record_storer: default_process_record_storer(),
+            process_record_storer: Arc::new(process_record::FileProcessRecordStorer::new(
+                fs::file::LocalFile,
+                fs::directory_manager::DirectoryManagerFs,
+                remote_dir.to_path_buf(),
+            )),
         }
     }
 
@@ -879,6 +884,7 @@ mod adoption_poc {
             agent_id,
             &executable_data,
             SubAgentFileLoggingConfig::default(),
+            dir.path(),
         )
         .with_process_record_storer(storer);
 
