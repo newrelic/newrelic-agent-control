@@ -20,6 +20,9 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ## Unreleased
 
+### enhancement
+- Added Azure Key Vault value provider, supporting both Managed Identity and Service Principal authentication.
+
 ### bugfix
 - On-host: fixed integration restarts caused by redundant filesystem sync and full directory recreation when writing OHI config files to the shared filesystem.
 

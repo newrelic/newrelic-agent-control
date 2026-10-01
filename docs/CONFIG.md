@@ -205,6 +205,10 @@ value_providers:
         url: https://vault2.url
         token: secret-token-2
         engine: kv2
+  azure_key_vault: # Sets Azure Key Vault configuration
+    vault_url: https://my-vault.vault.azure.net/
+    auth:
+      type: managed_identity # or service_principal — see docs/VARIABLE_INTERPOLATION.md
 ```
 
 ### self_update
