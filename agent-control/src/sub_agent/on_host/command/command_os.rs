@@ -56,11 +56,12 @@ pub struct CommandOSStarted {
 
 /// PoC: a process this `CommandOSStarted` supervises, either one Agent Control spawned this
 /// run (`Spawned`, a real `Child`) or one it adopted from a previous instance's bookkeeping
-/// (`Adopted`, not yet constructed anywhere; see `process_record`). Kept as a thin wrapper
-/// mirroring `Child`'s API so `CommandOSStarted`'s own methods barely change either way.
+/// (`Adopted`; see `process_record`). Kept as a thin wrapper mirroring `Child`'s API so
+/// `CommandOSStarted`'s own methods barely change either way.
 enum ManagedProcess {
     Spawned(Child),
-    #[allow(dead_code)] // constructed once discovery/adoption is wired in
+    // Adoption is wired in Linux-only (see `start()`); never constructed elsewhere.
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     Adopted(AdoptedProcess),
 }
 
