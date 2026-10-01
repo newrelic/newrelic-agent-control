@@ -21,9 +21,11 @@ use tracing::info;
 const DYNAMIC_AGENT_TYPE_PATH: &str =
     "/etc/newrelic-agent-control/dynamic-agent-types/crash-survival-poc.yaml";
 const SUB_AGENT_ID: &str = "crash-survival-sleeper";
-// An arbitrary, distinctive `sleep` duration used purely so `pgrep -f` can find this exact
-// sub-agent process on a shared CI runner without matching an unrelated sleep invocation.
-const SUB_AGENT_PROCESS_PATTERN: &str = "sleep 4863";
+// The sub-agent's exact full command line (matches `pgrep -f` output verbatim). Matched
+// anchored (`^...$`) everywhere below: an unanchored substring match would also catch the
+// `bash -c "pgrep -f '...'"` wrapper process used to run the match itself, since that
+// wrapper's own command line literally contains this pattern as a substring.
+const SUB_AGENT_PROCESS_PATTERN: &str = "/bin/sleep 4863";
 
 const CRASH_SURVIVAL_AGENT_TYPE: &str = r#"
 namespace: newrelic
@@ -49,7 +51,7 @@ deployment:
 
 /// Finds a still-running process's PID by matching its full command line, or `None`.
 fn find_pid_by_pattern(pattern: &str) -> TestResult<u32> {
-    let output = exec_bash_command(&format!("pgrep -f '{pattern}' | head -n1"))?;
+    let output = exec_bash_command(&format!("pgrep -f '^{pattern}$' | head -n1"))?;
     output
         .lines()
         .find(|l| l.starts_with("Stdout: "))
@@ -197,17 +199,18 @@ agents:
     });
     info!("Confirmed the restarted Agent Control logged an adoption");
 
-    let duplicate_count: u32 =
-        exec_bash_command(&format!("pgrep -fc '{SUB_AGENT_PROCESS_PATTERN}' || true"))
-            .ok()
-            .and_then(|out| {
-                out.lines()
-                    .find(|l| l.starts_with("Stdout: "))
-                    .and_then(|l| l.strip_prefix("Stdout: "))
-                    .map(|s| s.trim().to_owned())
-            })
-            .and_then(|s| s.parse().ok())
-            .expect("could not read pgrep -c output");
+    let duplicate_count: u32 = exec_bash_command(&format!(
+        "pgrep -fc '^{SUB_AGENT_PROCESS_PATTERN}$' || true"
+    ))
+    .ok()
+    .and_then(|out| {
+        out.lines()
+            .find(|l| l.starts_with("Stdout: "))
+            .and_then(|l| l.strip_prefix("Stdout: "))
+            .map(|s| s.trim().to_owned())
+    })
+    .and_then(|s| s.parse().ok())
+    .expect("could not read pgrep -c output");
     assert_eq!(
         duplicate_count, 1,
         "expected exactly one sub-agent process; Agent Control likely respawned a duplicate \
