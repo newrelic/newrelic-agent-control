@@ -137,12 +137,9 @@ pub fn windows_event_handler(
 ) -> impl Fn(ServiceControl) -> ServiceControlHandlerResult {
     move |event: ServiceControl| -> ServiceControlHandlerResult {
         match event {
-            ServiceControl::Stop => {
-                // Eliminates the "Unresponsive" error providing immediate feedback, passing the
-                // status StopPending back to Windows so it knows stop is in process and needs
-                // to wait the graceful period we specify (10 seconds).
-                // This handler can't listen to the event StopPending that is only meant
-                // to be emitted from a running service back to Windows ServiceControl.
+            ServiceControl::Stop | ServiceControl::Shutdown => {
+                // Eliminates the "Unresponsive" error by providing immediate feedback, passing the
+                // status StopPending back to Windows so it knows a stop is in progress.
                 if let Some(handle) = WINDOWS_SERVICE_HANDLE.get() {
                     let _ = handle
                         .set_service_status(WindowsServiceStatus::StopPending.into())
@@ -176,13 +173,15 @@ impl From<WindowsServiceStatus> for ServiceStatus {
         let (current_state, controls_accepted, wait_hint) = match value {
             WindowsServiceStatus::Running => (
                 ServiceState::Running,
-                ServiceControlAccept::STOP,
+                ServiceControlAccept::STOP | ServiceControlAccept::SHUTDOWN,
                 std::time::Duration::default(),
             ),
             WindowsServiceStatus::StopPending => (
                 ServiceState::StopPending,
                 ServiceControlAccept::empty(),
-                std::time::Duration::from_secs(10), // Tells Windows to wait for cleanup
+                // Reported once with a static hint: Windows caps the wait regardless (125s for a
+                // manual stop, `WaitToKillServiceTimeout`, 5s by default, on system shutdown).
+                std::time::Duration::from_secs(60),
             ),
             WindowsServiceStatus::Stopped => (
                 ServiceState::Stopped,

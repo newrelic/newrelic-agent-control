@@ -4,14 +4,12 @@ use crate::common::file::remove_dirs;
 use crate::common::logs::show_logs;
 use crate::common::on_drop::CleanUp;
 use crate::common::{InstallationArgs, RecipeData};
-use crate::windows::install::install_agent_control_from_recipe;
+use crate::windows::install::{SERVICE_NAME, UNINSTALL_SCRIPT, install_agent_control_from_recipe};
 use crate::windows::powershell::exec_ps;
 use crate::windows::service::{STATUS_RUNNING, check_service_status};
 use crate::windows::{AGENT_CONTROL_DIRS, DEFAULT_LOG_PATH};
 use tracing::{info, warn};
 
-const UNINSTALL_SCRIPT: &str = r"C:\Program Files\New Relic\newrelic-agent-control\uninstall.ps1";
-const SERVICE_NAME: &str = "newrelic-agent-control";
 const INSTALL_DIR: &str = r"C:\Program Files\New Relic\newrelic-agent-control";
 const RUNTIME_DIR: &str = r"C:\ProgramData\New Relic\newrelic-agent-control";
 
