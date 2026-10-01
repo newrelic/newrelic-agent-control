@@ -284,48 +284,4 @@ env:
 Only `vault` and `azure_key_vault` require explicit configuration in `agentcontrol.yml`. The
 other providers are always available.
 
-### Vault
-
-```yaml
-value_providers:
-  vault:
-    sources:
-      <source-name>:
-        url: <vault-url-including-/v1>   # required
-        token: <vault-token>             # required
-        engine: kv1 | kv2               # required
-    client_timeout: <duration>           # optional (default: 30s)
-```
-
-| Field | Required | Description |
-|---|---|---|
-| `sources` | Yes | Map of named Vault sources |
-| `sources.<name>.url` | Yes | Full Vault URL including `/v1` path |
-| `sources.<name>.token` | Yes | Vault token for authentication |
-| `sources.<name>.engine` | Yes | Secret engine version: `kv1` or `kv2` |
-| `client_timeout` | No | HTTP timeout for Vault requests (default `30s`) |
-
-### Azure Key Vault
-
-```yaml
-value_providers:
-  azure_key_vault:
-    vault_url: <azure-key-vault-url>     # required
-    auth:                                # optional (default: managed_identity)
-      type: managed_identity
-      # or:
-      # type: service_principal
-      # tenant_id: <tenant-id>
-      # client_id: <client-id>
-      # client_secret: <client-secret>
-    client_timeout: <duration>           # optional (default: 30s)
-```
-
-| Field | Required | Description |
-|---|---|---|
-| `vault_url` | Yes | Azure Key Vault endpoint URL (e.g. `https://my-vault.vault.azure.net/`) |
-| `auth.type` | No | Authentication method: `managed_identity` (default) or `service_principal` |
-| `auth.tenant_id` | If `service_principal` | Azure tenant (directory) ID |
-| `auth.client_id` | If `service_principal` | Service principal application (client) ID |
-| `auth.client_secret` | If `service_principal` | Service principal client secret |
-| `client_timeout` | No | HTTP timeout for requests (default `30s`) |
+For the full field reference of each provider, see [`docs/CONFIG.md#value_providers`](CONFIG.md#value_providers).

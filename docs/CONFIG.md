@@ -193,23 +193,55 @@ If set via config, after a failed upgrade we could have the "old" pod loading th
 The `value_providers` configuration field sets the configuration for the supported value providers. Users can use the values stored in secrets in their remote configurations. The legacy key `secrets_providers` is still accepted as an alias for backward compatibility.
 See [all possible providers](/docs/VARIABLE_INTERPOLATION.md#value-providers)
 
+#### vault
+
+Reads values from a HashiCorp Vault KV secret. Multiple named sources can be defined to target different Vault clusters or engine versions.
+
 ```yaml
 value_providers:
-  vault: # Sets vault sources configuration
-    sources: # Each entry identified by the key defines a source with url, token and engine.
-      source1:
-        url: https://vault1.url # Vault url for the source
-        token: secret-token-1 # token for authentication
-        engine: kv1 # engine (kv1 and kv2 are supported)
-      source2:
-        url: https://vault2.url
-        token: secret-token-2
-        engine: kv2
-  azure_key_vault: # Sets Azure Key Vault configuration
-    vault_url: https://my-vault.vault.azure.net/
-    auth:
-      type: managed_identity # or service_principal — see docs/VARIABLE_INTERPOLATION.md
+  vault:
+    sources:
+      <source-name>:
+        url: <vault-url-including-/v1>   # required
+        token: <vault-token>             # required
+        engine: kv1 | kv2               # required
+    client_timeout: <duration>           # optional (default: 30s)
 ```
+
+| Field | Required | Description |
+|---|---|---|
+| `sources` | Yes | Map of named Vault sources |
+| `sources.<name>.url` | Yes | Full Vault URL including `/v1` path |
+| `sources.<name>.token` | Yes | Vault token for authentication |
+| `sources.<name>.engine` | Yes | Secret engine version: `kv1` or `kv2` |
+| `client_timeout` | No | HTTP timeout for Vault requests (default `30s`) |
+
+#### azure_key_vault
+
+Reads secret values from an Azure Key Vault instance.
+
+```yaml
+value_providers:
+  azure_key_vault:
+    vault_url: <azure-key-vault-url>     # required
+    auth:                                # optional (default: managed_identity)
+      type: managed_identity
+      # or:
+      # type: service_principal
+      # tenant_id: <tenant-id>
+      # client_id: <client-id>
+      # client_secret: <client-secret>
+    client_timeout: <duration>           # optional (default: 30s)
+```
+
+| Field | Required | Description |
+|---|---|---|
+| `vault_url` | Yes | Azure Key Vault endpoint URL (e.g. `https://my-vault.vault.azure.net/`) |
+| `auth.type` | No | Authentication method: `managed_identity` (default) or `service_principal` |
+| `auth.tenant_id` | If `service_principal` | Azure tenant (directory) ID |
+| `auth.client_id` | If `service_principal` | Service principal application (client) ID |
+| `auth.client_secret` | If `service_principal` | Service principal client secret |
+| `client_timeout` | No | HTTP timeout for requests (default `30s`) |
 
 ### self_update
 
