@@ -332,6 +332,19 @@ impl CommandOSNotStarted {
         };
         let child = self.cmd.spawn()?;
 
+        // Assign to a JobObject immediately after spawn, before any other work — including
+        // the bookkeeping below. Minimizing the window between process creation and
+        // assignment matters: widening it (bookkeeping now does real file I/O plus
+        // `OpenProcess`/`GetProcessTimes` on this very pid) is what surfaced an
+        // intermittent `AssignProcessToJobObject: Access is denied` on real Windows CI once
+        // adoption bookkeeping started running on every Windows spawn too.
+        #[cfg(target_family = "windows")]
+        let job_object = {
+            let job_object = JobObject::new()?;
+            job_object.assign_process(&child)?;
+            job_object
+        };
+
         #[cfg(any(target_os = "linux", target_os = "windows"))]
         record_spawned_process(
             &self.agent_id,
@@ -350,10 +363,6 @@ impl CommandOSNotStarted {
         }
         #[cfg(target_family = "windows")]
         {
-            // Each started process gets its own JobObject. All sub-processes that the process spawns
-            // will be assigned to the same JobObject, allowing for a graceful shutdown of the entire process tree.
-            let job_object = JobObject::new()?;
-            job_object.assign_process(&child)?;
             Ok(CommandOSStarted {
                 agent_id: self.agent_id,
                 process: ManagedProcess::Spawned(child),

@@ -8,9 +8,7 @@ use std::process::Child;
 use tracing::error;
 use windows::Win32::Foundation::HANDLE;
 use windows::Win32::System::JobObjects::{
-    AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
-    SetInformationJobObject, TerminateJobObject,
+    AssignProcessToJobObject, CreateJobObjectW, TerminateJobObject,
 };
 
 /// Error produced by a Windows Job Object operation.
@@ -42,21 +40,6 @@ impl JobObject {
         unsafe {
             let handle = CreateJobObjectW(None, None)
                 .map_err(|e| JobObjectError(format!("creating JobObject: {e}")))?;
-
-            // TEMPORARY DIAGNOSTIC: restoring the original kill-on-close flag to isolate
-            // whether *this* is actually what's causing the new, intermittent
-            // `AssignProcessToJobObject: Access is denied` failures on windows-latest CI
-            // (confirmed NOT caused by the new job_object test, which is `#[ignore]`'d).
-            // Revert this once the root cause is confirmed either way.
-            let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
-            limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-            SetInformationJobObject(
-                handle,
-                JobObjectExtendedLimitInformation,
-                &limits as *const _ as *const _,
-                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
-            )
-            .map_err(|e| JobObjectError(format!("setting JobObject information: {e}")))?;
 
             Ok(Self { handle })
         }
@@ -129,13 +112,6 @@ mod tests {
     /// `kill()`/`Drop` code entirely) reproduces exactly what the kernel does on process
     /// death. If `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` were still set, that handle close alone
     /// would terminate the child; without it, as asserted below, the child keeps running.
-    //
-    // TEMPORARY DIAGNOSTIC: #[ignore]'d to isolate whether this test's own concurrent
-    // JobObject creation (racing against supervisor.rs's tests under cargo's default
-    // parallel `--lib` run) is what's causing `AssignProcessToJobObject: Access is denied`
-    // elsewhere in the suite on windows-latest CI — not a permanent change. Revert once
-    // the root cause is confirmed.
-    #[ignore]
     #[test]
     fn job_handle_closing_without_an_explicit_kill_does_not_kill_the_child() {
         let job = JobObject::new().expect("Failed to create JobObject");
