@@ -115,3 +115,9 @@ pub fn is_start_limit_hit(service_name: &str) -> bool {
 pub fn get_unit_file_state(service_name: &str) -> String {
     get_systemctl_property(service_name, "UnitFileState").unwrap_or_default()
 }
+
+/// Gets the service's configured `KillMode` as actually deployed (`systemctl show
+/// --property=KillMode`), independent of what the source unit file in this branch says.
+pub fn get_kill_mode(service_name: &str) -> String {
+    get_systemctl_property(service_name, "KillMode").unwrap_or_default()
+}

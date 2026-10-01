@@ -14,7 +14,7 @@ use crate::common::{InstallationArgs, RecipeData};
 use crate::linux;
 use crate::linux::bash::exec_bash_command;
 use crate::linux::install::{install_agent_control_from_recipe, tear_down_test};
-use crate::linux::service::{get_main_pid, restart_service};
+use crate::linux::service::{get_kill_mode, get_main_pid, restart_service};
 use std::time::Duration;
 use tracing::info;
 
@@ -95,6 +95,13 @@ agents:
 
     restart_service(linux::SERVICE_NAME);
 
+    let kill_mode = get_kill_mode(linux::SERVICE_NAME);
+    info!(kill_mode, "Deployed unit's KillMode");
+    assert_eq!(
+        kill_mode, "process",
+        "the deployed unit isn't running with KillMode=process; check build/package/newrelic-agent-control.service made it into this build"
+    );
+
     info!("Waiting for Agent Control and the sub-agent to come up");
     let ac_pid_before =
         retry_panic(
@@ -112,6 +119,20 @@ agents:
     info!(
         ac_pid_before,
         sub_agent_pid, "Agent Control and the sub-agent are both up"
+    );
+
+    // Give Agent Control's own initial reconciliation (config load, first health check, etc.)
+    // a few seconds to settle, then re-confirm the sub-agent PID is still the same one before
+    // we crash Agent Control — otherwise a benign internal restart of the sub-agent (nothing to
+    // do with the crash we're about to simulate) could be mistaken for a KillMode regression.
+    std::thread::sleep(Duration::from_secs(5));
+    let sub_agent_pid_before_crash = find_pid_by_pattern(SUB_AGENT_PROCESS_PATTERN)
+        .expect("sub-agent should still be findable after the settle period");
+    assert_eq!(
+        sub_agent_pid_before_crash, sub_agent_pid,
+        "sub-agent PID changed from {sub_agent_pid} to {sub_agent_pid_before_crash} on its own, \
+         before Agent Control was crashed; this is Agent Control's own supervision restarting \
+         it, unrelated to the scenario under test"
     );
 
     info!(ac_pid_before, "Simulating a crash: kill -9 the main PID");
