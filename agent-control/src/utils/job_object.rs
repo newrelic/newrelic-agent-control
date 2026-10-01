@@ -115,8 +115,13 @@ mod tests {
     #[test]
     fn job_handle_closing_without_an_explicit_kill_does_not_kill_the_child() {
         let job = JobObject::new().expect("Failed to create JobObject");
-        let mut child = Command::new("cmd")
-            .args(["/C", "timeout", "/T", "15"])
+        // `cmd /C timeout` (used by the test above) requires an interactive console and
+        // exits almost immediately with an error when stdin is redirected, as it is under a
+        // test harness — not actually long-running here. `Start-Sleep` has no such
+        // dependency; it's the same primitive `custom_agent_type.rs`'s own Windows test
+        // fixture already relies on for a genuinely long-running placeholder process.
+        let mut child = Command::new("powershell")
+            .args(["-NoProfile", "-Command", "Start-Sleep -Seconds 15"])
             .spawn()
             .expect("Failed to spawn process");
 

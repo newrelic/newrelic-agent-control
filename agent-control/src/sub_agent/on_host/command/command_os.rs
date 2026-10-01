@@ -696,9 +696,11 @@ mod adoption_poc {
         FileProcessRecordStorer::new(LocalFile, DirectoryManagerFs, dir.to_path_buf())
     }
 
-    /// Spawns a real, long-lived process to adopt across these tests: `sleep 30` on
-    /// Unix, `cmd /C timeout /T 30` on Windows (the same long-running placeholder
-    /// `utils::job_object`'s own tests already use).
+    /// Spawns a real, long-lived process to adopt across these tests: `sleep 30` on Unix,
+    /// PowerShell's `Start-Sleep -Seconds 30` on Windows. Not `cmd /C timeout`: that requires
+    /// an interactive console and exits almost immediately with an error when stdin is
+    /// redirected, as it is under a test harness — the same primitive
+    /// `custom_agent_type.rs`'s own Windows test fixture already relies on instead.
     fn spawn_sleeper() -> Child {
         #[cfg(target_family = "unix")]
         {
@@ -709,10 +711,10 @@ mod adoption_poc {
         }
         #[cfg(target_family = "windows")]
         {
-            StdCommand::new("cmd")
-                .args(["/C", "timeout", "/T", "30"])
+            StdCommand::new("powershell")
+                .args(["-NoProfile", "-Command", "Start-Sleep -Seconds 30"])
                 .spawn()
-                .expect("failed to spawn `cmd /C timeout`")
+                .expect("failed to spawn `powershell -Command Start-Sleep`")
         }
     }
 
