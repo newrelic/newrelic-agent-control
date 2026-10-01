@@ -35,6 +35,10 @@ const POLL_INTERVAL: Duration = Duration::from_millis(100);
 pub struct CommandOSNotStarted {
     cmd: Command,
     agent_id: AgentID,
+    /// Identifies which of the agent's (possibly several) executables this is, so adoption
+    /// bookkeeping for one doesn't collide with another's under the same `agent_id`.
+    #[cfg_attr(not(any(target_os = "linux", target_os = "windows")), allow(dead_code))]
+    exec_id: String,
     file_logging_config: SubAgentFileLoggingConfig,
     shutdown_timeout: Duration,
     /// PoC: defaults to the real `runtime-state`-rooted storer; overridable in tests via
@@ -190,16 +194,18 @@ fn unknown_exit_status() -> ExitStatus {
     }
 }
 
-/// PoC, Linux and Windows only: checks the bookkeeping for `agent_id` and, if it points at a
-/// pid that's still alive with a matching start-time marker, returns it as adoptable. Takes
-/// the storer as a parameter (rather than constructing one internally) specifically so this
-/// is testable against a temp-dir storer instead of Agent Control's real dynamic data dir.
+/// PoC, Linux and Windows only: checks the bookkeeping for `(agent_id, exec_id)` and, if it
+/// points at a pid that's still alive with a matching start-time marker, returns it as
+/// adoptable. Takes the storer as a parameter (rather than constructing one internally)
+/// specifically so this is testable against a temp-dir storer instead of Agent Control's
+/// real dynamic data dir.
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 fn adoptable_process(
     agent_id: &AgentID,
+    exec_id: &str,
     storer: &dyn process_record::ProcessRecordStorer,
 ) -> Option<AdoptedProcess> {
-    let record = storer.get(agent_id).ok().flatten()?;
+    let record = storer.get(agent_id, exec_id).ok().flatten()?;
     let current_marker = process_record::read_process_creation_marker(record.pid)?;
     if current_marker != record.start_time_marker {
         return None;
@@ -217,19 +223,20 @@ fn adoptable_process(
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 fn record_spawned_process(
     agent_id: &AgentID,
+    exec_id: &str,
     pid: u32,
     storer: &dyn process_record::ProcessRecordStorer,
 ) {
     let Some(start_time_marker) = process_record::read_process_creation_marker(pid) else {
-        warn!(%agent_id, pid, "PoC: could not read start-time marker for freshly spawned process, adoption bookkeeping skipped");
+        warn!(%agent_id, %exec_id, pid, "PoC: could not read start-time marker for freshly spawned process, adoption bookkeeping skipped");
         return;
     };
     let record = process_record::ProcessRecord {
         pid,
         start_time_marker,
     };
-    if let Err(err) = storer.set(agent_id, &record) {
-        warn!(%agent_id, pid, "PoC: failed to persist process record: {err}");
+    if let Err(err) = storer.set(agent_id, exec_id, &record) {
+        warn!(%agent_id, %exec_id, pid, "PoC: failed to persist process record: {err}");
     }
 }
 
@@ -266,6 +273,7 @@ impl CommandOSNotStarted {
 
         Self {
             agent_id,
+            exec_id: executable_data.id.clone(),
             cmd,
             file_logging_config,
             shutdown_timeout: executable_data.shutdown_timeout,
@@ -298,10 +306,12 @@ impl CommandOSNotStarted {
     /// crash-survival CDD.
     pub fn start(mut self) -> Result<CommandOSStarted, CommandError> {
         #[cfg(any(target_os = "linux", target_os = "windows"))]
-        if let Some(adopted) =
-            adoptable_process(&self.agent_id, self.process_record_storer.as_ref())
-        {
-            info!(agent_id = %self.agent_id, pid = adopted.pid, "PoC: adopted a still-running process from a previous Agent Control instance instead of respawning it");
+        if let Some(adopted) = adoptable_process(
+            &self.agent_id,
+            &self.exec_id,
+            self.process_record_storer.as_ref(),
+        ) {
+            info!(agent_id = %self.agent_id, exec_id = %self.exec_id, pid = adopted.pid, "PoC: adopted a still-running process from a previous Agent Control instance instead of respawning it");
             #[cfg(target_family = "unix")]
             return Ok(CommandOSStarted {
                 agent_id: self.agent_id,
@@ -353,6 +363,7 @@ impl CommandOSNotStarted {
         #[cfg(any(target_os = "linux", target_os = "windows"))]
         record_spawned_process(
             &self.agent_id,
+            &self.exec_id,
             child.id(),
             self.process_record_storer.as_ref(),
         );
@@ -750,6 +761,8 @@ mod adoption_poc {
         }
     }
 
+    const EXEC_ID: &str = "exec-1";
+
     #[test]
     fn adoptable_process_recognizes_a_still_alive_recorded_process() {
         let dir = tempfile::tempdir().unwrap();
@@ -762,6 +775,7 @@ mod adoption_poc {
         storer
             .set(
                 &agent_id,
+                EXEC_ID,
                 &ProcessRecord {
                     pid,
                     start_time_marker: marker,
@@ -769,7 +783,7 @@ mod adoption_poc {
             )
             .unwrap();
 
-        let adopted = adoptable_process(&agent_id, &storer);
+        let adopted = adoptable_process(&agent_id, EXEC_ID, &storer);
 
         assert!(
             adopted.is_some(),
@@ -794,6 +808,7 @@ mod adoption_poc {
         storer
             .set(
                 &agent_id,
+                EXEC_ID,
                 &ProcessRecord {
                     pid,
                     start_time_marker: real_marker.wrapping_add(1),
@@ -801,7 +816,7 @@ mod adoption_poc {
             )
             .unwrap();
 
-        let adopted = adoptable_process(&agent_id, &storer);
+        let adopted = adoptable_process(&agent_id, EXEC_ID, &storer);
 
         assert!(
             adopted.is_none(),
@@ -823,6 +838,7 @@ mod adoption_poc {
         storer
             .set(
                 &agent_id,
+                EXEC_ID,
                 &ProcessRecord {
                     pid,
                     start_time_marker: marker,
@@ -832,7 +848,7 @@ mod adoption_poc {
         sleeper.kill().unwrap();
         sleeper.wait().unwrap();
 
-        assert!(adoptable_process(&agent_id, &storer).is_none());
+        assert!(adoptable_process(&agent_id, EXEC_ID, &storer).is_none());
     }
 
     #[test]
@@ -843,11 +859,11 @@ mod adoption_poc {
         let mut sleeper = spawn_sleeper();
         let pid = sleeper.id();
 
-        record_spawned_process(&agent_id, pid, &storer);
+        record_spawned_process(&agent_id, EXEC_ID, pid, &storer);
 
         // Round-trips through the exact function `start()` calls after a real spawn, then
         // through the exact function it calls before a real spawn, closing the loop.
-        let adopted = adoptable_process(&agent_id, &storer);
+        let adopted = adoptable_process(&agent_id, EXEC_ID, &storer);
         assert_eq!(adopted.map(|a| a.pid), Some(pid));
 
         sleeper.kill().unwrap();
@@ -866,9 +882,12 @@ mod adoption_poc {
         let mut pre_existing = spawn_sleeper();
         let pid = pre_existing.id();
         let marker = process_record::read_process_creation_marker(pid).unwrap();
+        // The seeded record's exec_id must match the executable's own id below: adoption is
+        // keyed by (agent_id, exec_id), not agent_id alone.
         storer
             .set(
                 &agent_id,
+                "adopt-test",
                 &ProcessRecord {
                     pid,
                     start_time_marker: marker,

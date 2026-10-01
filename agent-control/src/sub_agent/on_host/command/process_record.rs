@@ -99,18 +99,31 @@ pub struct ProcessRecord {
     pub start_time_marker: u64,
 }
 
-/// Persists and retrieves a [`ProcessRecord`] per agent, keyed by [`AgentID`].
+/// Persists and retrieves a [`ProcessRecord`] per executable, keyed by [`AgentID`] *and*
+/// executable id. A single agent can declare more than one executable (several on-host
+/// scenarios do); keying by `agent_id` alone made every executable under the same agent
+/// silently overwrite the others' bookkeeping, since the last one spawned would always win.
 pub trait ProcessRecordStorer {
-    /// Stores `record` for `agent_id`, overwriting any existing record.
-    fn set(&self, agent_id: &AgentID, record: &ProcessRecord) -> Result<(), ProcessRecordError>;
-    /// Retrieves the stored record for `agent_id`, if any.
-    fn get(&self, agent_id: &AgentID) -> Result<Option<ProcessRecord>, ProcessRecordError>;
-    /// Deletes the stored record for `agent_id`. Deleting a non-existent record is not an error.
-    fn delete(&self, agent_id: &AgentID) -> Result<(), ProcessRecordError>;
+    /// Stores `record` for `(agent_id, exec_id)`, overwriting any existing record.
+    fn set(
+        &self,
+        agent_id: &AgentID,
+        exec_id: &str,
+        record: &ProcessRecord,
+    ) -> Result<(), ProcessRecordError>;
+    /// Retrieves the stored record for `(agent_id, exec_id)`, if any.
+    fn get(
+        &self,
+        agent_id: &AgentID,
+        exec_id: &str,
+    ) -> Result<Option<ProcessRecord>, ProcessRecordError>;
+    /// Deletes the stored record for `(agent_id, exec_id)`. Deleting a non-existent record is
+    /// not an error.
+    fn delete(&self, agent_id: &AgentID, exec_id: &str) -> Result<(), ProcessRecordError>;
 }
 
-/// [`ProcessRecordStorer`] backed by one YAML file per agent under a `runtime-state`
-/// directory, rooted at Agent Control's dynamic data directory.
+/// [`ProcessRecordStorer`] backed by one YAML file per `(agent, executable)` pair under a
+/// `runtime-state` directory, rooted at Agent Control's dynamic data directory.
 pub struct FileProcessRecordStorer<F, D> {
     file_rw: F,
     directory_manager: D,
@@ -131,10 +144,11 @@ where
         }
     }
 
-    fn file_path(&self, agent_id: &AgentID) -> PathBuf {
+    fn file_path(&self, agent_id: &AgentID, exec_id: &str) -> PathBuf {
         self.base_dir
             .join(FOLDER_NAME_RUNTIME_STATE)
             .join(agent_id)
+            .join(exec_id)
             .join(PROCESS_RECORD_FILE_NAME)
     }
 }
@@ -144,8 +158,13 @@ where
     D: DirectoryManager,
     F: FileWriter + FileReader + FileDeleter,
 {
-    fn set(&self, agent_id: &AgentID, record: &ProcessRecord) -> Result<(), ProcessRecordError> {
-        let path = self.file_path(agent_id);
+    fn set(
+        &self,
+        agent_id: &AgentID,
+        exec_id: &str,
+        record: &ProcessRecord,
+    ) -> Result<(), ProcessRecordError> {
+        let path = self.file_path(agent_id, exec_id);
         if let Some(parent) = path.parent() {
             self.directory_manager
                 .create(parent)
@@ -157,8 +176,12 @@ where
         Ok(())
     }
 
-    fn get(&self, agent_id: &AgentID) -> Result<Option<ProcessRecord>, ProcessRecordError> {
-        let path = self.file_path(agent_id);
+    fn get(
+        &self,
+        agent_id: &AgentID,
+        exec_id: &str,
+    ) -> Result<Option<ProcessRecord>, ProcessRecordError> {
+        let path = self.file_path(agent_id, exec_id);
         match self.file_rw.read(&path) {
             Ok(content) => {
                 let record = serde_saphyr::from_str(&content)
@@ -170,8 +193,8 @@ where
         }
     }
 
-    fn delete(&self, agent_id: &AgentID) -> Result<(), ProcessRecordError> {
-        let path = self.file_path(agent_id);
+    fn delete(&self, agent_id: &AgentID, exec_id: &str) -> Result<(), ProcessRecordError> {
+        let path = self.file_path(agent_id, exec_id);
         match self.file_rw.delete(&path) {
             Ok(()) => Ok(()),
             Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
@@ -190,13 +213,15 @@ mod tests {
         FileProcessRecordStorer::new(LocalFile, DirectoryManagerFs, base_dir)
     }
 
+    const EXEC_ID: &str = "exec-1";
+
     #[test]
     fn get_missing_record_returns_none() {
         let dir = tempfile::tempdir().unwrap();
         let storer = test_storer(dir.path().to_path_buf());
         let agent_id = AgentID::try_from("test-agent").unwrap();
 
-        assert_eq!(storer.get(&agent_id).unwrap(), None);
+        assert_eq!(storer.get(&agent_id, EXEC_ID).unwrap(), None);
     }
 
     #[test]
@@ -209,9 +234,9 @@ mod tests {
             start_time_marker: 1_700_000_000,
         };
 
-        storer.set(&agent_id, &record).unwrap();
+        storer.set(&agent_id, EXEC_ID, &record).unwrap();
 
-        assert_eq!(storer.get(&agent_id).unwrap(), Some(record));
+        assert_eq!(storer.get(&agent_id, EXEC_ID).unwrap(), Some(record));
     }
 
     #[test]
@@ -223,6 +248,7 @@ mod tests {
         storer
             .set(
                 &agent_id,
+                EXEC_ID,
                 &ProcessRecord {
                     pid: 1,
                     start_time_marker: 1,
@@ -232,6 +258,7 @@ mod tests {
         storer
             .set(
                 &agent_id,
+                EXEC_ID,
                 &ProcessRecord {
                     pid: 2,
                     start_time_marker: 2,
@@ -240,7 +267,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            storer.get(&agent_id).unwrap(),
+            storer.get(&agent_id, EXEC_ID).unwrap(),
             Some(ProcessRecord {
                 pid: 2,
                 start_time_marker: 2,
@@ -256,6 +283,7 @@ mod tests {
         storer
             .set(
                 &agent_id,
+                EXEC_ID,
                 &ProcessRecord {
                     pid: 1,
                     start_time_marker: 1,
@@ -263,9 +291,9 @@ mod tests {
             )
             .unwrap();
 
-        storer.delete(&agent_id).unwrap();
+        storer.delete(&agent_id, EXEC_ID).unwrap();
 
-        assert_eq!(storer.get(&agent_id).unwrap(), None);
+        assert_eq!(storer.get(&agent_id, EXEC_ID).unwrap(), None);
     }
 
     #[test]
@@ -274,7 +302,7 @@ mod tests {
         let storer = test_storer(dir.path().to_path_buf());
         let agent_id = AgentID::try_from("test-agent").unwrap();
 
-        storer.delete(&agent_id).unwrap();
+        storer.delete(&agent_id, EXEC_ID).unwrap();
     }
 
     #[cfg(any(target_os = "linux", target_os = "windows"))]
@@ -315,6 +343,7 @@ mod tests {
         storer
             .set(
                 &agent_a,
+                EXEC_ID,
                 &ProcessRecord {
                     pid: 1,
                     start_time_marker: 1,
@@ -322,6 +351,56 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(storer.get(&agent_b).unwrap(), None);
+        assert_eq!(storer.get(&agent_b, EXEC_ID).unwrap(), None);
+    }
+
+    /// Regression test: an agent declaring more than one executable (several on-host
+    /// scenarios do, e.g. `multiple_executables.rs`, `restarting_processes.rs`) must not have
+    /// one executable's bookkeeping clobber another's. Keying by `agent_id` alone used to let
+    /// this happen silently: whichever executable spawned last would overwrite the single
+    /// shared record, so an earlier executable's own restart could adopt the wrong pid or
+    /// find nothing to adopt at all.
+    #[test]
+    fn records_for_different_executables_under_the_same_agent_do_not_collide() {
+        let dir = tempfile::tempdir().unwrap();
+        let storer = test_storer(dir.path().to_path_buf());
+        let agent_id = AgentID::try_from("multi-exec-agent").unwrap();
+
+        storer
+            .set(
+                &agent_id,
+                "exec-1",
+                &ProcessRecord {
+                    pid: 111,
+                    start_time_marker: 1,
+                },
+            )
+            .unwrap();
+        storer
+            .set(
+                &agent_id,
+                "exec-2",
+                &ProcessRecord {
+                    pid: 222,
+                    start_time_marker: 2,
+                },
+            )
+            .unwrap();
+
+        assert_eq!(
+            storer.get(&agent_id, "exec-1").unwrap(),
+            Some(ProcessRecord {
+                pid: 111,
+                start_time_marker: 1,
+            }),
+            "exec-2's record must not have clobbered exec-1's"
+        );
+        assert_eq!(
+            storer.get(&agent_id, "exec-2").unwrap(),
+            Some(ProcessRecord {
+                pid: 222,
+                start_time_marker: 2,
+            })
+        );
     }
 }
