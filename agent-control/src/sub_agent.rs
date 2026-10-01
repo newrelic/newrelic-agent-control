@@ -60,13 +60,30 @@ pub trait NotStartedSubAgent {
     fn run(self) -> Self::StartedSubAgent;
 }
 
-/// The StartedSubAgent trait defines the interface for a supervisor that is already running.
-///
-/// Exposes information about the Sub Agent and a stop method that will stop the
-/// supervised processes' execution and the loop processing the events.
+/// StartedSubAgent exposes a way to stop a started sub agent.
 pub trait StartedSubAgent {
-    /// Stops all internal services owned by the SubAgent
-    fn stop(self) -> Result<(), SubAgentStopError>;
+    /// Signals the SubAgent to stop, returning a handle to wait on its completion if needed.
+    fn stop(self) -> Result<SubAgentJoinHandle, SubAgentStopError>;
+}
+
+/// A handle to a [StartedSubAgent] that has been signaled to stop, used to wait for it to
+/// actually finish.
+#[must_use = "dropping the handle detaches the sub-agent thread without waiting for it"]
+pub struct SubAgentJoinHandle(JoinHandle<Result<(), SubAgentError>>);
+
+impl SubAgentJoinHandle {
+    /// Waits for the sub-agent thread to finish.
+    pub fn join(self) -> Result<(), SubAgentStopError> {
+        let runtime_join_result = self.0.join().map_err(|err| {
+            let message = err
+                .downcast_ref::<&str>()
+                .map(|s| s.to_string())
+                .or_else(|| err.downcast_ref::<String>().cloned())
+                .unwrap_or_else(|| "The sub agent thread failed unexpectedly".to_string());
+            SubAgentStopError::SubAgentJoinHandle(message)
+        })?;
+        Ok(runtime_join_result?)
+    }
 }
 
 /// Builds a [NotStartedSubAgent] for a given [AgentIdentity].
@@ -756,18 +773,10 @@ fn log_health_info(health: &Health) {
 }
 
 impl StartedSubAgent for SubAgentStopper {
-    fn stop(self) -> Result<(), SubAgentStopError> {
-        // Stop processing events
+    fn stop(self) -> Result<SubAgentJoinHandle, SubAgentStopError> {
         self.sub_agent_internal_publisher
             .publish(SubAgentInternalEvent::StopRequested)?;
-        // Wait for the sub agent thread to finish
-        let runtime_join_result = self.runtime.join().map_err(|_| {
-            // Error when the 'runtime thread' panics.
-            SubAgentStopError::SubAgentJoinHandle(
-                "The sub agent thread failed unexpectedly".to_string(),
-            )
-        })?;
-        Ok(runtime_join_result?)
+        Ok(SubAgentJoinHandle(self.runtime))
     }
 }
 
@@ -835,6 +844,7 @@ pub mod tests {
     use std::ops::Deref;
     use std::path::PathBuf;
     use std::sync::Arc;
+    use std::thread;
 
     type TestSubAgent = SubAgent<
         MockStartedOpAMPClient,
@@ -848,13 +858,15 @@ pub mod tests {
         pub StartedSubAgent {}
 
         impl StartedSubAgent for StartedSubAgent {
-            fn stop(self) -> Result<(), SubAgentStopError>;
+            fn stop(self) -> Result<SubAgentJoinHandle, SubAgentStopError>;
         }
     }
 
     impl MockStartedSubAgent {
         pub fn should_stop(&mut self) {
-            self.expect_stop().once().returning(|| Ok(()));
+            self.expect_stop()
+                .once()
+                .return_once(|| Ok(SubAgentJoinHandle(thread::spawn(|| Ok(())))));
         }
     }
 
@@ -1271,7 +1283,7 @@ deployment:
             TestAgent::agent_type_definition(),
         );
 
-        sub_agent.run().stop().unwrap();
+        sub_agent.run().stop().unwrap().join().unwrap();
     }
 
     #[test]
