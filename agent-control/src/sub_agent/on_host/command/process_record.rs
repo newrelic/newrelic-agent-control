@@ -42,15 +42,32 @@ pub fn read_process_creation_marker(pid: u32) -> Option<u64> {
 /// process, no `SeDebugPrivilege` needed) and reads its creation `FILETIME` via
 /// `GetProcessTimes`, packed into a `u64` the same way the two `u32` halves of a `FILETIME`
 /// normally are.
+///
+/// Checks real liveness first via `GetExitCodeProcess`/`STILL_ACTIVE`, deliberately not just
+/// whether `OpenProcess` succeeds: unlike Linux, where a fully-reaped process's
+/// `/proc/<pid>/stat` simply stops existing, a Windows process's kernel object (and thus its
+/// pid, and `OpenProcess`/`GetProcessTimes` on it) can keep working for a process that has
+/// already exited, for as long as *any* handle anywhere — not necessarily held by this
+/// code — still references it. Skipping this check cost real test failures: a test's own
+/// `Child` handle to an already-killed-and-waited process was enough to keep it adoptable.
 #[cfg(target_os = "windows")]
 pub fn read_process_creation_marker(pid: u32) -> Option<u64> {
-    use windows::Win32::Foundation::{CloseHandle, FILETIME};
+    use windows::Win32::Foundation::{CloseHandle, FILETIME, STILL_ACTIVE};
     use windows::Win32::System::Threading::{
-        GetProcessTimes, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+        GetExitCodeProcess, GetProcessTimes, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
     };
 
     unsafe {
         let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).ok()?;
+
+        let mut exit_code = 0u32;
+        let still_active = GetExitCodeProcess(handle, &mut exit_code).is_ok()
+            && exit_code == STILL_ACTIVE.0 as u32;
+        if !still_active {
+            let _ = CloseHandle(handle);
+            return None;
+        }
+
         let mut creation = FILETIME::default();
         let mut exit = FILETIME::default();
         let mut kernel = FILETIME::default();
