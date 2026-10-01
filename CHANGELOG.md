@@ -29,6 +29,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ### enhancement
 - Self instrumentation now gets the injected license key as header if none is set in all systems.
+- On-host: added support for nri-mssql agentType for Windows.
 
 ## v1.25.1 - 2026-09-25
 
