@@ -64,6 +64,35 @@ fn is_pid_alive(pid: u32) -> bool {
     exec_bash_command(&format!("kill -0 {pid}")).is_ok()
 }
 
+/// Waits until the sub-agent's PID is unchanged across several consecutive checks, to ride
+/// out Agent Control's own benign startup churn before using the PID as a crash-test baseline.
+fn wait_for_stable_pid(mut pid: u32) -> u32 {
+    const REQUIRED_STABLE_CHECKS: u32 = 3;
+    let mut stable_checks = 0;
+    for _ in 0..30 {
+        std::thread::sleep(Duration::from_secs(1));
+        match find_pid_by_pattern(SUB_AGENT_PROCESS_PATTERN) {
+            Ok(current) if current == pid => {
+                stable_checks += 1;
+                if stable_checks >= REQUIRED_STABLE_CHECKS {
+                    return pid;
+                }
+            }
+            Ok(current) => {
+                info!(
+                    from = pid,
+                    to = current,
+                    "Sub-agent PID changed, still settling"
+                );
+                pid = current;
+                stable_checks = 0;
+            }
+            Err(_) => stable_checks = 0,
+        }
+    }
+    panic!("sub-agent PID never settled within 30s (last seen: {pid})");
+}
+
 pub fn test_ac_crash_survival_and_process_adoption(args: InstallationArgs) {
     let recipe_data = RecipeData {
         args,
@@ -121,19 +150,13 @@ agents:
         sub_agent_pid, "Agent Control and the sub-agent are both up"
     );
 
-    // Give Agent Control's own initial reconciliation (config load, first health check, etc.)
-    // a few seconds to settle, then re-confirm the sub-agent PID is still the same one before
-    // we crash Agent Control — otherwise a benign internal restart of the sub-agent (nothing to
-    // do with the crash we're about to simulate) could be mistaken for a KillMode regression.
-    std::thread::sleep(Duration::from_secs(5));
-    let sub_agent_pid_before_crash = find_pid_by_pattern(SUB_AGENT_PROCESS_PATTERN)
-        .expect("sub-agent should still be findable after the settle period");
-    assert_eq!(
-        sub_agent_pid_before_crash, sub_agent_pid,
-        "sub-agent PID changed from {sub_agent_pid} to {sub_agent_pid_before_crash} on its own, \
-         before Agent Control was crashed; this is Agent Control's own supervision restarting \
-         it, unrelated to the scenario under test"
-    );
+    // Agent Control's own initial reconciliation (config load, first health check, etc.) can
+    // restart the sub-agent process once or twice right after startup, independent of anything
+    // this scenario does. Wait for the PID to hold steady across a few consecutive checks
+    // before treating it as the baseline to crash Agent Control against, so a benign internal
+    // restart here isn't mistaken for a KillMode regression later.
+    let sub_agent_pid = wait_for_stable_pid(sub_agent_pid);
+    info!(sub_agent_pid, "Sub-agent PID has settled");
 
     info!(ac_pid_before, "Simulating a crash: kill -9 the main PID");
     exec_bash_command(&format!("kill -9 {ac_pid_before}"))
