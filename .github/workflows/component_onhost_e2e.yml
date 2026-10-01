@@ -55,6 +55,7 @@ jobs:
           - package-upgrade
           - uninstall-and-reinstall
           - service-restart-policy
+          - crash-survival-adoption
     steps:
       - name: Record job start time
         run: echo "JOB_START_TIME=$(date +%s)" >> "$GITHUB_ENV"

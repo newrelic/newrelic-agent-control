@@ -4,7 +4,10 @@ After=network.target
 
 [Service]
 ExecStart=/usr/bin/newrelic-agent-control
-KillMode=mixed
+# PoC: process, not the default mixed, so a crash/restart cycle never reaches into the
+# rest of the unit's cgroup. Sub-agents survive an AC crash as orphans; AC re-adopts them
+# on restart instead of respawning duplicates. See the on-host crash-survival CDD/PoC.
+KillMode=process
 Restart=always
 RestartSec=20
 # Both directives set the same value: StartLimitInterval= is the pre-230 name,

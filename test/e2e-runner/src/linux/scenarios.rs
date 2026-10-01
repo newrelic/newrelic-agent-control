@@ -1,4 +1,5 @@
 pub mod all_ohis_no_service;
+pub mod crash_survival_adoption;
 pub mod ebpf_agent;
 pub mod fleet_control;
 pub mod infra_agent;

@@ -212,6 +212,7 @@ impl AgentControlRunner {
 
         let supervisor_builder = SupervisorBuilderOnHost {
             logging_base_path: self.base_paths.log_dir,
+            process_record_base_dir: remote_dir.clone(),
             package_manager: agents_package_manager,
         };
 
