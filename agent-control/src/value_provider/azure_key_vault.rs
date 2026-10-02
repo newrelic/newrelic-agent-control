@@ -7,6 +7,8 @@ use crate::value_provider::ValueProvider;
 use duration_str::deserialize_duration;
 use http::Request;
 use serde::Deserialize;
+use std::collections::HashMap;
+use std::str::FromStr;
 use std::time::Duration;
 use thiserror::Error;
 use url::{ParseError, Url};
@@ -56,6 +58,35 @@ pub enum AzureKeyVaultError {
     /// A response body could not be deserialized.
     #[error("could not deserialize response: {0}")]
     DeserializeError(String),
+
+    /// The secret path did not match the expected `source:secret-name` format.
+    #[error("secret path '{0}' does not have the expected format 'source:secret-name'")]
+    IncorrectSecretPath(String),
+
+    /// The requested source was not configured.
+    #[error("secret source not found")]
+    SourceNotFound,
+}
+
+/// A parsed reference of the form `<source>:<secret-name>`.
+struct AzureKeyVaultSecretPath {
+    source: String,
+    secret_name: String,
+}
+
+impl FromStr for AzureKeyVaultSecretPath {
+    type Err = AzureKeyVaultError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (source, secret_name) = s
+            .split_once(':')
+            .filter(|(a, b)| !a.is_empty() && !b.is_empty())
+            .ok_or_else(|| AzureKeyVaultError::IncorrectSecretPath(s.to_string()))?;
+        Ok(Self {
+            source: source.to_string(),
+            secret_name: secret_name.to_string(),
+        })
+    }
 }
 
 /// Client timeout with a sensible default.
@@ -63,7 +94,7 @@ pub enum AzureKeyVaultError {
 #[wrapper_default_value(DEFAULT_CLIENT_TIMEOUT)]
 pub struct ClientTimeout(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
-/// Authentication method for the Azure Key Vault provider.
+/// Authentication method for an Azure Key Vault source.
 #[derive(Debug, Default, Deserialize, PartialEq, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AzureAuth {
@@ -83,15 +114,22 @@ pub enum AzureAuth {
     },
 }
 
-/// Configuration for the Azure Key Vault provider.
+/// Configuration for a single Azure Key Vault source.
 #[derive(Debug, Deserialize, PartialEq, Clone)]
-pub struct AzureKeyVaultConfig {
+pub struct AzureKeyVaultSourceConfig {
     /// URL of the Azure Key Vault instance (e.g. `https://myvault.vault.azure.net/`).
     pub vault_url: Url,
 
     /// Authentication method. Defaults to `managed_identity`.
     #[serde(default)]
     pub auth: AzureAuth,
+}
+
+/// Configuration for the Azure Key Vault provider: a set of named sources and HTTP client settings.
+#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
+pub struct AzureKeyVaultConfig {
+    /// Named Azure Key Vault sources.
+    pub sources: HashMap<String, AzureKeyVaultSourceConfig>,
 
     /// Timeout applied to both connect and read phases of every HTTP request.
     #[serde(default)]
@@ -102,7 +140,7 @@ pub struct AzureKeyVaultConfig {
     pub proxy_config: ProxyConfig,
 }
 
-/// Runtime representation of the configured auth method — holds ready-to-use strings.
+/// Ready-to-use representation of one configured auth method.
 enum AzureAuthRuntime {
     ManagedIdentity {
         /// Full IMDS token URL including query parameters.
@@ -114,6 +152,12 @@ enum AzureAuthRuntime {
         client_id: String,
         client_secret: String,
     },
+}
+
+/// Runtime representation of a single named source.
+struct AzureKeyVaultSource {
+    vault_url: Url,
+    auth: AzureAuthRuntime,
 }
 
 /// Shared token response shape for both IMDS and AAD OAuth2 endpoints.
@@ -128,11 +172,10 @@ struct KeyVaultSecretResponse {
     value: Option<String>,
 }
 
-/// Azure Key Vault provider. Authenticates via Managed Identity (IMDS) or Service Principal.
+/// Azure Key Vault provider. Holds a shared HTTP client and one runtime source per configured name.
 pub struct AzureKeyVault {
     client: HttpClient,
-    vault_url: Url,
-    auth: AzureAuthRuntime,
+    sources: HashMap<String, AzureKeyVaultSource>,
 }
 
 impl AzureKeyVault {
@@ -144,34 +187,23 @@ impl AzureKeyVault {
             config.proxy_config,
         );
 
-        let mut vault_url = config.vault_url;
-        let path = vault_url.path();
-        if !path.ends_with('/') {
-            vault_url.set_path(&format!("{path}/"));
-        }
-        let auth = match config.auth.clone() {
-            AzureAuth::ManagedIdentity => AzureAuthRuntime::ManagedIdentity {
-                imds_url: DEFAULT_IMDS_TOKEN_URL.to_string(),
-            },
-            AzureAuth::ServicePrincipal {
-                tenant_id,
-                client_id,
-                client_secret,
-            } => AzureAuthRuntime::ServicePrincipal {
-                token_url: format!("{DEFAULT_LOGIN_URL_BASE}/{tenant_id}/oauth2/v2.0/token"),
-                client_id,
-                client_secret: client_secret.expose_secret().to_string(),
-            },
-        };
+        let sources = config
+            .sources
+            .into_iter()
+            .map(|(name, source_config)| {
+                let source = AzureKeyVaultSource::try_new(source_config)?;
+                Ok((name, source))
+            })
+            .collect::<Result<HashMap<String, AzureKeyVaultSource>, AzureKeyVaultError>>()?;
+
         Ok(Self {
             client: HttpClient::new(http_config).map_err(AzureKeyVaultError::HttpClient)?,
-            vault_url,
-            auth,
+            sources,
         })
     }
 
-    fn get_token(&self) -> Result<String, AzureKeyVaultError> {
-        match &self.auth {
+    fn get_token(&self, source: &AzureKeyVaultSource) -> Result<String, AzureKeyVaultError> {
+        match &source.auth {
             AzureAuthRuntime::ManagedIdentity { imds_url } => self.get_imds_token(imds_url),
             AzureAuthRuntime::ServicePrincipal {
                 token_url,
@@ -254,13 +286,50 @@ impl AzureKeyVault {
     }
 }
 
+impl AzureKeyVaultSource {
+    fn try_new(config: AzureKeyVaultSourceConfig) -> Result<Self, AzureKeyVaultError> {
+        let mut vault_url = config.vault_url;
+        let path = vault_url.path();
+        if !path.ends_with('/') {
+            vault_url.set_path(&format!("{path}/"));
+        }
+
+        let auth = match config.auth {
+            AzureAuth::ManagedIdentity => AzureAuthRuntime::ManagedIdentity {
+                imds_url: DEFAULT_IMDS_TOKEN_URL.to_string(),
+            },
+            AzureAuth::ServicePrincipal {
+                tenant_id,
+                client_id,
+                client_secret,
+            } => AzureAuthRuntime::ServicePrincipal {
+                token_url: format!("{DEFAULT_LOGIN_URL_BASE}/{tenant_id}/oauth2/v2.0/token"),
+                client_id,
+                client_secret: client_secret.expose_secret().to_string(),
+            },
+        };
+
+        Ok(Self { vault_url, auth })
+    }
+}
+
 impl ValueProvider for AzureKeyVault {
     type Error = AzureKeyVaultError;
 
-    fn get_value(&self, secret_name: &str) -> Result<String, Self::Error> {
-        let token = self.get_token()?;
+    fn get_value(&self, secret_path: &str) -> Result<String, Self::Error> {
+        let AzureKeyVaultSecretPath {
+            source,
+            secret_name,
+        } = AzureKeyVaultSecretPath::from_str(secret_path)?;
 
-        let secret_url = self
+        let source = self
+            .sources
+            .get(&source)
+            .ok_or(AzureKeyVaultError::SourceNotFound)?;
+
+        let token = self.get_token(source)?;
+
+        let secret_url = source
             .vault_url
             .join(&format!(
                 "secrets/{secret_name}?api-version={KV_API_VERSION}"
@@ -309,19 +378,43 @@ pub mod tests {
     use assert_matches::assert_matches;
     use httpmock::Method::{GET, POST};
     use httpmock::MockServer;
+    use mockall::mock;
+
+    mock! {
+        pub AzureKeyVault {}
+
+        impl ValueProvider for AzureKeyVault {
+            type Error = AzureKeyVaultError;
+
+            fn get_value(&self, path: &str) -> Result<String, AzureKeyVaultError>;
+        }
+    }
+
+    // ── Test helpers ─────────────────────────────────────────────────────────
+
+    const SOURCE_NAME: &str = "test-source";
+    const IMDS_PATH: &str = "/metadata/identity/oauth2/token";
+    const IMDS_RESPONSE: &str =
+        r#"{"access_token":"test-bearer-token","expires_in":"3599","token_type":"Bearer"}"#;
+    const SP_TOKEN_PATH: &str = "/test-tenant/oauth2/v2.0/token";
+    const SP_TOKEN_RESPONSE: &str =
+        r#"{"access_token":"sp-bearer-token","token_type":"Bearer","expires_in":3599}"#;
 
     impl AzureKeyVault {
         fn with_imds_url(mut self, url: String) -> Self {
-            if let AzureAuthRuntime::ManagedIdentity { ref mut imds_url } = self.auth {
+            if let Some(source) = self.sources.get_mut(SOURCE_NAME)
+                && let AzureAuthRuntime::ManagedIdentity { ref mut imds_url } = source.auth
+            {
                 *imds_url = url;
             }
             self
         }
 
         fn with_sp_token_url(mut self, url: String) -> Self {
-            if let AzureAuthRuntime::ServicePrincipal {
-                ref mut token_url, ..
-            } = self.auth
+            if let Some(source) = self.sources.get_mut(SOURCE_NAME)
+                && let AzureAuthRuntime::ServicePrincipal {
+                    ref mut token_url, ..
+                } = source.auth
             {
                 *token_url = url;
             }
@@ -329,26 +422,15 @@ pub mod tests {
         }
     }
 
-    impl Default for AzureKeyVaultConfig {
-        fn default() -> Self {
-            Self {
-                vault_url: Url::parse("https://placeholder.vault.azure.net/").unwrap(),
-                auth: AzureAuth::default(),
-                client_timeout: ClientTimeout::default(),
-                proxy_config: ProxyConfig::default(),
-            }
-        }
-    }
-
-    // ── Managed Identity helpers ─────────────────────────────────────────────
-
-    const IMDS_PATH: &str = "/metadata/identity/oauth2/token";
-    const IMDS_RESPONSE: &str =
-        r#"{"access_token":"test-bearer-token","expires_in":"3599","token_type":"Bearer"}"#;
-
     fn build_mi_provider(vault_server: &MockServer, imds_server: &MockServer) -> AzureKeyVault {
         let config = AzureKeyVaultConfig {
-            vault_url: Url::parse(&vault_server.base_url()).unwrap(),
+            sources: HashMap::from([(
+                SOURCE_NAME.to_string(),
+                AzureKeyVaultSourceConfig {
+                    vault_url: Url::parse(&vault_server.base_url()).unwrap(),
+                    auth: AzureAuth::ManagedIdentity,
+                },
+            )]),
             ..Default::default()
         };
         AzureKeyVault::try_build(config)
@@ -356,25 +438,28 @@ pub mod tests {
             .with_imds_url(imds_server.url(IMDS_PATH))
     }
 
-    // ── Service Principal helpers ────────────────────────────────────────────
-
-    const SP_TOKEN_PATH: &str = "/test-tenant/oauth2/v2.0/token";
-    const SP_TOKEN_RESPONSE: &str =
-        r#"{"access_token":"sp-bearer-token","token_type":"Bearer","expires_in":3599}"#;
-
     fn build_sp_provider(vault_server: &MockServer, token_server: &MockServer) -> AzureKeyVault {
         let config = AzureKeyVaultConfig {
-            vault_url: Url::parse(&vault_server.base_url()).unwrap(),
-            auth: AzureAuth::ServicePrincipal {
-                tenant_id: "test-tenant".to_string(),
-                client_id: "test-client-id".to_string(),
-                client_secret: "test-client-secret".into(),
-            },
+            sources: HashMap::from([(
+                SOURCE_NAME.to_string(),
+                AzureKeyVaultSourceConfig {
+                    vault_url: Url::parse(&vault_server.base_url()).unwrap(),
+                    auth: AzureAuth::ServicePrincipal {
+                        tenant_id: "test-tenant".to_string(),
+                        client_id: "test-client-id".to_string(),
+                        client_secret: "test-client-secret".into(),
+                    },
+                },
+            )]),
             ..Default::default()
         };
         AzureKeyVault::try_build(config)
             .unwrap()
             .with_sp_token_url(token_server.url(SP_TOKEN_PATH))
+    }
+
+    fn secret_path(secret_name: &str) -> String {
+        format!("{SOURCE_NAME}:{secret_name}")
     }
 
     // ── Managed Identity tests ───────────────────────────────────────────────
@@ -395,7 +480,7 @@ pub mod tests {
 
         let provider = build_mi_provider(&vault_server, &imds_server);
         assert_eq!(
-            provider.get_value("my-secret").unwrap(),
+            provider.get_value(&secret_path("my-secret")).unwrap(),
             "super-secret-value"
         );
     }
@@ -416,7 +501,7 @@ pub mod tests {
 
         let provider = build_mi_provider(&vault_server, &imds_server);
         assert_matches!(
-            provider.get_value("missing"),
+            provider.get_value(&secret_path("missing")),
             Err(AzureKeyVaultError::NotFound)
         );
     }
@@ -433,7 +518,7 @@ pub mod tests {
 
         let provider = build_mi_provider(&vault_server, &imds_server);
         assert_matches!(
-            provider.get_value("any-secret"),
+            provider.get_value(&secret_path("any-secret")),
             Err(AzureKeyVaultError::TokenRequest(_))
         );
     }
@@ -450,7 +535,7 @@ pub mod tests {
 
         let provider = build_mi_provider(&vault_server, &imds_server);
         assert_matches!(
-            provider.get_value("any-secret"),
+            provider.get_value(&secret_path("any-secret")),
             Err(AzureKeyVaultError::TokenMissing)
         );
     }
@@ -467,7 +552,7 @@ pub mod tests {
 
         let provider = build_mi_provider(&vault_server, &imds_server);
         assert_matches!(
-            provider.get_value("any-secret"),
+            provider.get_value(&secret_path("any-secret")),
             Err(AzureKeyVaultError::DeserializeError(_))
         );
     }
@@ -475,7 +560,13 @@ pub mod tests {
     #[test]
     fn test_mi_connection_failed() {
         let config = AzureKeyVaultConfig {
-            vault_url: Url::parse("http://127.0.0.1:1").unwrap(),
+            sources: HashMap::from([(
+                SOURCE_NAME.to_string(),
+                AzureKeyVaultSourceConfig {
+                    vault_url: Url::parse("http://127.0.0.1:1").unwrap(),
+                    auth: AzureAuth::ManagedIdentity,
+                },
+            )]),
             ..Default::default()
         };
         let provider = AzureKeyVault::try_build(config)
@@ -483,7 +574,7 @@ pub mod tests {
             .with_imds_url("http://127.0.0.1:1/metadata/identity/oauth2/token".to_string());
 
         assert_matches!(
-            provider.get_value("any-secret"),
+            provider.get_value(&secret_path("any-secret")),
             Err(AzureKeyVaultError::TokenRequest(_))
         );
     }
@@ -504,7 +595,7 @@ pub mod tests {
 
         let provider = build_mi_provider(&vault_server, &imds_server);
         assert_matches!(
-            provider.get_value("my-secret"),
+            provider.get_value(&secret_path("my-secret")),
             Err(AzureKeyVaultError::NotFound)
         );
     }
@@ -525,7 +616,7 @@ pub mod tests {
 
         let provider = build_mi_provider(&vault_server, &imds_server);
         assert_matches!(
-            provider.get_value("my-secret"),
+            provider.get_value(&secret_path("my-secret")),
             Err(AzureKeyVaultError::SecretRequest(_))
         );
     }
@@ -533,11 +624,22 @@ pub mod tests {
     #[test]
     fn test_vault_url_trailing_slash_normalised() {
         let config = AzureKeyVaultConfig {
-            vault_url: Url::parse("https://myvault.vault.azure.net").unwrap(),
+            sources: HashMap::from([(
+                SOURCE_NAME.to_string(),
+                AzureKeyVaultSourceConfig {
+                    vault_url: Url::parse("https://myvault.vault.azure.net").unwrap(),
+                    auth: AzureAuth::ManagedIdentity,
+                },
+            )]),
             ..Default::default()
         };
         let provider = AzureKeyVault::try_build(config).unwrap();
-        assert!(provider.vault_url.as_str().ends_with('/'));
+        assert!(
+            provider.sources[SOURCE_NAME]
+                .vault_url
+                .as_str()
+                .ends_with('/')
+        );
     }
 
     // ── Service Principal tests ──────────────────────────────────────────────
@@ -557,7 +659,10 @@ pub mod tests {
         });
 
         let provider = build_sp_provider(&vault_server, &token_server);
-        assert_eq!(provider.get_value("db-password").unwrap(), "hunter2");
+        assert_eq!(
+            provider.get_value(&secret_path("db-password")).unwrap(),
+            "hunter2"
+        );
     }
 
     #[test]
@@ -572,7 +677,7 @@ pub mod tests {
 
         let provider = build_sp_provider(&vault_server, &token_server);
         assert_matches!(
-            provider.get_value("any-secret"),
+            provider.get_value(&secret_path("any-secret")),
             Err(AzureKeyVaultError::TokenRequest(_))
         );
     }
@@ -589,7 +694,7 @@ pub mod tests {
 
         let provider = build_sp_provider(&vault_server, &token_server);
         assert_matches!(
-            provider.get_value("any-secret"),
+            provider.get_value(&secret_path("any-secret")),
             Err(AzureKeyVaultError::TokenMissing)
         );
     }
@@ -610,7 +715,7 @@ pub mod tests {
 
         let provider = build_sp_provider(&vault_server, &token_server);
         assert_matches!(
-            provider.get_value("missing"),
+            provider.get_value(&secret_path("missing")),
             Err(AzureKeyVaultError::NotFound)
         );
     }
@@ -635,6 +740,114 @@ pub mod tests {
         });
 
         let provider = build_sp_provider(&vault_server, &token_server);
-        assert!(provider.get_value("any").is_ok());
+        assert!(provider.get_value(&secret_path("any")).is_ok());
+    }
+
+    // ── Path parsing tests ───────────────────────────────────────────────────
+
+    #[test]
+    fn test_incorrect_secret_path_no_colon() {
+        let vault_server = MockServer::start();
+        let imds_server = MockServer::start();
+        let provider = build_mi_provider(&vault_server, &imds_server);
+
+        assert_matches!(
+            provider.get_value("no-colon-here"),
+            Err(AzureKeyVaultError::IncorrectSecretPath(_))
+        );
+    }
+
+    #[test]
+    fn test_incorrect_secret_path_empty_parts() {
+        let vault_server = MockServer::start();
+        let imds_server = MockServer::start();
+        let provider = build_mi_provider(&vault_server, &imds_server);
+
+        assert_matches!(
+            provider.get_value(":secret"),
+            Err(AzureKeyVaultError::IncorrectSecretPath(_))
+        );
+        assert_matches!(
+            provider.get_value("source:"),
+            Err(AzureKeyVaultError::IncorrectSecretPath(_))
+        );
+    }
+
+    #[test]
+    fn test_source_not_found() {
+        let vault_server = MockServer::start();
+        let imds_server = MockServer::start();
+        let provider = build_mi_provider(&vault_server, &imds_server);
+
+        assert_matches!(
+            provider.get_value("nonexistent-source:my-secret"),
+            Err(AzureKeyVaultError::SourceNotFound)
+        );
+    }
+
+    #[test]
+    fn test_multiple_sources() {
+        let vault_a = MockServer::start();
+        let vault_b = MockServer::start();
+        let imds_server = MockServer::start();
+
+        imds_server.mock(|when, then| {
+            when.method(GET).path(IMDS_PATH);
+            then.status(200).body(IMDS_RESPONSE);
+        });
+        vault_a.mock(|when, then| {
+            when.method(GET).path("/secrets/secret-a");
+            then.status(200).body(r#"{"value":"value-from-a"}"#);
+        });
+        vault_b.mock(|when, then| {
+            when.method(GET).path("/secrets/secret-b");
+            then.status(200).body(r#"{"value":"value-from-b"}"#);
+        });
+
+        let config = AzureKeyVaultConfig {
+            sources: HashMap::from([
+                (
+                    "source-a".to_string(),
+                    AzureKeyVaultSourceConfig {
+                        vault_url: Url::parse(&vault_a.base_url()).unwrap(),
+                        auth: AzureAuth::ManagedIdentity,
+                    },
+                ),
+                (
+                    "source-b".to_string(),
+                    AzureKeyVaultSourceConfig {
+                        vault_url: Url::parse(&vault_b.base_url()).unwrap(),
+                        auth: AzureAuth::ManagedIdentity,
+                    },
+                ),
+            ]),
+            ..Default::default()
+        };
+
+        let provider = AzureKeyVault::try_build(config).unwrap();
+        // Override both sources' IMDS URLs to the shared mock
+        let provider = provider
+            .sources
+            .keys()
+            .cloned()
+            .collect::<Vec<_>>()
+            .into_iter()
+            .fold(provider, |mut p, name| {
+                if let Some(source) = p.sources.get_mut(&name)
+                    && let AzureAuthRuntime::ManagedIdentity { ref mut imds_url } = source.auth
+                {
+                    *imds_url = imds_server.url(IMDS_PATH);
+                }
+                p
+            });
+
+        assert_eq!(
+            provider.get_value("source-a:secret-a").unwrap(),
+            "value-from-a"
+        );
+        assert_eq!(
+            provider.get_value("source-b:secret-b").unwrap(),
+            "value-from-b"
+        );
     }
 }

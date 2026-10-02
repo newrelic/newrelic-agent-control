@@ -189,18 +189,19 @@ Multiple sources can be defined under `sources`. Each source is identified by it
 ### `nr-azurekv` — Azure Key Vault
 
 Reads a secret value from an Azure Key Vault instance. Requires `value_providers.azure_key_vault`
-to be configured in `agentcontrol.yml`.
+to be configured in `agentcontrol.yml`. Multiple named sources can be configured to target
+different vaults.
 
-**Secret path format:** `<secret-name>`
+**Secret path format:** `<source-name>:<secret-name>`
 
 ```yaml
 # in agent type definition
 env:
-  LICENSE_KEY: "${nr-azurekv:newrelic-license-key}"
-  #                          ^secret name in the vault
+  LICENSE_KEY: "${nr-azurekv:prod-vault:newrelic-license-key}"
+  #                          ^source    ^secret name in the vault
 ```
 
-Two authentication methods are supported. Choose the one that matches your deployment environment.
+Two authentication methods are supported per source. Choose the one that matches your deployment environment.
 
 #### Managed Identity
 
@@ -212,9 +213,11 @@ compute resource at the infrastructure level.
 # in agentcontrol.yml
 value_providers:
   azure_key_vault:
-    vault_url: https://my-vault.vault.azure.net/
-    auth:
-      type: managed_identity   # this is the default; the auth block can be omitted entirely
+    sources:
+      prod-vault:
+        vault_url: https://my-vault.vault.azure.net/
+        auth:
+          type: managed_identity   # this is the default; the auth block can be omitted entirely
 ```
 
 #### Service Principal
@@ -226,12 +229,14 @@ environment where Managed Identity is unavailable.
 # in agentcontrol.yml
 value_providers:
   azure_key_vault:
-    vault_url: https://my-vault.vault.azure.net/
-    auth:
-      type: service_principal
-      tenant_id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-      client_id: "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy"
-      client_secret: "your-client-secret"
+    sources:
+      prod-vault:
+        vault_url: https://my-vault.vault.azure.net/
+        auth:
+          type: service_principal
+          tenant_id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+          client_id: "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy"
+          client_secret: "your-client-secret"
 ```
 
 ### `nr-file` — File values

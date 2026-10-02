@@ -218,30 +218,33 @@ value_providers:
 
 #### azure_key_vault
 
-Reads secret values from an Azure Key Vault instance.
+Reads secret values from one or more Azure Key Vault instances. Multiple named sources can be defined to target different vaults or use different authentication methods.
 
 ```yaml
 value_providers:
   azure_key_vault:
-    vault_url: <azure-key-vault-url>     # required
-    auth:                                # optional (default: managed_identity)
-      type: managed_identity
-      # or:
-      # type: service_principal
-      # tenant_id: <tenant-id>
-      # client_id: <client-id>
-      # client_secret: <client-secret>
-    client_timeout: <duration>           # optional (default: 30s)
+    sources:
+      <source-name>:
+        vault_url: <azure-key-vault-url>   # required
+        auth:                              # optional (default: managed_identity)
+          type: managed_identity
+          # or:
+          # type: service_principal
+          # tenant_id: <tenant-id>
+          # client_id: <client-id>
+          # client_secret: <client-secret>
+    client_timeout: <duration>             # optional (default: 30s)
 ```
 
 | Field | Required | Description |
 |---|---|---|
-| `vault_url` | Yes | Azure Key Vault endpoint URL (e.g. `https://my-vault.vault.azure.net/`) |
-| `auth.type` | No | Authentication method: `managed_identity` (default) or `service_principal` |
-| `auth.tenant_id` | If `service_principal` | Azure tenant (directory) ID |
-| `auth.client_id` | If `service_principal` | Service principal application (client) ID |
-| `auth.client_secret` | If `service_principal` | Service principal client secret |
-| `client_timeout` | No | HTTP timeout for requests (default `30s`) |
+| `sources` | Yes | Map of named Azure Key Vault sources |
+| `sources.<name>.vault_url` | Yes | Azure Key Vault endpoint URL (e.g. `https://my-vault.vault.azure.net/`) |
+| `sources.<name>.auth.type` | No | Authentication method: `managed_identity` (default) or `service_principal` |
+| `sources.<name>.auth.tenant_id` | If `service_principal` | Azure tenant (directory) ID |
+| `sources.<name>.auth.client_id` | If `service_principal` | Service principal application (client) ID |
+| `sources.<name>.auth.client_secret` | If `service_principal` | Service principal client secret |
+| `client_timeout` | No | HTTP timeout for all sources (default `30s`) |
 
 ### self_update
 
