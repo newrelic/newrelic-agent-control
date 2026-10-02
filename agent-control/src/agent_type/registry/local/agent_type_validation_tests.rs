@@ -910,6 +910,54 @@ static AGENT_TYPE_FLEX: LazyLock<AgentTypeValuesTestCase> =
         ..Default::default()
     });
 
+static AGENT_TYPE_PORT_MONITOR: LazyLock<AgentTypeValuesTestCase> =
+    LazyLock::new(|| AgentTypeValuesTestCase {
+        agent_type: "newrelic/com.newrelic.infrastructure.nri_port_monitor:1.0.0",
+        values_linux: AgentTypeValues {
+            cases: HashMap::from([
+                (
+                    "mandatory fields only",
+                    r#"
+                config: "integrations: []"
+                version: "v0.1.0"
+                "#,
+                ),
+                (
+                    "check all value types are correct",
+                    r#"
+                config: "integrations: []"
+                version: "v0.1.0"
+                oci.repository: "newrelic/nri-port-monitor"
+                "#,
+                ),
+            ]),
+            ..Default::default()
+        }
+        .into(),
+        values_windows: AgentTypeValues {
+            cases: HashMap::from([
+                (
+                    "mandatory fields only",
+                    r#"
+                config: "integrations: []"
+                version: "v0.1.0"
+                "#,
+                ),
+                (
+                    "check all value types are correct",
+                    r#"
+                config: "integrations: []"
+                version: "v0.1.0"
+                oci.repository: "newrelic/nri-port-monitor"
+                "#,
+                ),
+            ]),
+            ..Default::default()
+        }
+        .into(),
+        ..Default::default()
+    });
+
 fn get_agent_type_test_cases() -> impl Iterator<Item = &'static AgentTypeValuesTestCase> {
     [
         &AGENT_TYPE_APM_DOTNET,
@@ -934,6 +982,7 @@ fn get_agent_type_test_cases() -> impl Iterator<Item = &'static AgentTypeValuesT
         &AGENT_TYPE_MYSQL,
         &AGENT_TYPE_MEMCACHED,
         &AGENT_TYPE_FLEX,
+        &AGENT_TYPE_PORT_MONITOR,
     ]
     .into_iter()
     .map(Deref::deref)

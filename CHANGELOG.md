@@ -29,6 +29,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ### enhancement
 - Self instrumentation now gets the injected license key as header if none is set in all systems.
+- On-host: added the `com.newrelic.infrastructure.nri_port_monitor` agent type for Linux and Windows, enabling TCP/UDP port monitoring via the `nri-port-monitor` integration.
 
 ## v1.25.1 - 2026-09-25
 
