@@ -1,4 +1,4 @@
-//! Parses `/etc/os-release` to get the Linux distribution version and id.
+//! Linux OS version detection: parses `/etc/os-release` for the distribution version and id.
 //!
 //! The file format is a simple `KEY=value` list (see `os-release(5)`), with values
 //! optionally double-quoted. We only need `VERSION_ID` and `ID`.

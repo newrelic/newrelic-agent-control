@@ -5,10 +5,7 @@ pub mod hostname;
 mod machine_identifier;
 /// cross-platform OS distro-id detection
 pub mod os_name;
-/// os-release parser
-#[cfg(target_os = "linux")]
-mod os_release;
-/// cross-platform OS version detection
+/// OS version detection
 pub mod os_version;
 
 /// HOSTNAME_KEY represents the hostname key attribute

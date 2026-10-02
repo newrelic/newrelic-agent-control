@@ -9,7 +9,7 @@
 /// The distro's `ID` from `/etc/os-release` (e.g. "debian", "ubuntu").
 #[cfg(target_os = "linux")]
 pub fn detect_os_name() -> Option<String> {
-    super::os_release::detect_os_id()
+    super::os_version::linux::detect_os_id()
 }
 
 /// Always `None`: no distro-id detection support on this target.
