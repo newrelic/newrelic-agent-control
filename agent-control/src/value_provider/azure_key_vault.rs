@@ -97,7 +97,7 @@ pub struct AzureKeyVaultConfig {
     #[serde(default)]
     pub(crate) client_timeout: ClientTimeout,
 
-    /// Optional proxy settings for the HTTP client.
+    /// Injected at runtime by the caller; not read from config.
     #[serde(skip)]
     pub proxy_config: ProxyConfig,
 }

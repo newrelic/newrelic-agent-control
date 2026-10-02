@@ -8,6 +8,7 @@ pub mod k8s_secret;
 pub mod vault;
 
 use crate::agent_type::variable::namespace::Namespace;
+use crate::http::config::ProxyConfig;
 use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::value_provider::azure_key_vault::{AzureKeyVault, AzureKeyVaultConfig};
 use crate::value_provider::env::Env;
@@ -172,15 +173,18 @@ impl Registry<ValueProviderType> {
     pub fn with_config(
         mut self,
         config: ValueProvidersConfig,
+        proxy_config: ProxyConfig,
     ) -> Result<Self, ValueProvidersError> {
-        if let Some(vault_config) = config.vault {
+        if let Some(mut vault_config) = config.vault {
+            vault_config.proxy_config = proxy_config.clone();
             let vault = Vault::try_build(vault_config).map_err(|err| {
                 ValueProvidersError(format!("couldn't build vault provider: {err}"))
             })?;
             self.0
                 .insert(Namespace::Vault, ValueProviderType::Vault(vault));
         }
-        if let Some(akv_config) = config.azure_key_vault {
+        if let Some(mut akv_config) = config.azure_key_vault {
+            akv_config.proxy_config = proxy_config;
             let akv = AzureKeyVault::try_build(akv_config).map_err(|err| {
                 ValueProvidersError(format!("couldn't build azure key vault provider: {err}"))
             })?;
