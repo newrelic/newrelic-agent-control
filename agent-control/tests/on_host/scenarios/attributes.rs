@@ -15,8 +15,8 @@ use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_NAMESPACE, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
     OPAMP_PACKAGE_VERSION_ATTRIBUTE_KEY_PREFIX, OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE,
-    OPAMP_SERVICE_VERSION, OPAMP_SUPERVISOR_KEY, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
-    PARENT_AGENT_ID_ATTRIBUTE_KEY,
+    OPAMP_SERVICE_VERSION, OPAMP_SUPERVISOR_KEY, OS_NAME_ATTRIBUTE_KEY, OS_TYPE_ATTRIBUTE_KEY,
+    OS_TYPE_ATTRIBUTE_VALUE, OS_VERSION_ATTRIBUTE_KEY, PARENT_AGENT_ID_ATTRIBUTE_KEY,
 };
 use newrelic_agent_control::agent_control::run::on_host::{
     AGENT_CONTROL_MODE_ON_HOST, OCI_TEST_REGISTRY_URL,
@@ -27,6 +27,26 @@ use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::any_value::Value::BytesValue;
 use resource_detection::system::hostname::get_hostname;
 use std::time::Duration;
+
+/// Whatever the test host's OS version actually is, derived the same way the
+/// code under test derives it (`/etc/os-release` on Linux, the registry on
+/// Windows), so the expectation matches regardless of which OS/version this
+/// test happens to run on.
+fn expected_os_version_attributes() -> Vec<(&'static str, Value)> {
+    resource_detection::system::os_version::detect_os_version()
+        .map(|version_id| vec![(OS_VERSION_ATTRIBUTE_KEY, Value::StringValue(version_id))])
+        .unwrap_or_default()
+}
+
+/// Whatever the test host's OS distro id actually is (Linux only, derived
+/// the same way the code under test derives it from `/etc/os-release`), so
+/// the expectation matches regardless of which distro this test happens to
+/// run on.
+fn expected_os_name_attributes() -> Vec<(&'static str, Value)> {
+    resource_detection::system::os_name::detect_os_name()
+        .map(|os_id| vec![(OS_NAME_ATTRIBUTE_KEY, Value::StringValue(os_id))])
+        .unwrap_or_default()
+}
 
 /// Asserts all attributes are reported for an empty sub-agent.
 #[test]
@@ -69,10 +89,10 @@ fn test_attributes() {
         ),
     ]));
 
-    let expected_non_identifying_attributes = convert_to_vec_key_value(Vec::from([
+    let mut expected_non_identifying_attributes = convert_to_vec_key_value(Vec::from([
         (
-            OS_ATTRIBUTE_KEY,
-            Value::StringValue(OS_ATTRIBUTE_VALUE.to_string()),
+            OS_TYPE_ATTRIBUTE_KEY,
+            Value::StringValue(OS_TYPE_ATTRIBUTE_VALUE.to_string()),
         ),
         (
             HOST_NAME_ATTRIBUTE_KEY,
@@ -83,6 +103,10 @@ fn test_attributes() {
             BytesValue(ac_instance_id.clone().into()),
         ),
     ]));
+    expected_non_identifying_attributes
+        .extend(convert_to_vec_key_value(expected_os_version_attributes()));
+    expected_non_identifying_attributes
+        .extend(convert_to_vec_key_value(expected_os_name_attributes()));
 
     retry(30, Duration::from_secs(1), || {
         check_latest_identifying_attributes_match_expected(
@@ -241,10 +265,10 @@ agents:
         ),
     ]));
 
-    let expected_non_identifying_attributes = convert_to_vec_key_value(Vec::from([
+    let mut expected_non_identifying_attributes = convert_to_vec_key_value(Vec::from([
         (
-            OS_ATTRIBUTE_KEY,
-            Value::StringValue(OS_ATTRIBUTE_VALUE.to_string()),
+            OS_TYPE_ATTRIBUTE_KEY,
+            Value::StringValue(OS_TYPE_ATTRIBUTE_VALUE.to_string()),
         ),
         (
             HOST_NAME_ATTRIBUTE_KEY,
@@ -255,6 +279,10 @@ agents:
             BytesValue(ac_instance_id.into()),
         ),
     ]));
+    expected_non_identifying_attributes
+        .extend(convert_to_vec_key_value(expected_os_version_attributes()));
+    expected_non_identifying_attributes
+        .extend(convert_to_vec_key_value(expected_os_name_attributes()));
 
     retry(30, Duration::from_secs(1), || {
         check_latest_identifying_attributes_match_expected(

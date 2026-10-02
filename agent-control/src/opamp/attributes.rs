@@ -1,12 +1,34 @@
 //! Helpers to update and publish OpAMP agent attributes (the agent description).
+use std::collections::HashMap;
 use std::fmt::Debug;
 
 use opamp_client::opamp::proto::{AgentDescription as ProtoAgentDescription, KeyValue};
-use opamp_client::operation::settings::AgentDescription;
+use opamp_client::operation::settings::{AgentDescription, DescriptionValueType};
 use opamp_client::{ClientError, StartedClient};
 use tracing::error;
 
+use crate::agent_control::defaults::{
+    OS_NAME_ATTRIBUTE_KEY, OS_TYPE_ATTRIBUTE_KEY, OS_TYPE_ATTRIBUTE_VALUE, OS_VERSION_ATTRIBUTE_KEY,
+};
 use crate::event::channel::EventPublisher;
+
+/// Returns the OS attributes (`os.type`, plus `os.version` and `os.name` when detected).
+pub fn os_attributes() -> HashMap<String, DescriptionValueType> {
+    let mut attributes = HashMap::from([(
+        OS_TYPE_ATTRIBUTE_KEY.to_string(),
+        DescriptionValueType::String(OS_TYPE_ATTRIBUTE_VALUE.to_string()),
+    )]);
+
+    if let Some(version_id) = resource_detection::system::os_version::detect_os_version() {
+        attributes.insert(OS_VERSION_ATTRIBUTE_KEY.to_string(), version_id.into());
+    }
+
+    if let Some(os_id) = resource_detection::system::os_name::detect_os_name() {
+        attributes.insert(OS_NAME_ATTRIBUTE_KEY.to_string(), os_id.into());
+    }
+
+    attributes
+}
 
 /// Event message type for updating OpAMP agent attributes
 pub type UpdatedAttributesMessage = AgentDescription;

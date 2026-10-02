@@ -28,6 +28,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 - Agent Control now always re-reports its remote config status on startup, fixing a missed resend after restart when the server requests a full-state sync.
 
 ### enhancement
+- Linux and Windows: Agent Control and its sub-agents now report `os.version` as an OpAMP attribute. Linux also reports `os.name` (the distro id, e.g. "debian").
 - Self instrumentation now gets the injected license key as header if none is set in all systems.
 
 ## v1.25.1 - 2026-09-25
