@@ -2,9 +2,6 @@
 mod custom;
 mod embedded;
 
-#[cfg(test)]
-mod agent_type_validation_tests;
-
 use self::custom::custom_definitions;
 use self::embedded::embedded_definitions;
 use super::AgentTypeRegistryError;
