@@ -19,7 +19,7 @@ variables:
       description: "OCI repository name for nri-port-monitor"
       type: string
       required: false
-      default: newrelic/nri-port-monitor-artifacts
+      default: dorihuela337/nri-port-monitor-artifacts
 deployment:
   packages:
     nri-port-monitor:
