@@ -26,6 +26,7 @@ Filters are optional post-processing steps applied to the resolved value (e.g. `
 | Path helpers | `nr-path` | OS-native paths (avoids separator issues on Windows) | On-host |
 | Environment variables | `nr-env` | Host environment (`std::env`) | On-host |
 | Vault secrets | `nr-vault` | HashiCorp Vault (KV1 or KV2) | On-host |
+| Azure Key Vault secrets | `nr-azurekv` | Azure Key Vault (Managed Identity or Service Principal) | On-host |
 | File values | `nr-file` | Local filesystem file contents | On-host |
 | Kubernetes secrets | `nr-kubesec` | Kubernetes Secret objects | K8s |
 | Kubernetes ConfigMaps | `nr-kubecm` | Kubernetes ConfigMap objects | K8s |
@@ -136,9 +137,9 @@ env:
 
 ## Value Providers
 
-`nr-env`, `nr-vault`, `nr-file`, `nr-kubesec`, and `nr-kubecm` are resolved by a value provider on
-every remote config update, not just at startup. This means their values are refreshed
-automatically when a new config is pushed from Fleet Control.
+`nr-env`, `nr-vault`, `nr-azurekv`, `nr-file`, `nr-kubesec`, and `nr-kubecm` are resolved by a
+value provider on every remote config update, not just at startup. This means their values are
+refreshed automatically when a new config is pushed from Fleet Control.
 
 Value providers are configured under the `value_providers:` key in `agentcontrol.yml` (the legacy
 key `secrets_providers:` is still accepted as an alias).
@@ -184,6 +185,59 @@ Multiple sources can be defined under `sources`. Each source is identified by it
 | `kv2` | KV Secrets Engine version 2 (versioned secrets) |
 
 ---
+
+### `nr-azurekv` — Azure Key Vault
+
+Reads a secret value from an Azure Key Vault instance. Requires `value_providers.azure_key_vault`
+to be configured in `agentcontrol.yml`. Multiple named sources can be configured to target
+different vaults.
+
+**Secret path format:** `<source-name>:<secret-name>`
+
+```yaml
+# in agent type definition
+env:
+  LICENSE_KEY: "${nr-azurekv:prod-vault:newrelic-license-key}"
+  #                          ^source    ^secret name in the vault
+```
+
+Two authentication methods are supported per source. Choose the one that matches your deployment environment.
+
+#### Managed Identity
+
+Use this when Agent Control runs on Azure infrastructure (Azure VM or AKS pod) with a Managed
+Identity assigned. No credentials are stored in the config, the identity is attached to the
+compute resource at the infrastructure level.
+
+```yaml
+# in agentcontrol.yml
+value_providers:
+  azure_key_vault:
+    sources:
+      prod-vault:
+        vault_url: https://my-vault.vault.azure.net/
+        auth:
+          type: managed_identity   # this is the default; the auth block can be omitted entirely
+```
+
+#### Service Principal
+
+Use this when Agent Control runs outside Azure (on-prem, other cloud providers) or in any
+environment where Managed Identity is unavailable.
+
+```yaml
+# in agentcontrol.yml
+value_providers:
+  azure_key_vault:
+    sources:
+      prod-vault:
+        vault_url: https://my-vault.vault.azure.net/
+        auth:
+          type: service_principal
+          tenant_id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+          client_id: "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy"
+          client_secret: "your-client-secret"
+```
 
 ### `nr-file` — File values
 
@@ -232,24 +286,7 @@ env:
 
 ## Configuration reference for value providers
 
-Only `vault` requires explicit configuration in `agentcontrol.yml`. The other providers are
-always available.
+Only `vault` and `azure_key_vault` require explicit configuration in `agentcontrol.yml`. The
+other providers are always available.
 
-```yaml
-value_providers:
-  vault:
-    sources:
-      <source-name>:
-        url: <vault-url-including-/v1>   # required
-        token: <vault-token>             # required
-        engine: kv1 | kv2               # required
-    client_timeout: <duration>           # optional (default: 30s)
-```
-
-| Field | Required | Description |
-|---|---|---|
-| `sources` | Yes | Map of named Vault sources |
-| `sources.<name>.url` | Yes | Full Vault URL including `/v1` path |
-| `sources.<name>.token` | Yes | Vault token for authentication |
-| `sources.<name>.engine` | Yes | Secret engine version: `kv1` or `kv2` |
-| `client_timeout` | No | HTTP timeout for Vault requests (default `30s`) |
+For the full field reference of each provider, see [`docs/CONFIG.md#value_providers`](CONFIG.md#value_providers).

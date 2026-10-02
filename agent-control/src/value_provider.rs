@@ -1,5 +1,6 @@
-//! Value providers: retrieve variable values from various sources (env vars, files, Kubernetes, Vault).
+//! Value providers: retrieve variable values from various sources (env vars, files, Kubernetes, Vault, Azure Key Vault).
 
+pub mod azure_key_vault;
 pub mod env;
 pub mod file;
 pub mod k8s_configmap;
@@ -7,7 +8,9 @@ pub mod k8s_secret;
 pub mod vault;
 
 use crate::agent_type::variable::namespace::Namespace;
+use crate::http::config::ProxyConfig;
 use crate::k8s::client::{K8sClient, SyncK8sClient};
+use crate::value_provider::azure_key_vault::{AzureKeyVault, AzureKeyVaultConfig};
 use crate::value_provider::env::Env;
 use crate::value_provider::file::FileProvider;
 use crate::value_provider::k8s_configmap::K8sConfigMapProvider;
@@ -43,6 +46,8 @@ use std::sync::Arc;
 pub struct ValueProvidersConfig {
     /// Optional configuration for the HashiCorp Vault provider.
     pub vault: Option<VaultConfig>,
+    /// Optional configuration for the Azure Key Vault provider.
+    pub azure_key_vault: Option<AzureKeyVaultConfig>,
 }
 
 /// Errors returned by the configured value providers.
@@ -69,6 +74,8 @@ pub trait ValueProvider {
 /// This is a decision the implementer of the provider must make. This entails creating a variant
 /// represented as a [HashMap].
 pub enum ValueProviderType<C: K8sClient = SyncK8sClient> {
+    /// Values retrieved from Azure Key Vault.
+    AzureKeyVault(AzureKeyVault),
     /// Values retrieved from HashiCorp Vault.
     Vault(Vault),
     /// Values retrieved from Kubernetes secrets.
@@ -86,6 +93,9 @@ impl<C: K8sClient> ValueProvider for ValueProviderType<C> {
 
     fn get_value(&self, path: &str) -> Result<String, Self::Error> {
         match self {
+            ValueProviderType::AzureKeyVault(provider) => provider.get_value(path).map_err(|err| {
+                ValueProvidersError(format!("azure key vault provider failed: {err}"))
+            }),
             ValueProviderType::Vault(provider) => provider
                 .get_value(path)
                 .map_err(|err| ValueProvidersError(format!("vault provider failed: {err}"))),
@@ -159,17 +169,29 @@ impl Registry<ValueProviderType> {
         self
     }
 
-    /// Registers providers derived from the given configuration (currently Vault).
+    /// Registers providers derived from the given configuration (Vault, Azure Key Vault).
     pub fn with_config(
         mut self,
         config: ValueProvidersConfig,
+        proxy_config: ProxyConfig,
     ) -> Result<Self, ValueProvidersError> {
-        if let Some(vault_config) = config.vault {
+        if let Some(mut vault_config) = config.vault {
+            vault_config.proxy_config = proxy_config.clone();
             let vault = Vault::try_build(vault_config).map_err(|err| {
                 ValueProvidersError(format!("couldn't build vault provider: {err}"))
             })?;
             self.0
                 .insert(Namespace::Vault, ValueProviderType::Vault(vault));
+        }
+        if let Some(mut akv_config) = config.azure_key_vault {
+            akv_config.proxy_config = proxy_config;
+            let akv = AzureKeyVault::try_build(akv_config).map_err(|err| {
+                ValueProvidersError(format!("couldn't build azure key vault provider: {err}"))
+            })?;
+            self.0.insert(
+                Namespace::AzureKeyVault,
+                ValueProviderType::AzureKeyVault(akv),
+            );
         }
         Ok(self)
     }

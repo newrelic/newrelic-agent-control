@@ -135,7 +135,10 @@ pub fn load_env_vars() -> VariableValues {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::value_provider::{Registry, ValueProviders, vault::tests::MockVault};
+    use crate::value_provider::{
+        Registry, ValueProviders, azure_key_vault::tests::MockAzureKeyVault,
+        vault::tests::MockVault,
+    };
     use mockall::predicate;
     use rstest::rstest;
     use std::collections::HashSet;
@@ -149,18 +152,25 @@ value: hardcoded value, another_path: ${nr-vault:PATH_B}
 ${nr-vault:PATH_C}
 ${nr-vault:PATH_D}
 ${nr-vault:sourceA:my_database:admin/credentials:username}
+${nr-azurekv:prod-vault:my-secret}
 eof"#;
 
-        let expected = HashMap::from([(
-            "nr-vault".to_string(),
-            HashSet::from([
-                "PATH_A".to_string(),
-                "PATH_B".to_string(),
-                "PATH_C".to_string(),
-                "PATH_D".to_string(),
-                "sourceA:my_database:admin/credentials:username".to_string(),
-            ]),
-        )]);
+        let expected = HashMap::from([
+            (
+                "nr-vault".to_string(),
+                HashSet::from([
+                    "PATH_A".to_string(),
+                    "PATH_B".to_string(),
+                    "PATH_C".to_string(),
+                    "PATH_D".to_string(),
+                    "sourceA:my_database:admin/credentials:username".to_string(),
+                ]),
+            ),
+            (
+                "nr-azurekv".to_string(),
+                HashSet::from(["prod-vault:my-secret".to_string()]),
+            ),
+        ]);
         assert_eq!(DynamicVariables::from(input).variables, expected);
     }
 
@@ -207,6 +217,35 @@ eof"#;
                     "sourceA:my_database:admin/credentials:username"
                 ),
                 VariableValue::String("mocked_value_D".to_string())
+            )])
+        );
+    }
+
+    #[test]
+    fn test_load_values_azurekv() {
+        let variables = DynamicVariables {
+            variables: HashMap::from([(
+                "nr-azurekv".to_string(),
+                HashSet::from(["prod-vault:my-secret".to_string()]),
+            )]),
+        };
+
+        let mut mock_akv = MockAzureKeyVault::new();
+        mock_akv
+            .expect_get_value()
+            .with(predicate::eq("prod-vault:my-secret"))
+            .returning(|_| Ok("secret-value".to_string()));
+
+        let registry = Registry::from(HashMap::from_iter(vec![(
+            Namespace::AzureKeyVault,
+            mock_akv,
+        )]));
+        let result = variables.load_values(&registry).unwrap();
+        assert_eq!(
+            result,
+            HashMap::from([(
+                VariableName::new(Namespace::AzureKeyVault, "prod-vault:my-secret"),
+                VariableValue::String("secret-value".to_string())
             )])
         );
     }

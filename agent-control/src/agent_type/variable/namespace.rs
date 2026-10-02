@@ -61,6 +61,8 @@ pub enum Namespace {
     K8sSecret,
     /// Values retrieved from Kubernetes ConfigMaps.
     K8sConfigMap,
+    /// Secrets retrieved from Azure Key Vault via Managed Identity.
+    AzureKeyVault,
 }
 
 impl Namespace {
@@ -86,7 +88,10 @@ impl Namespace {
     const K8S_SECRET: &'static str = "kubesec";
     /// Encapsulates the values retrieved from K8s ConfigMaps
     const K8S_CONFIGMAP: &'static str = "kubecm";
+    /// Encapsulates the secrets retrieved from a file
     const FILE_SECRET: &'static str = "file";
+    /// Encapsulates secrets retrieved from Azure Key Vault
+    const AZURE_KEY_VAULT: &'static str = "azurekv";
 
     /// Returns whether the given namespaced name belongs to a dynamic namespace.
     pub fn is_dynamic_variable(s: &str) -> bool {
@@ -106,7 +111,8 @@ impl Namespace {
             | Namespace::Vault
             | Namespace::File
             | Namespace::K8sSecret
-            | Namespace::K8sConfigMap => true,
+            | Namespace::K8sConfigMap
+            | Namespace::AzureKeyVault => true,
         }
     }
 }
@@ -123,6 +129,7 @@ impl Display for Namespace {
             Self::File => Self::FILE_SECRET,
             Self::K8sSecret => Self::K8S_SECRET,
             Self::K8sConfigMap => Self::K8S_CONFIGMAP,
+            Self::AzureKeyVault => Self::AZURE_KEY_VAULT,
         };
         write!(f, "{}{ns}", Self::PREFIX)
     }
@@ -164,6 +171,10 @@ mod tests {
         assert_eq!(
             "nr-file:test".to_string(),
             VariableName::new(Namespace::File, "test").to_string()
+        );
+        assert_eq!(
+            "nr-azurekv:test".to_string(),
+            VariableName::new(Namespace::AzureKeyVault, "test").to_string()
         );
     }
 }
