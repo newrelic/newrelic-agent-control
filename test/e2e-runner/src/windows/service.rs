@@ -1,6 +1,6 @@
 use crate::common::test::{TestResult, retry_panic};
 
-use super::powershell::exec_ps;
+use super::powershell::{exec_ps, exec_ps_stdout};
 use std::thread;
 use std::time::Duration;
 use tracing::info;
@@ -22,17 +22,7 @@ pub fn check_service_status(service_name: &str, service_status: &str) -> TestRes
 /// Gets the current status of a Windows service as a string using PowerShell.
 fn get_service_status(service_name: &str) -> String {
     let cmd = format!("(Get-Service -Name '{}').Status", service_name);
-    let result = exec_ps(&cmd).unwrap_or_else(|err| panic!("could not get service status: {err}"));
-    let stdout_line = result
-        .lines()
-        .find(|line| line.starts_with("Stdout"))
-        .expect("Result from powershell command should have an \"Stdout\" line");
-    let stdout = stdout_line
-        .split(":")
-        .last()
-        .expect("Stdout line should contain a colon");
-
-    stdout.trim().to_string()
+    exec_ps_stdout(&cmd).expect("Result from powershell command should have an \"Stdout\" line")
 }
 
 /// Restarts a Windows service using PowerShell.
@@ -68,16 +58,36 @@ pub fn get_scm_restart_count(service_name: &str) -> u32 {
     let cmd = format!(
         r#"(Get-WinEvent -FilterHashtable @{{LogName='System'; Id=7031}} -ErrorAction SilentlyContinue | Where-Object {{$_.Properties.Value -like '*{service_name}*'}} | Measure-Object).Count"#
     );
-    exec_ps(&cmd)
-        .ok()
-        .and_then(|out| {
-            out.lines()
-                .find(|l| l.starts_with("Stdout"))
-                .map(|l| l.to_owned())
-        })
-        .and_then(|l| l.split(':').next_back().map(|s| s.trim().to_owned()))
+    exec_ps_stdout(&cmd)
         .and_then(|s| s.parse().ok())
         .expect("could not read Event 7031 count from PowerShell output")
+}
+
+/// Reads a property of the `Win32_Service` instance for the service.
+fn get_win32_service_property(service_name: &str, property: &str) -> Option<u32> {
+    let cmd = format!(
+        "(Get-CimInstance -ClassName Win32_Service -Filter \"Name='{service_name}'\").{property}"
+    );
+    exec_ps_stdout(&cmd).and_then(|value| value.parse().ok())
+}
+
+/// Returns the Win32 exit code the service last reported to the SCM
+/// (`Win32_Service.ExitCode`, populated from the process's `SetServiceStatus(dwWin32ExitCode)`).
+pub fn get_service_exit_code(service_name: &str) -> u32 {
+    get_win32_service_property(service_name, "ExitCode")
+        .expect("could not read service ExitCode from PowerShell output")
+}
+
+/// Returns the PID of the service's currently running process (`Win32_Service.ProcessId`).
+pub fn get_service_pid(service_name: &str) -> u32 {
+    get_win32_service_property(service_name, "ProcessId")
+        .expect("could not read service ProcessId from PowerShell output")
+}
+
+/// Forcibly terminates a process, bypassing any graceful shutdown handling.
+pub fn kill_process(pid: u32) {
+    let cmd = format!("Stop-Process -Id {pid} -Force");
+    exec_ps(&cmd).unwrap_or_else(|err| panic!("could not kill process {pid}: {err}"));
 }
 
 /// Stops a Windows service using PowerShell.

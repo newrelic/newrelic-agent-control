@@ -68,10 +68,11 @@ enum LinuxScenarios {
     /// Installs Agent Control, runs the bundled uninstall.sh, asserts full removal, then
     /// reinstalls and asserts the service is running and enabled.
     UninstallAndReinstall(InstallationArgs),
-    /// Verifies the service restarts indefinitely on failure (no burst-limit ceiling).
-    /// Breaks the config to force immediate exits, then asserts systemd auto-restarted
-    /// ≥5 times without setting StartLimitHit.
-    ServiceRestartPolicy(InstallationArgs),
+    /// Exercises the systemd service lifecycle end to end: breaks the config to force immediate
+    /// exits and asserts systemd auto-restarts ≥5 times without setting StartLimitHit, fixes the
+    /// config and asserts the service recovers and reports healthy, then stops the healthy
+    /// service and asserts the stop completes as a clean exit (not a timeout/signal/kill).
+    ServiceLifecycle(InstallationArgs),
 }
 
 #[derive(Debug, clap::Subcommand)]
@@ -95,9 +96,6 @@ enum WindowsScenarios {
     /// `returning_to_a_self_updated_version_after_a_cli_reinstall_reuses_the_retained_package`
     /// for the regression test covering the OCI package retention fix specifically.
     SelfUpdateRollback(InstallationArgs),
-    /// Simple installation of Agent Control on Windows with update to wrong and correct config
-    /// to test service stop and start.
-    WrongConfig(InstallationArgs),
     /// Tests Fleet Control integration by installing Agent Control with fleet configuration and triggering Fleet Control tests.
     ///
     /// This relies on polling certain fixed Fleet Control endpoints, failing if the response is not expected or a timeout is reached.
@@ -124,10 +122,11 @@ enum WindowsScenarios {
     /// handle open in the install directory. Asserts that the
     /// script emits a warning and does not silently report success.
     UninstallLockedDirectory(InstallationArgs),
-    /// Verifies the service restarts indefinitely on failure.
-    /// Breaks the config to force immediate exits, then asserts the SCM restarted the
-    /// service ≥5 times via Event ID 7031 entries.
-    ServiceRestartPolicy(InstallationArgs),
+    /// Exercises the Windows service lifecycle end to end: breaks the config to force immediate
+    /// exits and asserts the SCM restarts the service ≥5 times via Event ID 7031 entries, fixes
+    /// the config and asserts the service recovers and reports healthy, then stops the healthy
+    /// service and asserts the stop completes gracefully (no new Event ID 7031 entry).
+    ServiceLifecycle(InstallationArgs),
 }
 
 #[derive(Parser)]

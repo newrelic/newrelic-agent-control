@@ -71,8 +71,8 @@ pub fn run_linux_e2e() {
         LinuxScenarios::UninstallAndReinstall(args) => {
             scenarios::uninstall::test_uninstall_and_reinstall(args);
         }
-        LinuxScenarios::ServiceRestartPolicy(args) => {
-            scenarios::service_restart_policy::test_service_restarts_indefinitely_on_failure(args);
+        LinuxScenarios::ServiceLifecycle(args) => {
+            scenarios::service_lifecycle::test_service_lifecycle(args);
         }
     };
 }

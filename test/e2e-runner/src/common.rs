@@ -7,6 +7,7 @@ pub mod docker_hub;
 pub mod exec;
 pub mod file;
 pub mod fleet_control_api;
+pub mod health;
 pub mod logs;
 pub mod nrql;
 pub mod oci;

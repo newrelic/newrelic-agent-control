@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-use crate::common::test::TestResult;
+use crate::common::test::{TestResult, retry_panic};
 
 /// Response from the agent-control HTTP endpoint
 #[derive(Debug, Serialize, Deserialize)]
@@ -38,4 +38,12 @@ pub fn check_health(endpoint: &str) -> TestResult<String> {
     }
 
     Ok(body)
+}
+
+/// Waits until the agent-control status endpoint on `port` reports healthy and returns its body.
+pub fn wait_until_healthy(port: u16) -> String {
+    let status_endpoint = format!("http://localhost:{port}/status");
+    retry_panic(30, Duration::from_secs(2), "health check", || {
+        check_health(&status_endpoint)
+    })
 }
