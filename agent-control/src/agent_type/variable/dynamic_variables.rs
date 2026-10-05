@@ -152,7 +152,7 @@ value: hardcoded value, another_path: ${nr-vault:PATH_B}
 ${nr-vault:PATH_C}
 ${nr-vault:PATH_D}
 ${nr-vault:sourceA:my_database:admin/credentials:username}
-${nr-azurekv:prod-vault:my-secret}
+${nr-azurekv:test-vault:my-secret}
 eof"#;
 
         let expected = HashMap::from([
@@ -168,7 +168,7 @@ eof"#;
             ),
             (
                 "nr-azurekv".to_string(),
-                HashSet::from(["prod-vault:my-secret".to_string()]),
+                HashSet::from(["test-vault:my-secret".to_string()]),
             ),
         ]);
         assert_eq!(DynamicVariables::from(input).variables, expected);
@@ -226,14 +226,14 @@ eof"#;
         let variables = DynamicVariables {
             variables: HashMap::from([(
                 "nr-azurekv".to_string(),
-                HashSet::from(["prod-vault:my-secret".to_string()]),
+                HashSet::from(["test-vault:my-secret".to_string()]),
             )]),
         };
 
         let mut mock_akv = MockAzureKeyVault::new();
         mock_akv
             .expect_get_value()
-            .with(predicate::eq("prod-vault:my-secret"))
+            .with(predicate::eq("test-vault:my-secret"))
             .returning(|_| Ok("secret-value".to_string()));
 
         let registry = Registry::from(HashMap::from_iter(vec![(
@@ -244,7 +244,7 @@ eof"#;
         assert_eq!(
             result,
             HashMap::from([(
-                VariableName::new(Namespace::AzureKeyVault, "prod-vault:my-secret"),
+                VariableName::new(Namespace::AzureKeyVault, "test-vault:my-secret"),
                 VariableValue::String("secret-value".to_string())
             )])
         );
