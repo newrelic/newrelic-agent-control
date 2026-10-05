@@ -32,6 +32,7 @@ jobs:
           fetch-depth: 0
 
       - name: Check for CHANGELOG file changes
+        if: github.event_name == 'pull_request'
         run: |
           echo "$(git diff --name-only origin/${{ github.base_ref }})"
           if [[ $(git diff --name-only origin/${{ github.base_ref }} | grep --ignore-case CHANGELOG.md) ]]
@@ -43,9 +44,17 @@ jobs:
             false
           fi
 
+      - name: Get CHANGELOG from the latest release
+        run: |
+          latest_tag=$(git describe --tags --abbrev=0 HEAD^)
+          echo "Comparing against latest release tag: ${latest_tag}"
+          git show "${latest_tag}:CHANGELOG.md" > CHANGELOG.base.md
+
       - name: Check if CHANGELOG is valid
         id: validate-changelog
         uses: newrelic/release-toolkit/validate-markdown@c4b929a3b392141fa89af042a907da8694d38c3a # v1
+        with:
+          previous-markdown: CHANGELOG.base.md
 
       - name: Print expected CHANGELOG format
         if: failure() && steps.validate-changelog.conclusion == 'failure'
