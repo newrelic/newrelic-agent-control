@@ -1,5 +1,8 @@
+use crate::AgentTypeDefinitionMeta;
 use crate::LOCAL_HTTP_REGISTRY_URL;
 use crate::blob_digest;
+use flate2::Compression;
+use flate2::write::GzEncoder;
 use oci_client::Client;
 use oci_client::Reference;
 use oci_client::annotations;
@@ -13,8 +16,11 @@ use oci_client::manifest::{
 use oci_client::secrets::RegistryAuth;
 use std::backtrace::Backtrace;
 use std::collections::BTreeMap;
+use std::error::Error;
 use std::hash::{DefaultHasher, Hash, Hasher};
+use std::io::Write;
 use std::path::Path;
+use tempfile::NamedTempFile;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 use tokio::runtime::Handle;
@@ -152,6 +158,26 @@ impl PackagePublisher {
             )
             .await
         })
+    }
+
+    /// Pushes the agent type definition `yaml` under the tag Agent Control derives from it.
+    /// Returns the reference together with the definition's metadata.
+    pub fn push_agent_type(
+        &self,
+        yaml: &str,
+    ) -> Result<(Reference, AgentTypeDefinitionMeta), Box<dyn Error>> {
+        let meta = AgentTypeDefinitionMeta::from_yaml_str(yaml)?;
+        let tag = meta.compose_tag()?;
+
+        // Agent Control expects the definition inside the archive to be named `<tag>.yaml`.
+        let archive_bytes = build_agent_type_archive(&format!("{tag}.yaml"), yaml.as_bytes())?;
+
+        let mut archive_file = NamedTempFile::new()?;
+        archive_file.write_all(&archive_bytes)?;
+        archive_file.flush()?;
+
+        let reference = self.push_with_tag(archive_file.path(), AgentTypeArtifact, &tag);
+        Ok((reference, meta))
     }
 
     async fn push_async(
@@ -329,6 +355,17 @@ impl PackagePublisher {
             ..Default::default()
         }
     }
+}
+
+fn build_agent_type_archive(filename: &str, content: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
+    let encoder = GzEncoder::new(Vec::new(), Compression::default());
+    let mut archive = tar::Builder::new(encoder);
+    let mut header = tar::Header::new_gnu();
+    header.set_size(content.len() as u64);
+    header.set_mode(0o644);
+    header.set_cksum();
+    archive.append_data(&mut header, filename, content)?;
+    Ok(archive.into_inner()?.finish()?)
 }
 
 /// Creates a tag to be used when pushing OCI artifacts to the testing server.

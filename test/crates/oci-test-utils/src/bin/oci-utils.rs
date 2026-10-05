@@ -15,19 +15,14 @@
 //! ```
 
 use std::error::Error;
-use std::fs;
-use std::io::{self, Read, Write};
+use std::fs::read_to_string;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use flate2::Compression;
-use flate2::write::GzEncoder;
 use oci_client::Reference;
-use oci_test_utils::{
-    AgentTypeArtifact, AgentTypeDefinitionMeta, PackageMediaType, PackagePublisher,
-};
-use tempfile::NamedTempFile;
+use oci_test_utils::{PackageMediaType, PackagePublisher};
 
 const DEFAULT_REGISTRY: &str = "localhost:5001";
 const DEFAULT_REPOSITORY: &str = "test";
@@ -250,42 +245,15 @@ fn push_package(
 }
 
 fn push_agent_type(publisher: &PackagePublisher, definition: &Path) -> Result<(), Box<dyn Error>> {
-    let yaml = fs::read_to_string(definition).map_err(|e| {
+    let yaml = read_to_string(definition).map_err(|e| {
         format!(
             "failed to read definition file {}: {e}",
             definition.display()
         )
     })?;
-    let meta = AgentTypeDefinitionMeta::from_yaml_str(&yaml)?;
-    let tag = meta.compose_tag()?;
-
-    // Agent Control expects the definition inside the archive to be named
-    // `<tag>.yaml`. See agent-control/src/oci/artifact_definitions.rs.
-    let archive_filename = format!("{tag}.yaml");
-    let archive_bytes = build_agent_type_archive(&archive_filename, yaml.as_bytes())?;
-
-    // The publisher takes a file path, so materialize the archive to a tempfile.
-    let mut tmp = NamedTempFile::new()?;
-    tmp.write_all(&archive_bytes)?;
-    tmp.flush()?;
-
-    let reference = publisher.push_with_tag(tmp.path(), AgentTypeArtifact, &tag);
+    let (reference, _) = publisher.push_agent_type(&yaml)?;
     print_pushed("agent type", &reference);
     Ok(())
-}
-
-/// Builds an in-memory gzipped tar archive containing a single file. Mirrors the
-/// helper at `agent-control/src/oci/artifact_definitions.rs::tar_gz_bytes` (test code).
-fn build_agent_type_archive(filename: &str, content: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
-    let enc = GzEncoder::new(Vec::new(), Compression::default());
-    let mut tar = tar::Builder::new(enc);
-    let mut header = tar::Header::new_gnu();
-    header.set_size(content.len() as u64);
-    header.set_mode(0o644);
-    header.set_cksum();
-    tar.append_data(&mut header, filename, content)?;
-    let enc = tar.into_inner()?;
-    Ok(enc.finish()?)
 }
 
 fn print_pushed(kind: &str, reference: &Reference) {

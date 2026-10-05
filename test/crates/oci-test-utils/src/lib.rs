@@ -1,10 +1,12 @@
 use aws_lc_rs::digest::{SHA256, digest};
 
 pub mod agent_type_meta;
+mod mirror;
 mod publisher;
 mod signer;
 
 pub use agent_type_meta::{AgentTypeDefinitionMeta, MetaError};
+pub use mirror::mirror_host_package;
 pub use publisher::{AgentTypeArtifact, ArtifactKind, PackageMediaType, PackagePublisher};
 pub use signer::OCISigner;
 

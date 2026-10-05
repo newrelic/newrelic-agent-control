@@ -5,6 +5,7 @@ pub mod infra_agent;
 pub mod nrdot_agent;
 pub mod nri_flex;
 pub mod nri_redis;
+pub mod ohi_agent;
 pub mod package_upgrade;
 pub mod proxy;
 pub mod remote_config;
