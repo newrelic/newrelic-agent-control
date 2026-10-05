@@ -55,6 +55,11 @@ impl AgentTypeDefinitionMeta {
         serde_saphyr::from_str(yaml).map_err(|e| MetaError::Parse(e.to_string()))
     }
 
+    /// Returns the id Agent Control uses to reference the agent type: `<namespace>/<name>:<version>`.
+    pub fn id(&self) -> String {
+        format!("{}/{}:{}", self.namespace, self.name, self.version)
+    }
+
     /// Returns the OCI tag for this definition, matching the format Agent Control
     /// derives when pulling: `<environment-prefix>-<name>-<version>`.
     pub fn compose_tag(&self) -> Result<String, MetaError> {

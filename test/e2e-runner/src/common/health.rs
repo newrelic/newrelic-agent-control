@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
+use tracing::{info, warn};
 
 use crate::common::test::{TestResult, retry_panic};
 
@@ -46,4 +47,17 @@ pub fn wait_until_healthy(port: u16) -> String {
     retry_panic(30, Duration::from_secs(2), "health check", || {
         check_health(&status_endpoint)
     })
+}
+
+/// Logs the body of the agent-control status endpoint on `port`, for diagnosing failed runs.
+pub fn dump_status(port: u16) {
+    let status = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .and_then(|client| client.get(format!("http://localhost:{port}/status")).send())
+        .and_then(|response| response.text());
+    match status {
+        Ok(status) => info!("AC status endpoint output:\n{status}"),
+        Err(err) => warn!(%err, "Could not read the AC status endpoint"),
+    }
 }
