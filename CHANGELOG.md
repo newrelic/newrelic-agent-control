@@ -20,6 +20,9 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ## Unreleased
 
+### enhancement
+- Added Azure Key Vault value provider, supporting both Managed Identity and Service Principal authentication.
+
 ### bugfix
 - Windows: `install.ps1` now detects and removes a standalone New Relic Infrastructure Agent installation to avoid duplicate host reporting; it must be reconfigured as an Agent Control managed sub-agent afterwards if still needed.
 - On-host: fixed integration restarts caused by redundant filesystem sync and full directory recreation when writing OHI config files to the shared filesystem.
