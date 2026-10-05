@@ -32,6 +32,7 @@ jobs:
           fetch-depth: 0
 
       - name: Check for CHANGELOG file changes
+        if: github.event_name == 'pull_request'
         run: |
           echo "$(git diff --name-only origin/${{ github.base_ref }})"
           if [[ $(git diff --name-only origin/${{ github.base_ref }} | grep --ignore-case CHANGELOG.md) ]]
@@ -43,8 +44,11 @@ jobs:
             false
           fi
 
-      - name: Get CHANGELOG from base branch
-        run: git show origin/${{ github.base_ref }}:CHANGELOG.md > CHANGELOG.base.md
+      - name: Get CHANGELOG from the latest release
+        run: |
+          latest_tag=$(git describe --tags --abbrev=0 HEAD^)
+          echo "Comparing against latest release tag: ${latest_tag}"
+          git show "${latest_tag}:CHANGELOG.md" > CHANGELOG.base.md
 
       - name: Check if CHANGELOG is valid
         id: validate-changelog
