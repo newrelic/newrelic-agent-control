@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
@@ -62,7 +62,7 @@ jobs:
   
       - name: Generate public docs release notes
         id: generate
-        uses: newrelic/release-toolkit/contrib/nr-docs-release-notes@80550d3a26d8d47937ed98ddfa7614d273d44aef # v1
+        uses: newrelic/release-toolkit/contrib/nr-docs-release-notes@c4b929a3b392141fa89af042a907da8694d38c3a # v1
         with:
           subject: "Agent Control"
           version: ${{ inputs.version }}
