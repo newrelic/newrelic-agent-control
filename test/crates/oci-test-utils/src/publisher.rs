@@ -1,20 +1,26 @@
+use crate::AgentTypeDefinitionMeta;
 use crate::LOCAL_HTTP_REGISTRY_URL;
 use crate::blob_digest;
+use crate::package_platform;
+use flate2::Compression;
+use flate2::write::GzEncoder;
 use oci_client::Client;
 use oci_client::Reference;
 use oci_client::annotations;
 use oci_client::client::{ClientConfig, ClientProtocol};
-use oci_client::config::{Architecture, Os};
-use oci_client::manifest;
 use oci_client::manifest::{
-    IMAGE_CONFIG_MEDIA_TYPE, ImageIndexEntry, OCI_IMAGE_INDEX_MEDIA_TYPE, OCI_IMAGE_MEDIA_TYPE,
-    OciDescriptor, OciImageIndex, OciImageManifest, Platform,
+    IMAGE_CONFIG_MEDIA_TYPE, IMAGE_MANIFEST_LIST_MEDIA_TYPE, IMAGE_MANIFEST_MEDIA_TYPE,
+    ImageIndexEntry, OCI_IMAGE_INDEX_MEDIA_TYPE, OCI_IMAGE_MEDIA_TYPE, OciDescriptor,
+    OciImageIndex, OciImageManifest, OciManifest, Platform,
 };
 use oci_client::secrets::RegistryAuth;
 use std::backtrace::Backtrace;
 use std::collections::BTreeMap;
+use std::error::Error;
 use std::hash::{DefaultHasher, Hash, Hasher};
+use std::io::Write;
 use std::path::Path;
+use tempfile::NamedTempFile;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 use tokio::runtime::Handle;
@@ -24,6 +30,13 @@ const AGENT_PACKAGE_LAYER_TAR_GZ: &str = "application/vnd.newrelic.agent.content
 const AGENT_PACKAGE_LAYER_ZIP: &str = "application/vnd.newrelic.agent.content.v1.zip";
 const AGENT_TYPE_MANIFEST_ARTIFACT_TYPE: &str = "application/vnd.newrelic.agent-type.v1";
 const AGENT_TYPE_LAYER_TAR_GZ: &str = "application/vnd.newrelic.agent-type.content.v1.tar+gzip";
+
+const ACCEPTED_MANIFEST_MEDIA_TYPES: [&str; 4] = [
+    OCI_IMAGE_INDEX_MEDIA_TYPE,
+    OCI_IMAGE_MEDIA_TYPE,
+    IMAGE_MANIFEST_LIST_MEDIA_TYPE,
+    IMAGE_MANIFEST_MEDIA_TYPE,
+];
 
 /// Default repository name for the publisher. Used when [`PackagePublisher::with_repository`]
 /// is not called.
@@ -118,21 +131,6 @@ impl PackagePublisher {
         self.authenticate(RegistryAuth::Bearer(token.to_string()))
     }
 
-    fn authenticate(self, auth: RegistryAuth) -> Self {
-        self.runtime_handle
-            .block_on(self.client.auth(
-                &Reference::with_tag(
-                    self.registry_url.clone(),
-                    self.repository.clone(),
-                    String::new(),
-                ),
-                &auth,
-                oci_client::RegistryOperation::Push,
-            ))
-            .unwrap();
-        self
-    }
-
     /// Pushes `file` as an OCI artifact of the given [ArtifactKind] and returns the index manifest
     /// reference. The artifact is structured as a manifest index (multiarch) with a single entry
     /// for the current platform.
@@ -154,6 +152,126 @@ impl PackagePublisher {
         })
     }
 
+    /// Pushes the agent type definition `yaml` under the tag Agent Control derives from it.
+    /// Returns the reference together with the definition's metadata.
+    pub fn push_agent_type(
+        &self,
+        yaml: &str,
+    ) -> Result<(Reference, AgentTypeDefinitionMeta), Box<dyn Error>> {
+        let meta = AgentTypeDefinitionMeta::from_yaml_str(yaml)?;
+        let tag = meta.compose_tag()?;
+
+        // Agent Control expects the definition inside the archive to be named `<tag>.yaml`.
+        let archive_bytes = build_agent_type_archive(&format!("{tag}.yaml"), yaml.as_bytes())?;
+
+        let mut archive_file = NamedTempFile::new()?;
+        archive_file.write_all(&archive_bytes)?;
+        archive_file.flush()?;
+
+        let reference = self.push_with_tag(archive_file.path(), AgentTypeArtifact, &tag);
+        Ok((reference, meta))
+    }
+
+    /// Copies the artifact behind `source` as is (every platform, digests preserved) into this
+    /// publisher's repository under `tag`. Signatures are not copied.
+    pub fn mirror(&self, source: &Reference, tag: &str) -> Result<Reference, Box<dyn Error>> {
+        let destination = self.tag_reference(tag);
+        self.runtime_handle.block_on(self.copy_manifest(
+            &Client::default(),
+            source,
+            &destination,
+        ))?;
+        Ok(destination)
+    }
+
+    fn authenticate(self, auth: RegistryAuth) -> Self {
+        self.runtime_handle
+            .block_on(self.client.auth(
+                &self.tag_reference(""),
+                &auth,
+                oci_client::RegistryOperation::Push,
+            ))
+            .unwrap();
+        self
+    }
+
+    async fn copy_manifest(
+        &self,
+        source_client: &Client,
+        source: &Reference,
+        destination: &Reference,
+    ) -> Result<(), Box<dyn Error>> {
+        let (raw_manifest, _) = source_client
+            .pull_manifest_raw(
+                source,
+                &RegistryAuth::Anonymous,
+                &ACCEPTED_MANIFEST_MEDIA_TYPES,
+            )
+            .await?;
+        let manifest: OciManifest = serde_json::from_slice(&raw_manifest)?;
+
+        match &manifest {
+            OciManifest::Image(image) => {
+                for descriptor in std::iter::once(&image.config).chain(&image.layers) {
+                    self.copy_blob(source_client, source, descriptor).await?;
+                }
+            }
+            OciManifest::ImageIndex(index) => {
+                for entry in &index.manifests {
+                    let entry_source = Reference::with_digest(
+                        source.registry().to_string(),
+                        source.repository().to_string(),
+                        entry.digest.clone(),
+                    );
+                    let entry_destination = self.digest_reference(&entry.digest);
+                    Box::pin(self.copy_manifest(source_client, &entry_source, &entry_destination))
+                        .await?;
+                }
+            }
+        }
+
+        self.client
+            .push_manifest_raw(destination, raw_manifest, manifest.content_type().parse()?)
+            .await?;
+        Ok(())
+    }
+
+    async fn copy_blob(
+        &self,
+        source_client: &Client,
+        source: &Reference,
+        descriptor: &OciDescriptor,
+    ) -> Result<(), Box<dyn Error>> {
+        let mut blob = Vec::new();
+        source_client
+            .pull_blob(source, descriptor, &mut blob)
+            .await?;
+        self.client
+            .push_blob(
+                &self.digest_reference(&descriptor.digest),
+                blob,
+                &descriptor.digest,
+            )
+            .await?;
+        Ok(())
+    }
+
+    fn tag_reference(&self, tag: &str) -> Reference {
+        Reference::with_tag(
+            self.registry_url.clone(),
+            self.repository.clone(),
+            tag.to_string(),
+        )
+    }
+
+    fn digest_reference(&self, digest: &str) -> Reference {
+        Reference::with_digest(
+            self.registry_url.clone(),
+            self.repository.clone(),
+            digest.to_string(),
+        )
+    }
+
     async fn push_async(
         &self,
         file: &Path,
@@ -162,9 +280,7 @@ impl PackagePublisher {
         tag: &str,
         wrap_in_index: bool,
     ) -> Reference {
-        let tag_reference: Reference = format!("{}/{}:{tag}", self.registry_url, self.repository)
-            .parse()
-            .unwrap();
+        let tag_reference = self.tag_reference(tag);
 
         let file_name = file.file_name().unwrap().to_string_lossy().to_string();
 
@@ -186,7 +302,7 @@ impl PackagePublisher {
                 .await;
         } else {
             self.client
-                .push_manifest(&tag_reference, &manifest::OciManifest::Image(manifest))
+                .push_manifest(&tag_reference, &OciManifest::Image(manifest))
                 .await
                 .unwrap();
         }
@@ -231,7 +347,7 @@ impl PackagePublisher {
         let manifest_size = serde_json::to_vec(&manifest).unwrap().len() as i64;
 
         self.client
-            .push_manifest(&manifest_reference, &manifest::OciManifest::Image(manifest))
+            .push_manifest(&manifest_reference, &OciManifest::Image(manifest))
             .await
             .unwrap();
 
@@ -245,26 +361,15 @@ impl PackagePublisher {
     }
 
     async fn push_platform_config(&self, reference: &Reference) -> OciDescriptor {
+        let (os, architecture) = package_platform();
         let config_bytes: Vec<u8> = serde_json::to_vec(&serde_json::json!({
-            "architecture": &Architecture::default(),
-            "os": &Os::default(),
+            "architecture": &architecture,
+            "os": &os,
         }))
         .unwrap();
 
-        let digest = blob_digest(&config_bytes);
-        let size = config_bytes.len() as i64;
-
-        self.client
-            .push_blob(reference, config_bytes, &digest)
+        self.push_blob_bytes(reference, config_bytes, IMAGE_CONFIG_MEDIA_TYPE)
             .await
-            .unwrap();
-
-        OciDescriptor {
-            media_type: IMAGE_CONFIG_MEDIA_TYPE.to_string(),
-            digest,
-            size,
-            ..Default::default()
-        }
     }
 
     async fn push_package_index(
@@ -273,6 +378,7 @@ impl PackagePublisher {
         manifest_digest: String,
         manifest_size: i64,
     ) {
+        let (os, architecture) = package_platform();
         let image_index = OciImageIndex {
             schema_version: 2,
             media_type: Some(OCI_IMAGE_INDEX_MEDIA_TYPE.to_string()),
@@ -283,8 +389,8 @@ impl PackagePublisher {
                 digest: manifest_digest,
                 size: manifest_size,
                 platform: Some(Platform {
-                    architecture: Architecture::default(),
-                    os: Os::default(),
+                    architecture,
+                    os,
                     os_version: None,
                     os_features: None,
                     variant: None,
@@ -296,10 +402,7 @@ impl PackagePublisher {
         };
 
         self.client
-            .push_manifest(
-                index_reference,
-                &manifest::OciManifest::ImageIndex(image_index),
-            )
+            .push_manifest(index_reference, &OciManifest::ImageIndex(image_index))
             .await
             .unwrap();
     }
@@ -314,6 +417,16 @@ impl PackagePublisher {
         let mut data = Vec::new();
         f.read_to_end(&mut data).await.unwrap();
 
+        self.push_blob_bytes(reference, data, layer_media_type)
+            .await
+    }
+
+    async fn push_blob_bytes(
+        &self,
+        reference: &Reference,
+        data: Vec<u8>,
+        media_type: &str,
+    ) -> OciDescriptor {
         let digest = blob_digest(&data);
         let size = data.len() as i64;
 
@@ -323,12 +436,23 @@ impl PackagePublisher {
             .unwrap();
 
         OciDescriptor {
-            media_type: layer_media_type.to_string(),
+            media_type: media_type.to_string(),
             digest,
             size,
             ..Default::default()
         }
     }
+}
+
+fn build_agent_type_archive(filename: &str, content: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
+    let encoder = GzEncoder::new(Vec::new(), Compression::default());
+    let mut archive = tar::Builder::new(encoder);
+    let mut header = tar::Header::new_gnu();
+    header.set_size(content.len() as u64);
+    header.set_mode(0o644);
+    header.set_cksum();
+    archive.append_data(&mut header, filename, content)?;
+    Ok(archive.into_inner()?.finish()?)
 }
 
 /// Creates a tag to be used when pushing OCI artifacts to the testing server.

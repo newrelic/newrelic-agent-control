@@ -4,6 +4,8 @@
 set -euo pipefail
 
 MAX_AGE_HOURS=12
+# The snapshot is always read from this repository, so other repositories can call the action too
+repository=newrelic/newrelic-agent-control
 
 if [ -z "${PLATFORM:-}" ]; then
   case "$RUNNER_OS" in
@@ -19,7 +21,7 @@ case "$PLATFORM" in
   *) echo "::error::platform must be linux, windows or kubernetes, got '$PLATFORM'"; exit 1 ;;
 esac
 
-artifact=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$ARTIFACT_NAME&per_page=20" \
+artifact=$(gh api "repos/$repository/actions/artifacts?name=$ARTIFACT_NAME&per_page=20" \
   --jq '[.artifacts[] | select(.expired==false and .workflow_run.head_branch=="main")][0]')
 if [ -z "$artifact" ] || [ "$artifact" = "null" ]; then
   echo "::error::No non-expired '$ARTIFACT_NAME' artifact found on main; run the scheduled_resolve_agent_versions workflow"
@@ -31,7 +33,7 @@ data_file="$download_dir/agent-versions.json"
 # A previous call in the same job (e.g. another platform) already downloaded the snapshot
 if [ ! -f "$data_file" ]; then
   mkdir -p "$download_dir"
-  gh run download "$(jq -r '.workflow_run.id' <<<"$artifact")" --repo "$GITHUB_REPOSITORY" \
+  gh run download "$(jq -r '.workflow_run.id' <<<"$artifact")" --repo "$repository" \
     --name "$ARTIFACT_NAME" --dir "$download_dir"
 fi
 

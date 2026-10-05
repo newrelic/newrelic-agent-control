@@ -1,0 +1,10 @@
+config:
+  integrations:
+    - name: nri-flex
+      interval: 15s
+      config:
+        name: ohi-action-selftest
+        apis:
+          - event_type: OhiActionSelfTestSample
+            # AC status endpoint activated by default
+            url: http://localhost:51200/status

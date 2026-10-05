@@ -68,6 +68,33 @@ pub fn check_query_results_are_not_empty(
     check_query_results(install_args, nrql_query, |r| !r.is_empty())
 }
 
+/// Same as [check_query_results_are_not_empty] but requires at least one meaningful value (not null,
+/// zero, false or empty), so an aggregate over no data, e.g. `count(*)`, does not pass.
+pub fn check_query_results_have_value(
+    install_args: &InstallationArgs,
+    nrql_query: &str,
+) -> TestResult<Vec<Value>> {
+    check_query_results(install_args, nrql_query, |rows| has_meaningful_value(rows))
+}
+
+fn has_meaningful_value(rows: &[Value]) -> bool {
+    rows.iter().any(|row| {
+        row.as_object()
+            .is_some_and(|fields| fields.values().any(is_meaningful))
+    })
+}
+
+fn is_meaningful(value: &Value) -> bool {
+    match value {
+        Value::Null => false,
+        Value::Bool(flag) => *flag,
+        Value::Number(number) => number.as_f64().is_some_and(|number| number != 0.0),
+        Value::String(text) => !text.is_empty(),
+        Value::Array(items) => !items.is_empty(),
+        Value::Object(fields) => !fields.is_empty(),
+    }
+}
+
 /// Executes a single NRQL query against the New Relic GraphQL API.
 ///
 /// This function sends a GraphQL query to execute NRQL, check that
