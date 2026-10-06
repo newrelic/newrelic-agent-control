@@ -95,6 +95,14 @@ pub fn get_auto_restart_count(service_name: &str) -> u32 {
         .expect("could not read NRestarts from systemctl output")
 }
 
+/// Returns the PID systemd currently tracks as the service's main process, or 0 if the
+/// service isn't running.
+pub fn get_main_pid(service_name: &str) -> u32 {
+    get_systemctl_property(service_name, "MainPID")
+        .and_then(|s| s.parse().ok())
+        .expect("could not read MainPID from systemctl output")
+}
+
 /// Returns `true` if systemd stopped restarting the service because the burst rate limit
 /// was reached (`StartLimitHit=yes`). Always `false` when `StartLimitIntervalSec=0`.
 pub fn is_start_limit_hit(service_name: &str) -> bool {
@@ -106,4 +114,10 @@ pub fn is_start_limit_hit(service_name: &str) -> bool {
 /// Gets whether a service is enabled to start on boot (`systemctl show --property=UnitFileState`).
 pub fn get_unit_file_state(service_name: &str) -> String {
     get_systemctl_property(service_name, "UnitFileState").unwrap_or_default()
+}
+
+/// Gets the service's configured `KillMode` as actually deployed (`systemctl show
+/// --property=KillMode`), independent of what the source unit file in this branch says.
+pub fn get_kill_mode(service_name: &str) -> String {
+    get_systemctl_property(service_name, "KillMode").unwrap_or_default()
 }

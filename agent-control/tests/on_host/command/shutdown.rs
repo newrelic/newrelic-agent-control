@@ -11,6 +11,7 @@ fn non_blocking_runner() {
     let agent_id = "sleep-test".to_string().try_into().unwrap();
     let mut sleep_cmd = Command::new("sleep");
     sleep_cmd.arg("5");
+    let test_process_record_dir = tempfile::tempdir().unwrap();
 
     let cmd = CommandOSNotStarted::new(
         agent_id,
@@ -33,6 +34,7 @@ fn non_blocking_runner() {
             shutdown_timeout: Default::default(),
         },
         SubAgentFileLoggingConfig::default(),
+        test_process_record_dir.path(),
     );
 
     let mut started_cmd = cmd.start().unwrap();
@@ -46,6 +48,7 @@ fn non_blocking_runner() {
 #[cfg(target_family = "unix")]
 fn command_shutdown_when_sigterm_is_ignored() {
     let agent_id = "test".to_string().try_into().unwrap();
+    let test_process_record_dir = tempfile::tempdir().unwrap();
     let mut cmd = CommandOSNotStarted::new(
         agent_id,
         &ExecutableData {
@@ -57,6 +60,7 @@ fn command_shutdown_when_sigterm_is_ignored() {
             shutdown_timeout: Duration::from_millis(100),
         },
         SubAgentFileLoggingConfig::default(),
+        test_process_record_dir.path(),
     )
     .start()
     .unwrap();
@@ -89,6 +93,7 @@ fn command_shutdown_kill_orphan_process() {
 
     let agent_id = "test".to_string().try_into().unwrap();
     let id = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
+    let test_process_record_dir = tempfile::tempdir().unwrap();
     let mut cmd = CommandOSNotStarted::new(
         agent_id,
         &ExecutableData {
@@ -107,6 +112,7 @@ fn command_shutdown_kill_orphan_process() {
             shutdown_timeout: Duration::from_millis(100),
         },
         SubAgentFileLoggingConfig::default(),
+        test_process_record_dir.path(),
     )
     .start()
     .unwrap();
