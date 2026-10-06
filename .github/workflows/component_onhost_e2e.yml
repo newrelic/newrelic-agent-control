@@ -35,12 +35,19 @@ jobs:
       tag_name: 0.900.${{ github.run_id }}
 
   on-host-linux-e2e:
-    name: OnHost Linux E2E tests
+    name: OnHost Linux E2E tests (${{ matrix.platform.arch }}) ${{ matrix.group }}
     needs: [ build-packages ]
-    runs-on: ubuntu-26.04
+    runs-on: ${{ matrix.platform.runner }}
     strategy:
       fail-fast: false
       matrix:
+        platform:
+          - arch: amd64
+            runner: ubuntu-26.04
+            environment: linux
+          - arch: arm64
+            runner: ubuntu-26.04-arm
+            environment: linux-arm64
         group:
           - remote-config
           - ebpf-agent
@@ -100,7 +107,7 @@ jobs:
           NR_LICENSE_KEY: ${{ secrets.E2E_LICENSE_KEY }}
           NR_ACCOUNT_ID: ${{ secrets.E2E_ACCOUNT_ID }}
           E2E_SCENARIO: ${{ matrix.group }}
-          E2E_ENVIRONMENT: linux
+          E2E_ENVIRONMENT: ${{ matrix.platform.environment }}
           E2E_STATUS: ${{ job.status }}
           E2E_CALLER_WORKFLOW: ${{ inputs.caller_workflow }}
         run: bash .github/workflows/scripts/report_e2e_result.sh
@@ -109,8 +116,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: e2e-result-linux-${{ matrix.group }}
-          path: e2e-result-*-linux-${{ matrix.group }}.txt
+          name: e2e-result-${{ matrix.platform.environment }}-${{ matrix.group }}
+          path: e2e-result-*-${{ matrix.platform.environment }}-${{ matrix.group }}.txt
           if-no-files-found: warn
 
   on-host-windows-e2e:
