@@ -70,6 +70,7 @@ agents:
 config:
   deploymentName: "{test_id}"
   region: "{region}"
+enable_file_logging: true
 version: "{ebpf_version}"
     "#
     );
@@ -88,6 +89,20 @@ version: {infra_agent_version}
     );
 
     linux::service::restart_service(linux::SERVICE_NAME);
+
+    std::thread::sleep(Duration::from_secs(60));
+
+    exec_bash_command(&format!("test ! -f '{EBPF_DEFAULT_STATUS_LOG}'"))
+        .expect("eBPF status log should not fall back to /etc/newrelic-ebpf-agent");
+
+    let service_logs = exec_bash_command("cat /var/log/newrelic-agent-control/nr-ebpf/*")
+        .expect("logs must be there");
+    info!(logs = service_logs, "eBPF agent service logs");
+
+    let status_logs =
+        exec_bash_command("cat /var/lib/newrelic-agent-control/filesystem/nr-ebpf/logs/*")
+            .expect("logs must be there");
+    info!(logs = status_logs, "eBPF agent status logs");
 
     let nrql_query = format!(
         r#"SELECT * FROM Metric WHERE metricName = 'ebpf.tcp.connection_duration' AND deployment.name = '{test_id}' LIMIT 1"#
@@ -109,6 +124,4 @@ version: {infra_agent_version}
         "ebpf status log written under the AC managed filesystem directory",
         || exec_bash_command(&format!("test -f '{EBPF_STATUS_LOG}'")),
     );
-    exec_bash_command(&format!("test ! -f '{EBPF_DEFAULT_STATUS_LOG}'"))
-        .expect("eBPF status log should not fall back to /etc/newrelic-ebpf-agent");
 }
