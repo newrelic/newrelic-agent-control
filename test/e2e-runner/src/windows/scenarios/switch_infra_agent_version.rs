@@ -1,4 +1,5 @@
 use crate::common::config::update_config;
+use crate::common::health::check_health;
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
 use crate::common::{InstallationArgs, RecipeData};
@@ -91,7 +92,7 @@ version: {UPDATE_FROM_INFRA_AGENT_VERSION}
     info!("Verifying service health");
     let status_endpoint = format!("http://localhost:{DEFAULT_STATUS_PORT}/status");
     let status = retry_panic(30, Duration::from_secs(2), "health check", || {
-        windows::health::check_health(&status_endpoint)
+        check_health(&status_endpoint)
     });
 
     info!("Agent Control is healthy");
@@ -133,7 +134,7 @@ version: {UPDATE_FROM_INFRA_AGENT_VERSION}
     info!("Verifying service health");
     let status_endpoint = format!("http://localhost:{DEFAULT_STATUS_PORT}/status");
     let status = retry_panic(30, Duration::from_secs(2), "health check", || {
-        windows::health::check_health(&status_endpoint)
+        check_health(&status_endpoint)
     });
 
     info!("Agent Control is healthy");

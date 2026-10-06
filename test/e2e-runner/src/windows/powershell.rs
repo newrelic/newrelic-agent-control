@@ -11,6 +11,16 @@ pub fn exec_ps(command: impl AsRef<str>) -> TestResult<String> {
         .map_err(|err| format!("failed to execute command '{}': {}", command.as_ref(), err).into())
 }
 
+/// Executes a PowerShell command and returns the trimmed value of its `Stdout` line, if any.
+pub fn exec_ps_stdout(command: impl AsRef<str>) -> Option<String> {
+    exec_ps(command).ok().and_then(|out| {
+        out.lines()
+            .find(|line| line.starts_with("Stdout"))
+            .and_then(|line| line.split(':').next_back())
+            .map(|value| value.trim().to_owned())
+    })
+}
+
 /// Extracts a compressed archive to the specified destination.
 pub fn extract(compressed_file: impl AsRef<str>, destination: impl AsRef<str>) {
     let extract_cmd = format!(

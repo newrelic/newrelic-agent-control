@@ -54,7 +54,7 @@ jobs:
           - all-ohis-no-service
           - package-upgrade
           - uninstall-and-reinstall
-          - service-restart-policy
+          - service-lifecycle
     steps:
       - name: Record job start time
         run: echo "JOB_START_TIME=$(date +%s)" >> "$GITHUB_ENV"
@@ -124,7 +124,6 @@ jobs:
           - infra-agent
           - nrdot
           - proxy
-          - wrong-config
           - remote-config
           - switch-infra-agent-version
           - self-update-latest-to-current
@@ -134,7 +133,7 @@ jobs:
           - all-ohis-no-service
           - uninstall-and-reinstall
           - uninstall-locked-directory
-          - service-restart-policy
+          - service-lifecycle
     steps:
       - name: Record job start time
         shell: bash
