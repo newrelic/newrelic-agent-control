@@ -1025,7 +1025,7 @@ agents:
         /// Each sub-agent build will expect to run and stop.
         fn set_sub_agent_build_success(&mut self, identities: Vec<AgentIdentity>) {
             self.set_sub_agent_build_success_with_expectations(identities, |started| {
-                started.expect_stop().once().returning(|| Ok(()));
+                started.should_stop();
             });
         }
 
@@ -1391,7 +1391,8 @@ agents:
                     // "id1" should remain the same
                     agent.expect_stop().never();
                 } else {
-                    agent.expect_stop().once().returning(|| Ok(())); // The rest of sub-agents should stop
+                    // The rest of sub-agents should stop
+                    agent.should_stop();
                 }
             });
 
@@ -1465,7 +1466,8 @@ agents:
         let opamp_remote_config = t.build_ac_remote_config(remote_config);
 
         running_sub_agents.agents().values_mut().for_each(|agent| {
-            agent.expect_stop().once().returning(|| Ok(())); // The current agent control should stop
+            // The current agent control should stop
+            agent.should_stop();
         });
 
         let identities = t.identities_from_agents_config(remote_config);
@@ -1693,7 +1695,7 @@ agents:
         let (_current_dynamic_config, mut running_sub_agents) =
             t.build_current_config_and_sub_agents(current_config);
         running_sub_agents.agents().values_mut().for_each(|agent| {
-            agent.expect_stop().once().returning(|| Ok(()));
+            agent.should_stop();
         });
 
         // Remote push: bump the AC version AND change `id1`'s agent_type in the same config document.
