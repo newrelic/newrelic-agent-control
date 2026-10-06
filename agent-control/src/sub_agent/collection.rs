@@ -35,6 +35,7 @@ where
         self.0.insert(agent_id, sub_agent)
     }
 
+    /// Stops the entire sub agents collection concurrently.
     pub(crate) fn stop(self) {
         let handles: Vec<_> = self
             .0

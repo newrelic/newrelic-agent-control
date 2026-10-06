@@ -11,7 +11,6 @@ use crate::windows::service::{
     get_service_exit_code, get_service_pid, kill_process, restart_service, stop_service,
 };
 use crate::windows::{self, DEFAULT_LOG_PATH};
-use std::thread::sleep;
 use std::time::Duration;
 use tracing::{info, warn};
 
@@ -101,14 +100,14 @@ pub fn test_service_lifecycle(args: InstallationArgs) {
 
     stop_service(SERVICE_NAME);
 
-    // No new "service terminated unexpectedly" event: rules out a crash during shutdown.
-    // Event log writes can lag the stop, so give them time to show up before asserting absence.
-    sleep(Duration::from_secs(5));
-    let restarts_during_stop = get_scm_restart_count(SERVICE_DISPLAY_NAME) - baseline_before_stop;
-    assert_eq!(
-        0, restarts_during_stop,
-        "a graceful stop must not be recorded as an unexpected termination (Event 7031)"
-    );
+    let _ = retry::<_, ()>(25, Duration::from_secs(1), "SCM restart event", || {
+        match get_scm_restart_count(SERVICE_DISPLAY_NAME) - baseline_before_stop {
+            0 => Err("no SCM restart event yet".into()),
+            restarts => panic!(
+                "a service graceful stop must not trigger a restart, got {restarts} restart events"
+            ),
+        }
+    });
 
     let exit_code = get_service_exit_code(SERVICE_NAME);
     assert_eq!(

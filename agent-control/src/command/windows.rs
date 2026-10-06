@@ -179,8 +179,11 @@ impl From<WindowsServiceStatus> for ServiceStatus {
             WindowsServiceStatus::StopPending => (
                 ServiceState::StopPending,
                 ServiceControlAccept::empty(),
-                // Reported once with a static hint: Windows caps the wait regardless (125s for a
-                // manual stop, `WaitToKillServiceTimeout`, 5s by default, on system shutdown).
+                // The SCM expects status updates while a stop is in progress. It is reported once
+                // with a static hint instead of periodic checkpoints. 60s is about half of the 125s
+                // the SCM waits on a manual stop and covers the expected shutdown time of Agent
+                // Control. Windows caps the wait regardless (`WaitToKillServiceTimeout`, 5s by
+                // default, on system shutdown).
                 std::time::Duration::from_secs(60),
             ),
             WindowsServiceStatus::Stopped => (

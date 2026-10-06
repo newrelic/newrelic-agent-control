@@ -7,8 +7,8 @@ use crate::common::{InstallationArgs, RecipeData};
 use crate::linux::install::{install_agent_control_from_recipe, tear_down_test};
 use crate::linux::scenarios::DEFAULT_STATUS_PORT;
 use crate::linux::service::{
-    STATUS_RUNNING, get_auto_restart_count, get_main_pid, get_service_result, get_service_status,
-    is_start_limit_hit, kill_process, restart_service, stop_service,
+    STATUS_RUNNING, get_auto_restart_count, get_service_result, get_service_status,
+    is_start_limit_hit, kill_main_process, restart_service, stop_service,
 };
 use crate::linux::{self, DEFAULT_LOG_PATH};
 use std::time::Duration;
@@ -89,9 +89,7 @@ pub fn test_service_lifecycle(args: InstallationArgs) {
 
     // --- Phase 3: hard kill -> systemd detects the crash and restarts automatically ---
 
-    let pid = get_main_pid(linux::SERVICE_NAME);
-    info!(pid, "Killing Agent Control process directly");
-    kill_process(pid);
+    kill_main_process(linux::SERVICE_NAME);
 
     retry_panic(
         15,

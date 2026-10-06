@@ -123,15 +123,14 @@ pub fn get_service_result(service_name: &str) -> String {
     get_systemctl_property(service_name, "Result").unwrap_or_default()
 }
 
-/// Returns the PID of the unit's main process (`systemctl show --property=MainPID`).
-pub fn get_main_pid(service_name: &str) -> u32 {
-    get_systemctl_property(service_name, "MainPID")
+/// Sends SIGKILL to the unit's main process
+pub fn kill_main_process(service_name: &str) {
+    let pid: u32 = get_systemctl_property(service_name, "MainPID")
         .and_then(|s| s.parse().ok())
-        .expect("could not read MainPID from systemctl output")
-}
-
-/// Sends SIGKILL directly to a process, bypassing any graceful shutdown handling.
-pub fn kill_process(pid: u32) {
-    let cmd = format!("kill -9 {pid}");
-    exec_bash_command(&cmd).unwrap_or_else(|err| panic!("could not kill process {pid}: {err}"));
+        .expect("could not read MainPID from systemctl output");
+    // systemd reports 0 when the unit has no active process (stopped, failed or between automatic
+    // restarts), and `kill -9 0` would signal the whole process group, including the test runner.
+    assert_ne!(pid, 0, "service {service_name} has no main process to kill");
+    exec_bash_command(&format!("kill -9 {pid}"))
+        .unwrap_or_else(|err| panic!("could not kill process {pid}: {err}"));
 }
