@@ -465,12 +465,11 @@ jobs:
         run: bash .github/workflows/scripts/space_cleanup.sh
 
       - name: Setup Minikube
-        uses: manusa/actions-setup-minikube@001b9f30165b2a875b835ec5183ced75b94bc269 # v2.19.0
+        uses: medyagh/setup-minikube@e9e035a86bbc3caea26a450bd4dbf9d0c453682e # v0.0.21
         with:
-          minikube version: v1.35.0
-          kubernetes version: "v1.30.14"
+          minikube-version: 1.35.0
+          kubernetes-version: "v1.30.14"
           driver: docker
-          github token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Tilt
         run: |
