@@ -34,7 +34,7 @@ lint/shell:
 lint/powershell:
 	pwsh -Command '\
 		$$files = git ls-files "*.ps1" "*.psm1"; \
-		$$results = $$files | ForEach-Object { Invoke-ScriptAnalyzer -Path $$_ }; \
+		$$results = $$files | ForEach-Object { Invoke-ScriptAnalyzer -Path $$_ -Settings ./PSScriptAnalyzerSettings.psd1 }; \
 		if ($$results) { $$results | Format-Table -AutoSize; Write-Error "PSScriptAnalyzer found $$($$results.Count) issue(s)"; exit 1 }'
 
 help:
