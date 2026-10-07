@@ -3,16 +3,6 @@ name: 📞 k8s E2E tests
 on:
   workflow_call:
     inputs:
-      scenarios:
-        description: 'JSON array of test scenarios to run'
-        required: false
-        type: string
-        default: '[]'
-      minikube_start_args:
-        description: 'Arguments to pass to Minikube start command'
-        required: false
-        type: string
-        default: ''
       use_latest_flux:
         description: 'enables using the latest flux chart'
         required: false
@@ -48,7 +38,21 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: ${{ fromJSON(inputs.scenarios) }}
+        group:
+          - apm
+          - collector
+          - configmap-agent
+          - custom-repo
+          - dynamic
+          # We were using version 0.2.6, which downloaded the linux headers from an s3 bucket in staging.
+          # This is no longer true and newer versions don't work out of the box.
+          # - ebpf
+          - fleet-control
+          - infra
+        include:
+          # The proxy scenario needs network policies.
+          - group: proxy
+            minikube_start_args: --cni=calico
     steps:
       - name: Record job start time
         run: echo "JOB_START_TIME=$(date +%s)" >> "$GITHUB_ENV"
@@ -63,7 +67,7 @@ jobs:
         with:
           minikube-version: 1.35.0
           kubernetes-version: "v1.30.14"
-          start-args: ${{ inputs.minikube_start_args }}
+          start-args: ${{ matrix.minikube_start_args }}
           driver: docker
 
       - name: Install Tilt
