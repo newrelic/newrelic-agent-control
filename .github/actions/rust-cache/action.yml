@@ -4,7 +4,6 @@ inputs:
   identifier:
     description: 'A unique identifier that will be used as part of the cache key'
     required: true
-    type: string
   # Why do we need a "restore-strategy" input field?
   #
   # Before going straight to the explanation, please read how Github Action Caches work.
@@ -53,14 +52,9 @@ inputs:
   restore-strategy:
     description: 'The strategy to use when restoring the cache (exact or nearest)'
     required: true
-    type: choice
-    options:
-      - exact
-      - nearest
   save-cache:
     description: 'If true, save the cache after the workflow run'
     required: true
-    type: boolean
 runs:
   using: "composite"
   steps:

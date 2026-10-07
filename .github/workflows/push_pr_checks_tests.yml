@@ -217,6 +217,8 @@ jobs:
           dir="target/${{ matrix.target }}/release"
           ext=""
           bins=(newrelic-agent-control newrelic-agent-control-cli)
+          # shellcheck disable=SC2193 # false positive: actionlint substitutes a placeholder for
+          # ${{ matrix.target }} before shellcheck sees this, which confuses the glob-match check below
           if [[ "${{ matrix.target }}" == *windows* ]]; then
             ext=".exe"
           else

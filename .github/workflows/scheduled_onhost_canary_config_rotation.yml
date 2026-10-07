@@ -91,7 +91,9 @@ jobs:
               FLEX_SPEC="${FLEX_SPEC_LINUX_STAGING}"
             fi
           fi
+          # shellcheck disable=SC2016 # envsubst's argument is its own template syntax, must not be shell-expanded
           INFRA_SPEC=$(echo "$INFRA_SPEC" | envsubst '$INFRA_AGENT_VERSION')
+          # shellcheck disable=SC2016
           FLEX_SPEC=$(echo "$FLEX_SPEC"   | envsubst '$FLEX_VERSION')
 
           # Odd run numbers add NRIFlex; even run numbers deploy NRInfra only.
@@ -104,9 +106,11 @@ jobs:
             ROTATING_SPEC=""
           fi
 
-          echo "fleet_id=${FLEET_ID}"             >> "$GITHUB_OUTPUT"
-          echo "infra_spec=${INFRA_SPEC}"         >> "$GITHUB_OUTPUT"
-          echo "rotating_spec=${ROTATING_SPEC}"   >> "$GITHUB_OUTPUT"
+          {
+            echo "fleet_id=${FLEET_ID}"
+            echo "infra_spec=${INFRA_SPEC}"
+            echo "rotating_spec=${ROTATING_SPEC}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create and deploy fleet deployment
         env:

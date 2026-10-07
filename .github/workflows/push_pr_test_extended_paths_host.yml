@@ -8,16 +8,16 @@ on:
       - "test/e2e-runner/**"
       - "agent-control/agent-type-registry/**"
       - "build/**"
-      - "./.github/workflows/component_onhost_e2e.yml"
-      - "./.github/actions/load-latest-agent-versions/action.yml"
+      - ".github/workflows/component_onhost_e2e.yml"
+      - ".github/actions/load-latest-agent-versions/action.yml"
   pull_request:
     types: [ opened, synchronize, labeled ] # Also check labels
     paths:
       - "test/e2e-runner/**"
       - "agent-control/agent-type-registry/**"
       - "build/**"
-      - "./.github/workflows/component_onhost_e2e.yml"
-      - "./.github/actions/load-latest-agent-versions/action.yml"
+      - ".github/workflows/component_onhost_e2e.yml"
+      - ".github/actions/load-latest-agent-versions/action.yml"
   merge_group:
 
 permissions:

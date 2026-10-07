@@ -82,7 +82,7 @@ jobs:
       - name: Build and push images
         run: |
           make image/agent-control image/agent-control-cli \
-            DOCKER_PLATFORMS=$DOCKER_PLATFORMS \
+            DOCKER_PLATFORMS="$DOCKER_PLATFORMS" \
             IMAGE_TAG=${{ inputs.image-tag }} \
             PUSH=true \
             ATTEST=true \

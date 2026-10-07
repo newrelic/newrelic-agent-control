@@ -82,9 +82,11 @@ jobs:
           ROTATING_SPEC="${SPECS[$INDEX]}"
 
           echo "[${ENVIRONMENT}] rotation: run #${RUN_NUMBER} -> index ${INDEX} of ${COUNT} -> NRInfra + ${ROTATING_SPEC}"
-          echo "fleet_id=${FLEET_ID}"         >> "$GITHUB_OUTPUT"
-          echo "infra_spec=${INFRA_SPEC}"     >> "$GITHUB_OUTPUT"
-          echo "rotating_spec=${ROTATING_SPEC}" >> "$GITHUB_OUTPUT"
+          {
+            echo "fleet_id=${FLEET_ID}"
+            echo "infra_spec=${INFRA_SPEC}"
+            echo "rotating_spec=${ROTATING_SPEC}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create and deploy fleet deployment
         env:

@@ -124,14 +124,14 @@ jobs:
       - name: Push release tags
         run: |
           docker buildx imagetools create \
-            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL:${{ inputs.tag }} \
-            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL:latest \
-            $DOCKER_IMAGE_NAME_AGENT_CONTROL:${{ inputs.tag }}-rc
-          
+            -t "$DOCKER_IMAGE_NAME_AGENT_CONTROL:${{ inputs.tag }}" \
+            -t "$DOCKER_IMAGE_NAME_AGENT_CONTROL:latest" \
+            "$DOCKER_IMAGE_NAME_AGENT_CONTROL:${{ inputs.tag }}-rc"
+
           docker buildx imagetools create \
-            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:${{ inputs.tag }} \
-            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:latest \
-            $DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:${{ inputs.tag }}-rc
+            -t "$DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:${{ inputs.tag }}" \
+            -t "$DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:latest" \
+            "$DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:${{ inputs.tag }}-rc"
 
 
   molecule-packaging-tests:

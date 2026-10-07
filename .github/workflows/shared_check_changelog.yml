@@ -34,8 +34,8 @@ jobs:
       - name: Check for CHANGELOG file changes
         if: github.event_name == 'pull_request'
         run: |
-          echo "$(git diff --name-only origin/${{ github.base_ref }})"
-          if [[ $(git diff --name-only origin/${{ github.base_ref }} | grep --ignore-case CHANGELOG.md) ]]
+          git diff --name-only "origin/${{ github.base_ref }}"
+          if git diff --name-only "origin/${{ github.base_ref }}" | grep --ignore-case -q CHANGELOG.md
           then
             echo "The CHANGELOG file was modified."
           else
