@@ -70,6 +70,7 @@ agents:
 config:
   deploymentName: "{test_id}"
   region: "{region}"
+  logLevel: "DEBUG"
 enable_file_logging: true
 version: "{ebpf_version}"
     "#
@@ -122,6 +123,8 @@ version: {infra_agent_version}
             "Operation 'ebpf status log written under the AC managed filesystem directory' failed after {retries} retries: {err}"
         );
     }
+
+    dump_ebpf_logs();
 }
 
 fn dump_ebpf_logs() {
