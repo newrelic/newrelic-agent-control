@@ -25,6 +25,63 @@ jobs:
       - name: Codespell test
         uses: codespell-project/actions-codespell@94259cd8be02ad2903ba34a22d9c13de21a74461 # 94259cd8be02ad2903ba34a22d9c13de21a74461
 
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: taiki-e/install-action@e407f7bafb71fd004bc5c2da3032e5470cbb6ef0 # v2.87.24
+        with:
+          tool: shellcheck@0.11.0
+
+      - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: '1.7.12'
+        run: |
+          curl -sSLo actionlint.tar.gz "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -sSLo actionlint_checksums.txt "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_checksums.txt"
+          grep "actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" actionlint_checksums.txt | sha256sum -c -
+          tar xzf actionlint.tar.gz actionlint
+          sudo install actionlint /usr/local/bin/actionlint
+
+      - name: Run actionlint
+        run: actionlint -color
+
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: taiki-e/install-action@e407f7bafb71fd004bc5c2da3032e5470cbb6ef0 # v2.87.24
+        with:
+          tool: shellcheck@0.11.0
+
+      - name: Run shellcheck
+        run: git ls-files '*.sh' | xargs shellcheck
+
+  psscriptanalyzer:
+    name: PSScriptAnalyzer
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Run PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser -Repository PSGallery
+          $files = git ls-files '*.ps1' '*.psm1'
+          $results = Invoke-ScriptAnalyzer -Path $files
+          if ($results) {
+            $results | Format-Table -AutoSize
+            Write-Error "PSScriptAnalyzer found $($results.Count) issue(s)"
+            exit 1
+          }
+
   cargo-fmt:
     name: cargo fmt
     runs-on: ubuntu-latest
