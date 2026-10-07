@@ -1,0 +1,142 @@
+name: 📞 Upload and publish release artifacts
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Release tag'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    name: Upload to S3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag }}
+
+      #download release assets
+      - name: Download release
+        run: gh release download ${{ inputs.tag }} --dir ./dist/
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish deb to S3 action
+        uses: newrelic/infrastructure-publish-action@3bcecbdc6c7e2e1bd5cc6d06634008cc828ba91a # v1
+        with:
+          tag: ${{ inputs.tag }}
+          app_name: "newrelic-agent-control"
+          repo_name: ${{ github.repository }}
+          schema: "custom-local"
+          schema_path: "/srv/build/upload-schema-linux-deb.yml"
+          aws_access_key_id: ${{ secrets.TMP_OHAI_AWS_ACCESS_KEY_ID_PRODUCTION }}
+          aws_secret_access_key: ${{ secrets.TMP_OHAI_AWS_SECRET_ACCESS_KEY_PRODUCTION }}
+          aws_s3_bucket_name: "nr-downloads-main"
+          aws_s3_lock_bucket_name: "onhost-ci-lock"
+          access_point_host: "production"
+          run_id: ${{ github.run_id }}
+          aws_region: "us-east-1"
+          aws_role_session_name: ${{ secrets.TMP_OHAI_AWS_ROLE_SESSION_NAME_PRODUCTION }}
+          aws_role_arn: ${{ secrets.TMP_OHAI_AWS_ROLE_ARN_PRODUCTION }}
+          # used for signing package stuff
+          gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
+          gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
+          disable_lock: false
+          dest_prefix: "preview/"
+          local_packages_path: "/srv/dist/"
+          apt_skip_mirror: false # todo, update for next releases
+
+      - name: Publish rpm to S3 action
+        uses: newrelic/infrastructure-publish-action@3bcecbdc6c7e2e1bd5cc6d06634008cc828ba91a # v1
+        with:
+          tag: ${{ inputs.tag }}
+          app_name: "newrelic-agent-control"
+          repo_name: ${{ github.repository }}
+          schema: "custom-local"
+          schema_path: "/srv/build/upload-schema-linux-rpm.yml"
+          aws_access_key_id: ${{ secrets.TMP_OHAI_AWS_ACCESS_KEY_ID_PRODUCTION }}
+          aws_secret_access_key: ${{ secrets.TMP_OHAI_AWS_SECRET_ACCESS_KEY_PRODUCTION }}
+          aws_s3_bucket_name: "nr-downloads-main"
+          aws_s3_lock_bucket_name: "onhost-ci-lock"
+          access_point_host: "production"
+          run_id: ${{ github.run_id }}
+          aws_region: "us-east-1"
+          aws_role_session_name: ${{ secrets.TMP_OHAI_AWS_ROLE_SESSION_NAME_PRODUCTION }}
+          aws_role_arn: ${{ secrets.TMP_OHAI_AWS_ROLE_ARN_PRODUCTION }}
+          # used for signing package stuff
+          gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
+          gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
+          disable_lock: false
+          dest_prefix: "preview/"
+          local_packages_path: "/srv/dist/"
+          apt_skip_mirror: false
+
+      - name: Publish windows artifacts
+        uses: newrelic/infrastructure-publish-action@3bcecbdc6c7e2e1bd5cc6d06634008cc828ba91a # v1
+        with:
+          tag: ${{ inputs.tag }}
+          app_name: "newrelic-agent-control"
+          repo_name: ${{ github.repository }}
+          schema: "custom-local"
+          schema_path: "/srv/build/upload-schema-windows-zip.yml"
+          aws_access_key_id: ${{ secrets.TMP_OHAI_AWS_ACCESS_KEY_ID_PRODUCTION }}
+          aws_secret_access_key: ${{ secrets.TMP_OHAI_AWS_SECRET_ACCESS_KEY_PRODUCTION }}
+          aws_s3_bucket_name: "nr-downloads-main"
+          aws_s3_lock_bucket_name: "onhost-ci-lock"
+          access_point_host: "production"
+          run_id: ${{ github.run_id }}
+          aws_region: "us-east-1"
+          aws_role_session_name: ${{ secrets.TMP_OHAI_AWS_ROLE_SESSION_NAME_PRODUCTION }}
+          aws_role_arn: ${{ secrets.TMP_OHAI_AWS_ROLE_ARN_PRODUCTION }}
+          # used for signing package stuff
+          gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
+          gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
+          disable_lock: false
+          dest_prefix: "preview/"
+          local_packages_path: "/srv/dist/"
+          apt_skip_mirror: false
+
+  push-container-tags:
+    runs-on: ubuntu-latest
+    name: Push container release tags
+    env:
+      DOCKER_IMAGE_NAME_AGENT_CONTROL: newrelic/newrelic-agent-control
+      DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI: newrelic/newrelic-agent-control-cli
+    steps:
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+        with:
+          version: v0.37.2
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          username: ${{ secrets.OHAI_DOCKER_HUB_ID }}
+          password: ${{ secrets.OHAI_DOCKER_HUB_PASSWORD }}
+
+      # Push multi-arch pre-released images with release tags
+      - name: Push release tags
+        run: |
+          docker buildx imagetools create \
+            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL:${{ inputs.tag }} \
+            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL:latest \
+            $DOCKER_IMAGE_NAME_AGENT_CONTROL:${{ inputs.tag }}-rc
+
+          docker buildx imagetools create \
+            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:${{ inputs.tag }} \
+            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:latest \
+            $DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:${{ inputs.tag }}-rc
+
+  molecule-packaging-tests:
+    uses: ./.github/workflows/component_molecule_packaging.yml
+    needs: [ upload ]
+    with:
+      TAG: ${{ inputs.tag }}
+      PACKAGE_NAME: "newrelic-agent-control"
+      REPO_ENDPOINT: 'https://download.newrelic.com/preview'
