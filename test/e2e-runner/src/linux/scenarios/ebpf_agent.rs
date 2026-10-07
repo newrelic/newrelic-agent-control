@@ -22,6 +22,13 @@ const EBPF_STATUS_LOG: &str =
     "/var/lib/newrelic-agent-control/filesystem/nr-ebpf/logs/ebpf-agent-status.log";
 const EBPF_DEFAULT_STATUS_LOG: &str = "/etc/newrelic-ebpf-agent/ebpf-agent-status.log";
 
+// Plain HTTP traffic for the eBPF agent to trace. The server must never do DNS before serving
+// HTTP: the eBPF agent caches a process's entity from the first protocol it sees, and a DNS-first
+// entity gets no name, so all of its data (TCP stats included) is dropped.
+const HTTP_SERVER_UNIT: &str = "ebpf-e2e-http-server";
+const HTTP_CLIENT_UNIT: &str = "ebpf-e2e-http-client";
+const HTTP_SERVER_PORT: u16 = 18080;
+
 pub fn test_ebpf_agent(args: InstallationArgs) {
     let infra_agent_version = args
         .infra_agent_version
@@ -90,6 +97,9 @@ version: {infra_agent_version}
 
     linux::service::restart_service(linux::SERVICE_NAME);
 
+    let _stop_http_traffic = CleanUp::new(stop_http_traffic);
+    start_http_traffic();
+
     exec_bash_command(&format!("test ! -f '{EBPF_DEFAULT_STATUS_LOG}'"))
         .expect("eBPF status log should not fall back to /etc/newrelic-ebpf-agent");
 
@@ -124,6 +134,26 @@ version: {infra_agent_version}
     }
 
     dump_ebpf_logs();
+}
+
+fn start_http_traffic() {
+    info!(port = HTTP_SERVER_PORT, "Starting HTTP traffic generator");
+    exec_bash_command(&format!(
+        "systemd-run --unit {HTTP_SERVER_UNIT} --working-directory /tmp \
+         python3 -m http.server {HTTP_SERVER_PORT} --bind 127.0.0.1"
+    ))
+    .expect("HTTP server should start");
+    exec_bash_command(&format!(
+        "systemd-run --unit {HTTP_CLIENT_UNIT} bash -c \
+         'while true; do curl -s -o /dev/null http://127.0.0.1:{HTTP_SERVER_PORT}/; sleep 2; done'"
+    ))
+    .expect("HTTP client loop should start");
+}
+
+fn stop_http_traffic() {
+    let _ = exec_bash_command(&format!(
+        "systemctl stop {HTTP_CLIENT_UNIT} {HTTP_SERVER_UNIT}"
+    ));
 }
 
 fn dump_ebpf_logs() {
