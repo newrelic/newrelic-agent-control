@@ -40,11 +40,11 @@ jobs:
       matrix:
         platform:
           - arch: amd64
-            runner: ubuntu-latest
+            runner: ubuntu-26.04
             rust_target: x86_64-unknown-linux-musl
             environment: k8s
           - arch: arm64
-            runner: ubuntu-24.04-arm
+            runner: ubuntu-26.04-arm
             rust_target: aarch64-unknown-linux-musl
             environment: k8s-arm64
         group:
