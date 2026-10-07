@@ -2,7 +2,7 @@
 set -eo pipefail
 
 print_usage() {
-  printf -- "Usage: %s\n" $(basename "${0}")
+  printf -- "Usage: %s\n" "$(basename "${0}")"
   printf -- "-o: Output file for generated checksum\n"
   printf -- "-f: File to generate checksum for\n"
 }

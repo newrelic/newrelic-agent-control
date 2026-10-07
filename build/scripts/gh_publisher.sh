@@ -41,16 +41,14 @@ delete_asset_by_name() {
   repo=$(git config --get remote.origin.url | sed -En "s/.*github.com[:/]//p")
   repo=${repo%.*}
 
-  assets_url=$(gh api "repos/${repo}/releases/tags/${tag}" --jq '[.assets_url] | @tsv')
-  if [ "${?}" -ne 0 ]; then
+  if ! assets_url=$(gh api "repos/${repo}/releases/tags/${tag}" --jq '[.assets_url] | @tsv'); then
     exit 1
   fi
 
   page=1
   while [ "${page}" -lt 20 ]; do
     echo "fetching assets page: ${page}..."
-    assets=$(gh api "${assets_url}?page=${page}" --jq '.[] | [.url,.name] | @tsv' | tee)
-    if [ "${?}" -ne 0 ]; then
+    if ! assets=$(gh api "${assets_url}?page=${page}" --jq '.[] | [.url,.name] | @tsv' | tee); then
       exit 2
     fi
 
@@ -62,8 +60,7 @@ delete_asset_by_name() {
     do
       assetArray=("${asset}")
       if [ "${assetArray[1]}" = "${artifact}"  ]; then
-        gh api -X DELETE "${assetArray[0]}"
-        if [ "${?}" -ne 0 ]; then
+        if ! gh api -X DELETE "${assetArray[0]}"; then
           exit 3
         fi
         echo "deleted ${artifact}, retry..."
@@ -81,9 +78,7 @@ ATTEMPTS=$MAX_ATTEMPTS
 echo "===> Uploading to GH ${tag}: ${file_name}"
 
 while [ "${ATTEMPTS}" -gt 0 ];do
-  gh release upload "${tag}" "${file_name}" --clobber
-
-  if [[ "${?}" -eq 0 ]];then
+  if gh release upload "${tag}" "${file_name}" --clobber; then
     echo "===> uploaded  ${file_name}"
     break
   fi
