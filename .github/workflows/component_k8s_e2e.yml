@@ -59,6 +59,14 @@ jobs:
           - fleet-control
           - infra
           - proxy
+        exclude:
+          # The upstream .NET sample app image has no working linux/arm64 variant.
+          - group: apm
+            platform:
+              arch: arm64
+              runner: ubuntu-26.04-arm
+              rust_target: aarch64-unknown-linux-musl
+              environment: k8s-arm64
         include:
           # The proxy scenario needs network policies.
           - group: proxy
