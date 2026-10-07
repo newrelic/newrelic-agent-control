@@ -3,7 +3,7 @@ use crate::common::RecipeData;
 use crate::common::config::write_agent_local_config;
 use crate::common::nrql::Region;
 use crate::common::on_drop::CleanUp;
-use crate::common::test::retry_panic;
+use crate::common::test::retry;
 use crate::{
     common::{config, nrql},
     linux::{
@@ -90,38 +90,49 @@ version: {infra_agent_version}
 
     linux::service::restart_service(linux::SERVICE_NAME);
 
-    std::thread::sleep(Duration::from_secs(60));
-
     exec_bash_command(&format!("test ! -f '{EBPF_DEFAULT_STATUS_LOG}'"))
         .expect("eBPF status log should not fall back to /etc/newrelic-ebpf-agent");
-
-    let service_logs = exec_bash_command("cat /var/log/newrelic-agent-control/nr-ebpf/*")
-        .expect("logs must be there");
-    info!(logs = service_logs, "eBPF agent service logs");
-
-    let status_logs =
-        exec_bash_command("cat /var/lib/newrelic-agent-control/filesystem/nr-ebpf/logs/*")
-            .expect("logs must be there");
-    info!(logs = status_logs, "eBPF agent status logs");
 
     let nrql_query = format!(
         r#"SELECT * FROM Metric WHERE metricName = 'ebpf.tcp.connection_duration' AND deployment.name = '{test_id}' LIMIT 1"#
     );
     info!(nrql = nrql_query, "Checking results of NRQL");
     let retries = 60;
-    retry_panic(retries, Duration::from_secs(10), "nrql assertion", || {
+    if let Err(err) = retry(retries, Duration::from_secs(10), "nrql assertion", || {
         nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
-    });
+    }) {
+        dump_ebpf_logs();
+        panic!("Operation 'nrql assertion' failed after {retries} retries: {err}");
+    }
 
     info!(
         path = EBPF_STATUS_LOG,
         "Asserting the eBPF agent's status log is under the AC managed filesystem directory"
     );
     // The agent's own snapshot timer only fires every 120s, so the file may not exist yet.
-    retry_panic(
-        15,
+    let retries = 15;
+    if let Err(err) = retry(
+        retries,
         Duration::from_secs(10),
         "ebpf status log written under the AC managed filesystem directory",
         || exec_bash_command(&format!("test -f '{EBPF_STATUS_LOG}'")),
-    );
+    ) {
+        dump_ebpf_logs();
+        panic!(
+            "Operation 'ebpf status log written under the AC managed filesystem directory' failed after {retries} retries: {err}"
+        );
+    }
+
+    dump_ebpf_logs();
+}
+
+fn dump_ebpf_logs() {
+    let service_logs = exec_bash_command("cat /var/log/newrelic-agent-control/nr-ebpf/*")
+        .expect("logs must be there");
+    println!("eBPF agent service logs:\n{service_logs}");
+
+    let status_logs =
+        exec_bash_command("cat /var/lib/newrelic-agent-control/filesystem/nr-ebpf/logs/*")
+            .expect("logs must be there");
+    println!("eBPF agent status logs:\n{status_logs}");
 }
