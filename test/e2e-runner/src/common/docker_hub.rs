@@ -18,6 +18,12 @@ pub fn latest_published_ac_tag() -> TestResult<String> {
     Ok(published_ac_tags(1)?.remove(0))
 }
 
+pub const INFRA_AGENT_REPOSITORY: &str = "newrelic/infrastructure-agent-artifacts";
+
+pub fn latest_published_infra_agent_tag() -> TestResult<String> {
+    Ok(highest_semver_tags(INFRA_AGENT_REPOSITORY, 1)?.remove(0))
+}
+
 /// Top `count` published AC semver tags, descending (index 0 = latest).
 pub fn published_ac_tags(count: usize) -> TestResult<Vec<String>> {
     highest_semver_tags("newrelic/agent-control-artifacts", count)

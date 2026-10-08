@@ -3,6 +3,7 @@ mod linux;
 mod macos;
 mod windows;
 
+use crate::common::ohi_agent::OhiAgentArgs;
 use crate::common::{FleetControlApiArgs, FleetControlInstallationArgs, InstallationArgs};
 use clap::Parser;
 use std::process;
@@ -38,6 +39,9 @@ enum LinuxScenarios {
     ///
     /// This relies on polling certain fixed Fleet Control endpoints, failing if the response is not expected or a timeout is reached.
     FleetControl(FleetControlInstallationArgs),
+    /// Installs Agent Control with the infra-agent and an agent provided by its owner (agent type,
+    /// package and config served from a local registry), and verifies that the NRQL assertion passes.
+    OhiAgent(OhiAgentArgs),
     /// Triggers Fleet Control tests via API and polls for completion (without installing Agent Control).
     ///
     /// This is useful when Agent Control is already deployed and you only need to trigger and monitor Fleet Control tests.
@@ -82,6 +86,9 @@ enum WindowsScenarios {
     /// Simple installation of Agent Control on Windows with NRDOT Agent.
     Nrdot(InstallationArgs),
     Proxy(InstallationArgs),
+    /// Installs Agent Control with the infra-agent and an agent provided by its owner (agent type,
+    /// package and config served from a local registry), and verifies that the NRQL assertion passes.
+    OhiAgent(OhiAgentArgs),
     /// Checks that remote configuration for a sub-agent has been applied on Windows.
     RemoteConfig(InstallationArgs),
     /// Tests that remote configuration for infra-agent has been applied via fleet management. Includes new version download.

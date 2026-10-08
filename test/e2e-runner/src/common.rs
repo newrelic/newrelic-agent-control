@@ -12,6 +12,7 @@ pub mod logs;
 pub mod nrql;
 pub mod oci;
 pub mod ohi;
+pub mod ohi_agent;
 pub mod on_drop;
 pub mod runtime;
 pub mod self_update;

@@ -12,6 +12,8 @@ The definition for an agent type consists on a single YAML file with three main 
 
 We recommend that you read the following sections, but at any time feel free to check the currently available definitions in [its dedicated docs](../agent-control/agent-type-registry/README.md) to see working examples of the explained concepts.
 
+To check that an on-host agent type and its package work with a real Agent Control, agent owners can run the [`test-ohi-agent` GitHub Action](../.github/actions/test-ohi-agent/README.md) from their own CI. It installs Agent Control, deploys the agent from a local registry and passes only when the owner's NRQL assertion returns data for that run.
+
 ### Agent Type Metadata
 
 Contains top-level fields for the name of the agent type, with a namespace, the version, and the platform this definition targets.
