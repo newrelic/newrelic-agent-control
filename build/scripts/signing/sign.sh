@@ -17,7 +17,7 @@ print_usage() {
   printf -- "-h: Print help page\n"
 }
 
-current_dir="$( dirname $( readlink -f ${BASH_SOURCE[0]} ) )"
+current_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 
 while getopts 'f:m:p:k:bh' flag
 do

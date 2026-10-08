@@ -1,14 +1,14 @@
 #!/bin/bash
 
-CURRENT_DIR="$( dirname $( readlink -f ${BASH_SOURCE[0]} ) )"
+CURRENT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 LOCAL_DIR="$CURRENT_DIR/../../../local/testing-pfx-cert"
 IMAGE_NAME="testing-credentials"
 
-rm -rf $LOCAL_DIR && mkdir $LOCAL_DIR
+rm -rf "$LOCAL_DIR" && mkdir "$LOCAL_DIR"
 
-docker build -t $IMAGE_NAME "$CURRENT_DIR/."
+docker build -t "$IMAGE_NAME" "$CURRENT_DIR/."
 
-docker run --rm -v $LOCAL_DIR:/workdir -w /workdir $IMAGE_NAME bash -c '
+docker run --rm -v "$LOCAL_DIR":/workdir -w /workdir "$IMAGE_NAME" bash -c '
 # Generate a private key
 openssl genrsa -out private.key 2048
 

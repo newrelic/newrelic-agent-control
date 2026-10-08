@@ -16,7 +16,7 @@ fi
 PFX_CERTIFICATE_DESCRIPTION="New Relic"
 
 # Build the docker image for windows signing
-CURRENT_DIR="$( dirname $( readlink -f ${BASH_SOURCE[0]} ) )"
+CURRENT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 IMAGE_NAME="exec-windows-signer"
 docker build -t "$IMAGE_NAME" "$CURRENT_DIR/."
 
