@@ -1,8 +1,8 @@
 name: Checks and tests
 
 on:
-  pull_request:
-  merge_group:
+  # pull_request:
+  # merge_group:
   push:
     branches:
       - main

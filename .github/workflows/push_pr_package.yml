@@ -3,7 +3,7 @@ name: build-packages and image
 on:
   push:
     paths:
-      - ".github/**"
+      # - ".github/**"
       - "build/**"
       - "Dockerfiles/**"
       - ".goreleaser.yml"
