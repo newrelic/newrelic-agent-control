@@ -32,6 +32,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 - Windows: system shutdown/reboot goes through the same service graceful stop path as a manual service stop instead of ctrl signal handling.
 
 ### enhancement
+- Linux and Windows: Agent Control and its sub-agents now report `os.version` as an OpAMP attribute. Linux also reports `os.name` (the distro id, e.g. "debian").
 - Self instrumentation now gets the injected license key as header if none is set in all systems.
 
 ## v1.25.1 - 2026-09-25

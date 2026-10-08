@@ -11,7 +11,7 @@ use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_ID, AGENT_CONTROL_NAMESPACE, AGENT_CONTROL_TYPE, AGENT_CONTROL_VERSION,
     HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
     OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, OPAMP_SUPERVISOR_KEY,
-    OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
+    OS_TYPE_ATTRIBUTE_KEY, OS_TYPE_ATTRIBUTE_VALUE,
 };
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use serde_json::json;
@@ -118,8 +118,8 @@ fn test_http_status_endpoint_response() {
                 json!("0.1.0"),
             ),
             (
-                format!("non-identifying/{OS_ATTRIBUTE_KEY}"),
-                json!(OS_ATTRIBUTE_VALUE),
+                format!("non-identifying/{OS_TYPE_ATTRIBUTE_KEY}"),
+                json!(OS_TYPE_ATTRIBUTE_VALUE),
             ),
             (
                 format!("identifying/{OPAMP_SERVICE_NAME}"),
