@@ -1,13 +1,13 @@
 use crate::AgentTypeDefinitionMeta;
 use crate::LOCAL_HTTP_REGISTRY_URL;
 use crate::blob_digest;
+use crate::package_platform;
 use flate2::Compression;
 use flate2::write::GzEncoder;
 use oci_client::Client;
 use oci_client::Reference;
 use oci_client::annotations;
 use oci_client::client::{ClientConfig, ClientProtocol};
-use oci_client::config::{Architecture, Os};
 use oci_client::manifest;
 use oci_client::manifest::{
     IMAGE_CONFIG_MEDIA_TYPE, ImageIndexEntry, OCI_IMAGE_INDEX_MEDIA_TYPE, OCI_IMAGE_MEDIA_TYPE,
@@ -271,9 +271,10 @@ impl PackagePublisher {
     }
 
     async fn push_platform_config(&self, reference: &Reference) -> OciDescriptor {
+        let (os, architecture) = package_platform();
         let config_bytes: Vec<u8> = serde_json::to_vec(&serde_json::json!({
-            "architecture": &Architecture::default(),
-            "os": &Os::default(),
+            "architecture": &architecture,
+            "os": &os,
         }))
         .unwrap();
 
@@ -299,6 +300,7 @@ impl PackagePublisher {
         manifest_digest: String,
         manifest_size: i64,
     ) {
+        let (os, architecture) = package_platform();
         let image_index = OciImageIndex {
             schema_version: 2,
             media_type: Some(OCI_IMAGE_INDEX_MEDIA_TYPE.to_string()),
@@ -309,8 +311,8 @@ impl PackagePublisher {
                 digest: manifest_digest,
                 size: manifest_size,
                 platform: Some(Platform {
-                    architecture: Architecture::default(),
-                    os: Os::default(),
+                    architecture,
+                    os,
                     os_version: None,
                     os_features: None,
                     variant: None,

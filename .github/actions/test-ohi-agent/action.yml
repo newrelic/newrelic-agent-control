@@ -2,13 +2,13 @@ name: 'Test OHI agent'
 description: >
   Installs Agent Control and the infrastructure agent on the runner, deploys an agent provided by its owner
   (agent type, package and config served from a local OCI registry) and passes only when the given NRQL
-  assertion returns data for this run. Linux only.
+  assertion returns data for this run. Runs on Linux and Windows runners.
 inputs:
   agent-type-file:
-    description: 'Agent type definition (YAML) for Linux. It must declare the `version` and `oci.repository` variables.'
+    description: 'Agent type definition (YAML) for the runner OS. It must declare the `version` and `oci.repository` variables.'
     required: true
   package-file:
-    description: 'Final package archive (.tar.gz, .tgz or .zip) for the runner architecture, with the agent binary at its root.'
+    description: 'Final package archive (.tar.gz, .tgz or .zip) for the runner OS, with the agent binary at its root. On Windows it is published as amd64.'
     required: true
   config-file:
     description: 'Local config of the sub-agent. It must not set `version` or `oci`; the action injects them.'
@@ -36,17 +36,18 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Require a Linux runner
-      if: runner.os != 'Linux'
+    - name: Require a Linux or Windows runner
+      if: runner.os != 'Linux' && runner.os != 'Windows'
       shell: bash
       run: |
-        echo "::error::This action only supports Linux runners, got ${{ runner.os }}"
+        echo "::error::This action only supports Linux and Windows runners, got ${{ runner.os }}"
         exit 1
 
     - name: Locate the Agent Control checkout
       shell: bash
       run: |
-        echo "AC_REPO_ROOT=$(cd "${{ github.action_path }}/../../.." && pwd)" >> "$GITHUB_ENV"
+        # `pwd -W` prints a native path on Windows (Git Bash); plain `pwd` elsewhere
+        echo "AC_REPO_ROOT=$(cd "${{ github.action_path }}/../../.." && { pwd -W 2>/dev/null || pwd; })" >> "$GITHUB_ENV"
         echo "CARGO_TARGET_DIR=${{ runner.temp }}/ohi-agent-runner-target" >> "$GITHUB_ENV"
 
     - name: Obtain Rust version from Agent Control
@@ -64,7 +65,8 @@ runs:
       shell: bash
       run: cargo build --manifest-path "$AC_REPO_ROOT/Cargo.toml" -p e2e-runner
 
-    - name: Run the OHI agent scenario
+    - name: Run the OHI agent scenario (Linux)
+      if: runner.os == 'Linux'
       shell: bash
       env:
         NR_LICENSE_KEY: ${{ inputs.nr-license-key }}
@@ -78,6 +80,28 @@ runs:
         TIMEOUT_SECONDS: ${{ inputs.timeout-seconds }}
       run: |
         sudo -E "$CARGO_TARGET_DIR/debug/e2e-runner" --log-level info ohi-agent \
+          --agent-type-file "$AGENT_TYPE_FILE" \
+          --package-file "$PACKAGE_FILE" \
+          --config-file "$CONFIG_FILE" \
+          --nrql-assertion "$NRQL_ASSERTION" \
+          --timeout-seconds "$TIMEOUT_SECONDS"
+
+    # Windows runners run as an administrator, so no privilege elevation is needed.
+    - name: Run the OHI agent scenario (Windows)
+      if: runner.os == 'Windows'
+      shell: bash
+      env:
+        NR_LICENSE_KEY: ${{ inputs.nr-license-key }}
+        NR_API_KEY: ${{ inputs.nr-api-key }}
+        NR_ACCOUNT_ID: ${{ inputs.nr-account-id }}
+        NR_REGION: ${{ inputs.nr-region }}
+        AGENT_TYPE_FILE: ${{ inputs.agent-type-file }}
+        PACKAGE_FILE: ${{ inputs.package-file }}
+        CONFIG_FILE: ${{ inputs.config-file }}
+        NRQL_ASSERTION: ${{ inputs.nrql-assertion }}
+        TIMEOUT_SECONDS: ${{ inputs.timeout-seconds }}
+      run: |
+        "$CARGO_TARGET_DIR/debug/e2e-runner.exe" --log-level info ohi-agent \
           --agent-type-file "$AGENT_TYPE_FILE" \
           --package-file "$PACKAGE_FILE" \
           --config-file "$CONFIG_FILE" \

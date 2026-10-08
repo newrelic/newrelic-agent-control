@@ -1,7 +1,6 @@
-use crate::{PackageMediaType, PackagePublisher};
+use crate::{PackageMediaType, PackagePublisher, package_platform};
 use oci_client::Reference;
 use oci_client::client::Client;
-use oci_client::config::{Architecture, Os};
 use oci_client::manifest::OciManifest;
 use oci_client::secrets::RegistryAuth;
 use std::error::Error;
@@ -24,12 +23,13 @@ pub fn mirror_host_package(
     let OciManifest::ImageIndex(index) = manifest else {
         return Err(format!("'{source}' is not an image index").into());
     };
+    let (os, architecture) = package_platform();
     let host_entry = index
         .manifests
         .iter()
         .find(|entry| {
             entry.platform.as_ref().is_some_and(|platform| {
-                platform.os == Os::default() && platform.architecture == Architecture::default()
+                platform.os == os && platform.architecture == architecture
             })
         })
         .ok_or_else(|| format!("'{source}' has no manifest for the host platform"))?;

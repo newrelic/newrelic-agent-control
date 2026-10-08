@@ -2,7 +2,7 @@
 
 A composite action that lets an agent's own CI prove that its **agent type** and **package** work with a real Agent Control (AC), asserted through NRQL.
 
-It runs on a Linux runner and, in one execution:
+It runs on a Linux or Windows runner and, in one execution:
 
 1. Installs the latest New Relic CLI and uses it to install the latest released AC (local config only, no Fleet Control, no system identity) and the infrastructure agent.
 2. Starts a local HTTPS OCI registry and publishes your package, your agent type and a mirror of the latest infrastructure agent package to it.
@@ -12,7 +12,13 @@ It runs on a Linux runner and, in one execution:
 > [!IMPORTANT]
 > A green run proves **only what your NRQL proves**. There is no negative control and no AC-side check. Write a query that cannot match data from other hosts or other runs, and that returns nothing (or zero) when your agent is not working.
 
-Only on-host agents hosted by the infrastructure agent (OHIs that use `shared_filesystem`) are supported for now. The Windows scenario is a later iteration.
+Only on-host agents hosted by the infrastructure agent (OHIs that use `shared_filesystem`) are supported for now.
+
+## Windows
+
+Use a `windows-latest` runner and give the action the Windows files: an agent type with `operating_system: windows`, and a `.zip` package. The OHI binary is `<name>.exe` and the agent type refers to it with `\\` (for example `${nr-sub:packages.nri-vsphere.dir}\\nri-vsphere.exe`), as the embedded Windows agent types do. The package is published as `windows/amd64`, the only Windows build Agent Control ships.
+
+On a Windows runner, `openssl` must be on the `PATH` (the one shipped with Git for Windows is enough), and the fake data source, if any, has to run natively: Linux containers are not available there.
 
 ## The run id and `{{test_id}}`
 

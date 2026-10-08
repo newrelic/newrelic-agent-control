@@ -86,6 +86,9 @@ enum WindowsScenarios {
     /// Simple installation of Agent Control on Windows with NRDOT Agent.
     Nrdot(InstallationArgs),
     Proxy(InstallationArgs),
+    /// Installs Agent Control with the infra-agent and an agent provided by its owner (agent type,
+    /// package and config served from a local registry), and verifies that the NRQL assertion passes.
+    OhiAgent(OhiAgentArgs),
     /// Checks that remote configuration for a sub-agent has been applied on Windows.
     RemoteConfig(InstallationArgs),
     /// Tests that remote configuration for infra-agent has been applied via fleet management. Includes new version download.
