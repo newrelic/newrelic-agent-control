@@ -33,7 +33,6 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ### enhancement
 - Self instrumentation now gets the injected license key as header if none is set in all systems.
-- CI now lints GitHub Actions workflows, shell scripts and PowerShell scripts via actionlint, shellcheck and PSScriptAnalyzer.
 
 ## v1.25.1 - 2026-09-25
 
