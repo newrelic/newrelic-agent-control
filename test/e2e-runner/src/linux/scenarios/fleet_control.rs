@@ -1,5 +1,6 @@
 use crate::common::RecipeData;
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config};
+use crate::common::docker_hub::latest_agent_type_id;
 use crate::common::nrql::Region;
 use crate::common::on_drop::CleanUp;
 use crate::common::{FleetControlInstallationArgs, fleet_control_api};
@@ -47,6 +48,7 @@ pub fn test_fleet_control(args: FleetControlInstallationArgs) {
     );
 
     info!("Configuring Agent Control for Fleet Control");
+    let infra_agent_type = latest_agent_type_id("com.newrelic.infrastructure");
     update_config(
         linux::DEFAULT_AC_CONFIG_PATH,
         format!(
@@ -54,7 +56,7 @@ pub fn test_fleet_control(args: FleetControlInstallationArgs) {
 host_id: {test_id}
 agents:
   infra:
-    agent_type: newrelic/com.newrelic.infrastructure:0.1.0
+    agent_type: {infra_agent_type}
 {DEBUG_LOGGING_CONFIG}
 "#
         ),

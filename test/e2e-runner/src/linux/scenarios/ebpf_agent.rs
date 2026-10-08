@@ -1,6 +1,7 @@
 use crate::common::InstallationArgs;
 use crate::common::RecipeData;
 use crate::common::config::write_agent_local_config;
+use crate::common::docker_hub::latest_agent_type_id;
 use crate::common::nrql::Region;
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
@@ -50,12 +51,13 @@ pub fn test_ebpf_agent(args: InstallationArgs) {
     );
 
     info!("Setup Agent Control config with eBPF");
+    let ebpf_agent_type = latest_agent_type_id("com.newrelic.ebpf");
     let config = format!(
         r#"
 host_id: {test_id}
 agents:
   nr-ebpf:
-    agent_type: "newrelic/com.newrelic.ebpf:0.1.0"
+    agent_type: "{ebpf_agent_type}"
 {DEBUG_LOGGING_CONFIG}
 "#
     );

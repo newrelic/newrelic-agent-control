@@ -1,4 +1,5 @@
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
+use crate::common::docker_hub::latest_agent_type_id;
 use crate::common::exec::LongRunningProcess;
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
@@ -64,6 +65,7 @@ pub fn test_proxy(args: InstallationArgs) {
     );
 
     // Install cli does not support adding infra-agent config yet on windows, so we need to update the config manually
+    let infra_agent_type = latest_agent_type_id("com.newrelic.infrastructure");
     update_config(
         windows::DEFAULT_AC_CONFIG_PATH,
         format!(
@@ -71,7 +73,7 @@ pub fn test_proxy(args: InstallationArgs) {
 host_id: {test_id}
 agents:
   nr-infra:
-    agent_type: newrelic/com.newrelic.infrastructure:0.1.0
+    agent_type: {infra_agent_type}
 {DEBUG_LOGGING_CONFIG}
 "#
         ),
