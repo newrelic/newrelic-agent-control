@@ -40,10 +40,12 @@ jobs:
       matrix:
         platform:
           - arch: amd64
+            # renovate: datasource=github-runners depName=ubuntu
             runner: ubuntu-26.04
             rust_target: x86_64-unknown-linux-musl
             environment: k8s
           - arch: arm64
+            # renovate: datasource=github-runners depName=ubuntu
             runner: ubuntu-26.04-arm
             rust_target: aarch64-unknown-linux-musl
             environment: k8s-arm64
@@ -64,9 +66,6 @@ jobs:
           - group: apm
             platform:
               arch: arm64
-              runner: ubuntu-26.04-arm
-              rust_target: aarch64-unknown-linux-musl
-              environment: k8s-arm64
         include:
           # The proxy scenario needs network policies.
           - group: proxy
