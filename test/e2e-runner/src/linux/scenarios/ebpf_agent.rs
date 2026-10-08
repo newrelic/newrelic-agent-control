@@ -13,6 +13,7 @@ use crate::{
     },
 };
 use config::DEBUG_LOGGING_CONFIG;
+use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 use tracing::info;
 
@@ -22,12 +23,10 @@ const EBPF_STATUS_LOG: &str =
     "/var/lib/newrelic-agent-control/filesystem/nr-ebpf/logs/ebpf-agent-status.log";
 const EBPF_DEFAULT_STATUS_LOG: &str = "/etc/newrelic-ebpf-agent/ebpf-agent-status.log";
 
-pub fn test_ebpf_agent(args: InstallationArgs) {
-    let infra_agent_version = args
-        .infra_agent_version
-        .clone()
-        .expect("--infra-agent-version is required for this scenario");
+// Plain HTTP traffic for the eBPF agent to trace.
+const HTTP_SERVER_PORT: u16 = 18080;
 
+pub fn test_ebpf_agent(args: InstallationArgs) {
     let ebpf_version = args
         .ebpf_agent_version
         .clone()
@@ -46,7 +45,7 @@ pub fn test_ebpf_agent(args: InstallationArgs) {
     install_agent_control_from_recipe(&recipe_data);
 
     let test_id = format!(
-        "onhost-e2e-infra-agent_{}",
+        "onhost-e2e-ebpf-agent_{}",
         chrono::Local::now().format("%Y-%m-%d_%H-%M-%S%.3f")
     );
 
@@ -55,8 +54,6 @@ pub fn test_ebpf_agent(args: InstallationArgs) {
         r#"
 host_id: {test_id}
 agents:
-  nr-infra:
-    agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
   nr-ebpf:
     agent_type: "newrelic/com.newrelic.ebpf:0.1.0"
 {DEBUG_LOGGING_CONFIG}
@@ -74,20 +71,10 @@ version: "{ebpf_version}"
     "#
     );
     write_agent_local_config(&linux::local_config_path("nr-ebpf"), ebpf_config);
-    // Infra agent config: it is used to generate traffic for eBPF metrics to appear
-    write_agent_local_config(
-        &linux::local_config_path("nr-infra"),
-        format!(
-            r#"
-config_agent:
-  license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
-  staging: {staging}
-version: {infra_agent_version}
-"#
-        ),
-    );
 
     linux::service::restart_service(linux::SERVICE_NAME);
+
+    let _http_traffic = HttpTraffic::start();
 
     let nrql_query = format!(
         r#"SELECT * FROM Metric WHERE metricName = 'ebpf.tcp.connection_duration' AND deployment.name = '{test_id}' LIMIT 1"#
@@ -111,4 +98,45 @@ version: {infra_agent_version}
     );
     exec_bash_command(&format!("test ! -f '{EBPF_DEFAULT_STATUS_LOG}'"))
         .expect("eBPF status log should not fall back to /etc/newrelic-ebpf-agent");
+}
+
+/// Local HTTP server plus a client loop hitting it, both killed on drop.
+struct HttpTraffic {
+    server: Child,
+    client: Child,
+}
+
+impl HttpTraffic {
+    fn start() -> Self {
+        info!(port = HTTP_SERVER_PORT, "Starting HTTP traffic generator");
+        let port = HTTP_SERVER_PORT.to_string();
+        let server = Command::new("python3")
+            .args(["-m", "http.server", &port, "--bind", "127.0.0.1"])
+            .current_dir("/tmp")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("HTTP server should start");
+        let client = Command::new("bash")
+            .args([
+                "-c",
+                &format!(
+                    "while true; do curl -s -o /dev/null http://127.0.0.1:{port}/; sleep 2; done"
+                ),
+            ])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("HTTP client loop should start");
+        Self { server, client }
+    }
+}
+
+impl Drop for HttpTraffic {
+    fn drop(&mut self) {
+        for child in [&mut self.client, &mut self.server] {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
 }
