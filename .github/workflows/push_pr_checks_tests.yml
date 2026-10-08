@@ -522,16 +522,6 @@ jobs:
           CARGO_NET_OFFLINE: "true"
         run: make -C agent-control test/k8s/integration-${{ matrix.group }}
 
-  k8s-e2e-tests:
-    uses: ./.github/workflows/component_k8s_e2e.yml
-    with:
-      scenarios: '["infra"]'
-      caller_workflow: push_pr_checks_tests
-    secrets:
-      E2E_ACCOUNT_ID: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}
-      E2E_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
-      E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
-
   check-all-green:
     name: 🟢 All required checks and tests pass
     if: always()
@@ -551,7 +541,6 @@ jobs:
       - on-host-root-tests
       - on-host-oci-registry-tests
       - k8s-integration-tests
-      - k8s-e2e-tests
 
     runs-on: Ubuntu-latest
 

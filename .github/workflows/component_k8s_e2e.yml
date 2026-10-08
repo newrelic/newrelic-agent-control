@@ -3,16 +3,6 @@ name: 📞 k8s E2E tests
 on:
   workflow_call:
     inputs:
-      scenarios:
-        description: 'JSON array of test scenarios to run'
-        required: false
-        type: string
-        default: '[]'
-      minikube_start_args:
-        description: 'Arguments to pass to Minikube start command'
-        required: false
-        type: string
-        default: ''
       use_latest_flux:
         description: 'enables using the latest flux chart'
         required: false
@@ -43,12 +33,43 @@ jobs:
   # In case a breaking change is introduced by the PR, a feature branch can be used as explained
   # in the test/k8s-e2e/Readme.md
   k8s-e2e-tests:
-    name: K8s e2e tests ${{ matrix.group }}
-    runs-on: ubuntu-latest
+    name: K8s e2e tests (${{ matrix.platform.arch }}) ${{ matrix.group }}
+    runs-on: ${{ matrix.platform.runner }}
     strategy:
       fail-fast: false
       matrix:
-        group: ${{ fromJSON(inputs.scenarios) }}
+        platform:
+          - arch: amd64
+            # renovate: datasource=github-runners depName=ubuntu
+            runner: ubuntu-26.04
+            rust_target: x86_64-unknown-linux-musl
+            environment: k8s
+          - arch: arm64
+            # renovate: datasource=github-runners depName=ubuntu
+            runner: ubuntu-26.04-arm
+            rust_target: aarch64-unknown-linux-musl
+            environment: k8s-arm64
+        group:
+          - apm
+          - collector
+          - configmap-agent
+          - custom-repo
+          - dynamic
+          # We were using version 0.2.6, which downloaded the linux headers from an s3 bucket in staging.
+          # This is no longer true and newer versions don't work out of the box.
+          # - ebpf
+          - fleet-control
+          - infra
+          - proxy
+        exclude:
+          # The upstream .NET sample app image has no working linux/arm64 variant.
+          - group: apm
+            platform:
+              arch: arm64
+        include:
+          # The proxy scenario needs network policies.
+          - group: proxy
+            minikube_start_args: --cni=calico
     steps:
       - name: Record job start time
         run: echo "JOB_START_TIME=$(date +%s)" >> "$GITHUB_ENV"
@@ -63,7 +84,7 @@ jobs:
         with:
           minikube-version: 1.35.0
           kubernetes-version: "v1.30.14"
-          start-args: ${{ inputs.minikube_start_args }}
+          start-args: ${{ matrix.minikube_start_args }}
           driver: docker
 
       - name: Install Tilt
@@ -72,8 +93,7 @@ jobs:
 
       - uses: ./.github/actions/install-rust-toolchain
         with:
-          targets: >-
-            x86_64-unknown-linux-musl
+          targets: ${{ matrix.platform.rust_target }}
 
       - uses: ./.github/actions/rust-cache
         with:
@@ -98,7 +118,7 @@ jobs:
           NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
           USE_LATEST_FLUX: ${{ inputs.use_latest_flux }}
           # Tilt configs
-          ARCH: amd64
+          ARCH: ${{ matrix.platform.arch }}
         with:
           retry_attempts: 40
           retry_seconds: 15
@@ -114,7 +134,7 @@ jobs:
           NR_LICENSE_KEY: ${{ secrets.E2E_LICENSE_KEY }}
           NR_ACCOUNT_ID: ${{ secrets.E2E_ACCOUNT_ID }}
           E2E_SCENARIO: ${{ matrix.group }}
-          E2E_ENVIRONMENT: k8s
+          E2E_ENVIRONMENT: ${{ matrix.platform.environment }}
           E2E_STATUS: ${{ job.status }}
           E2E_CALLER_WORKFLOW: ${{ inputs.caller_workflow }}
         run: bash .github/workflows/scripts/report_e2e_result.sh
@@ -123,8 +143,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: e2e-result-k8s-${{ matrix.group }}
-          path: e2e-result-*-k8s-${{ matrix.group }}.txt
+          name: e2e-result-${{ matrix.platform.environment }}-${{ matrix.group }}
+          path: e2e-result-*-${{ matrix.platform.environment }}-${{ matrix.group }}.txt
           if-no-files-found: warn
 
   k8s-e2e-tests-check: # The job is useful to notify the failure
