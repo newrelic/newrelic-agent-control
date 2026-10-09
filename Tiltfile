@@ -28,6 +28,9 @@ chartmuseum_basic_auth = os.getenv('CHARTMUSEUM_BASIC_AUTH', "")
 
 # build_with options:
 arch = os.getenv('ARCH','arm64')
+# Builds images on the host Docker daemon and skips pushing them. Required for minikube's `none` driver,
+# where the host daemon is the cluster runtime but Tilt cannot detect it through `minikube docker-env`.
+build_on_host_docker = os.getenv('BUILD_ON_HOST_DOCKER', 'false').lower() == 'true'
 
 #### Build SA binary
 local_resource(
@@ -37,21 +40,25 @@ local_resource(
   deps= ['./agent-control'],
 )
 
-#### Build the final Docker image with the binary.
-docker_build(
-  'tilt.local/agent-control-dev',
-  context='.',
-  dockerfile='./Dockerfiles/Dockerfile_agent_control',
-  only = ['./bin','./Dockerfile', './Tiltfile']
-)
+#### Build the final Docker images with the binary.
+def build_image(ref, dockerfile):
+  if build_on_host_docker:
+    custom_build(
+      ref,
+      'tar -c bin Dockerfiles | DOCKER_BUILDKIT=1 docker build -f %s -t $EXPECTED_REF -' % dockerfile,
+      deps=['./bin'],
+      disable_push=True,
+    )
+  else:
+    docker_build(
+      ref,
+      context='.',
+      dockerfile='./' + dockerfile,
+      only = ['./bin','./Dockerfile', './Tiltfile']
+    )
 
-#### Build the final Docker image with the binary.
-docker_build(
-  'tilt.local/agent-control-cli-dev',
-  context='.',
-  dockerfile='./Dockerfiles/Dockerfile_agent_control_cli',
-  only = ['./bin','./Dockerfile', './Tiltfile']
-)
+build_image('tilt.local/agent-control-dev', 'Dockerfiles/Dockerfile_agent_control')
+build_image('tilt.local/agent-control-cli-dev', 'Dockerfiles/Dockerfile_agent_control_cli')
 
 #### Set-up charts
 
