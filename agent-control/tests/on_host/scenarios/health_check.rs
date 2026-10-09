@@ -296,3 +296,49 @@ fake_var:
         }
     });
 }
+
+/// When an on-host sub-agent uses an agent type that does NOT define a `health:` block, no
+/// `ComponentHealth` should ever be reported for it while its executables run, whatever their
+/// outcome: one runs past the point where it would be marked healthy, the other fails until its
+/// restart policy is exceeded. A health reported once would stick for the sub-agent's lifecycle.
+#[test]
+#[cfg(target_family = "unix")]
+fn test_no_health_in_agent_type_with_running_executables() {
+    let opamp_server = FakeServer::start(tokio_runtime().handle());
+
+    let dirs = TempBasePaths::default();
+    let sub_agent_id = AgentID::try_from("test-agent-no-health").unwrap();
+
+    let agent_type = OnHostCustomAgentTypeBuilder::default()
+        .with_executables(Some(
+            r#"[
+                {"id": "trap-term-sleep", "path": "sh", "args": ["tests/on_host/data/sleep_60.sh"]},
+                {"id": "failing-process", "path": "sh", "args": ["tests/on_host/data/sleep_and_fail.sh"],
+                 "restart_policy": {"backoff_strategy": {"type": "fixed", "backoff_delay": "1s", "max_retries": 1}}
+                }
+            ]"#,
+        ))
+        .with_health(None)
+        .write(dirs.local_dir());
+
+    OnHostAgentControlConfigBuilder::new(opamp_server.endpoint(), opamp_server.jwks_endpoint())
+        .with_agent(sub_agent_id.to_string(), agent_type)
+        .write(dirs.local_dir());
+
+    let _agent_control =
+        start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
+
+    let sub_agent_instance_id = get_instance_id(&sub_agent_id, dirs.base_paths());
+
+    // The window outlasts the supervisor's healthy delay (10s) and the failing executable's
+    // restart policy being exceeded (~5s).
+    retry_never(20, Duration::from_secs(1), || {
+        match opamp_server.get_health_status(sub_agent_instance_id.clone()) {
+            None => Ok(()),
+            Some(health) => Err(format!(
+                "Expected no ComponentHealth for sub-agent without `health:` in agent type, got: {health:?}"
+            )
+            .into()),
+        }
+    });
+}
