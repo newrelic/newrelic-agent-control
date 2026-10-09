@@ -1,10 +1,15 @@
 name: Release
+
 on:
   release:
     types:
       - released
-    tags:
-      - '*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag'
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -17,17 +22,18 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+          ref: ${{ inputs.tag || github.event.release.tag_name }}
 
       #download release assets
       - name: Download release
-        run: gh release download ${{ github.event.release.tag_name }} --dir ./dist/
+        run: gh release download ${{ inputs.tag || github.event.release.tag_name }} --dir ./dist/
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish deb to S3 action
         uses: newrelic/infrastructure-publish-action@3bcecbdc6c7e2e1bd5cc6d06634008cc828ba91a # v1
         with:
-          tag: ${{ github.event.release.tag_name }}
+          tag: ${{ inputs.tag || github.event.release.tag_name }}
           app_name: "newrelic-agent-control"
           repo_name: ${{ github.repository }}
           schema: "custom-local"
@@ -52,7 +58,7 @@ jobs:
       - name: Publish rpm to S3 action
         uses: newrelic/infrastructure-publish-action@3bcecbdc6c7e2e1bd5cc6d06634008cc828ba91a # v1
         with:
-          tag: ${{ github.event.release.tag_name }}
+          tag: ${{ inputs.tag || github.event.release.tag_name }}
           app_name: "newrelic-agent-control"
           repo_name: ${{ github.repository }}
           schema: "custom-local"
@@ -77,7 +83,7 @@ jobs:
       - name: Publish windows artifacts
         uses: newrelic/infrastructure-publish-action@3bcecbdc6c7e2e1bd5cc6d06634008cc828ba91a # v1
         with:
-          tag: ${{ github.event.release.tag_name }}
+          tag: ${{ inputs.tag || github.event.release.tag_name }}
           app_name: "newrelic-agent-control"
           repo_name: ${{ github.repository }}
           schema: "custom-local"
@@ -98,7 +104,7 @@ jobs:
           dest_prefix: "preview/"
           local_packages_path: "/srv/dist/"
           apt_skip_mirror: false
-  
+
   push-container-tags:
     runs-on: ubuntu-latest
     name: Push container release tags
@@ -116,34 +122,33 @@ jobs:
         with:
           username: ${{ secrets.OHAI_DOCKER_HUB_ID }}
           password: ${{ secrets.OHAI_DOCKER_HUB_PASSWORD }}
-      
-      # Push multi-arch pre-released images with release tags 
+
+      # Push multi-arch pre-released images with release tags
       - name: Push release tags
         run: |
           docker buildx imagetools create \
-            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL:${{ github.event.release.tag_name }} \
+            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL:${{ inputs.tag || github.event.release.tag_name }} \
             -t $DOCKER_IMAGE_NAME_AGENT_CONTROL:latest \
-            $DOCKER_IMAGE_NAME_AGENT_CONTROL:${{ github.event.release.tag_name }}-rc
-          
-          docker buildx imagetools create \
-            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:${{ github.event.release.tag_name }} \
-            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:latest \
-            $DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:${{ github.event.release.tag_name }}-rc
+            $DOCKER_IMAGE_NAME_AGENT_CONTROL:${{ inputs.tag || github.event.release.tag_name }}-rc
 
+          docker buildx imagetools create \
+            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:${{ inputs.tag || github.event.release.tag_name }} \
+            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:latest \
+            $DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:${{ inputs.tag || github.event.release.tag_name }}-rc
 
   molecule-packaging-tests:
     uses: ./.github/workflows/component_molecule_packaging.yml
     needs: [ upload ]
     with:
-      TAG: ${{ github.event.inputs.tag_name || github.event.release.tag_name }}
+      TAG: ${{ inputs.tag || github.event.release.tag_name }}
       PACKAGE_NAME: "newrelic-agent-control"
       REPO_ENDPOINT: 'https://download.newrelic.com/preview'
 
   release-notes:
     uses: ./.github/workflows/shared_create_pr_public_docs_release_notes.yml
-    needs: [ molecule-packaging-tests ]
+    needs: [ upload, push-container-tags, molecule-packaging-tests ]
     with:
-      version: ${{ github.event.release.tag_name }}
+      version: ${{ inputs.tag || github.event.release.tag_name }}
     secrets:
       app_id: ${{ secrets.AGENT_CONTROL_APP_ID }}
       app_private_key: ${{ secrets.AGENT_CONTROL_APP_PKEY }}
