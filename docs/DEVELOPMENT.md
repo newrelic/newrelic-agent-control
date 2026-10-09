@@ -258,6 +258,22 @@ $ curl localhost:51200/status | jq
 # ... contents will appear here formatted and highlighted
 ```
 
+## Linting
+
+Besides the Rust-specific checks (`cargo fmt`, `cargo clippy`), CI also lints GitHub Actions workflows, shell scripts and PowerShell scripts. These checks can be run locally too:
+
+```sh
+make lint/actions      # requires actionlint: https://github.com/rhysd/actionlint
+make lint/shell         # requires shellcheck: https://www.shellcheck.net
+make lint/powershell   # requires pwsh with the PSScriptAnalyzer module installed
+```
+
+Install `shellcheck` and `actionlint` with your package manager of choice (e.g. `brew install shellcheck actionlint`). For PowerShell, install [PowerShell](https://github.com/PowerShell/PowerShell) and then the module:
+
+```powershell
+Install-Module -Name PSScriptAnalyzer -Scope CurrentUser
+```
+
 ## Testing
 
 ### General

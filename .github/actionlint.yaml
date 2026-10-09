@@ -1,0 +1,16 @@
+self-hosted-runner:
+  # Custom label for our self-hosted runners, used by canary/e2e workflows.
+  labels:
+    - linux-4-core-nr-control
+
+paths:
+  .github/workflows/component_send_warning_via_slack.yml:
+    ignore:
+      # AC_SLACK_WEBHOOK is only available via `secrets: inherit` from the caller, which
+      # actionlint can't see statically for workflow_call secrets.
+      - 'property "ac_slack_webhook" is not defined in object type'
+  .github/workflows/on_demand_promote_release_channel.yml:
+    ignore:
+      # The blank choice is an intentional "unset" placeholder for the optional
+      # operating-system input (only required when platform is HOST).
+      - 'string should not be empty'

@@ -18,6 +18,25 @@ $(TARGETS):
 include test/k8s-canaries/Makefile
 include test/onhost-canaries/Makefile
 
+##########################################
+# 		     Lint targets 			 #
+##########################################
+# Requires shellcheck, actionlint and pwsh+PSScriptAnalyzer installed locally; see docs/DEVELOPMENT.md.
+.PHONY: lint/actions
+lint/actions:
+	actionlint -color
+
+.PHONY: lint/shell
+lint/shell:
+	git ls-files '*.sh' | xargs shellcheck
+
+.PHONY: lint/powershell
+lint/powershell:
+	pwsh -Command '\
+		$$files = git ls-files "*.ps1" "*.psm1"; \
+		$$results = $$files | ForEach-Object { Invoke-ScriptAnalyzer -Path $$_ -Settings ./PSScriptAnalyzerSettings.psd1 }; \
+		if ($$results) { $$results | Format-Table -AutoSize; Write-Error "PSScriptAnalyzer found $$($$results.Count) issue(s)"; exit 1 }'
+
 help:
 	@echo "## Available targets:"
 	@echo $(TARGETS)

@@ -85,10 +85,10 @@ jobs:
       - name: Build images (push=${{ inputs.push }})
         run: |
           make image/agent-control image/agent-control-cli \
-            DOCKER_PLATFORMS=$DOCKER_PLATFORMS \
+            DOCKER_PLATFORMS="$DOCKER_PLATFORMS" \
             IMAGE_TAG=${{ inputs.image-tag }} \
             PUSH=${{ inputs.push }} \
             LOAD=false \
             ATTEST=true \
-            DOCKER_IMAGE_NAME_AGENT_CONTROL=$DOCKER_IMAGE_NAME_AGENT_CONTROL \
-            DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI=$DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI
+            DOCKER_IMAGE_NAME_AGENT_CONTROL="$DOCKER_IMAGE_NAME_AGENT_CONTROL" \
+            DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI="$DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI"
