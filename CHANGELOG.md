@@ -20,10 +20,13 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ## Unreleased
 
-### enhancement
-- Added Azure Key Vault value provider, supporting both Managed Identity and Service Principal authentication.
+## v1.26.0 - 2026-10-09
 
-### bugfix
+### 🚀 Enhancements
+- Added Azure Key Vault value provider, supporting both Managed Identity and Service Principal authentication.
+- Self instrumentation now gets the injected license key as header if none is set in all systems.
+
+### 🐞 Bug fixes
 - Windows: `install.ps1` now detects and removes a standalone New Relic Infrastructure Agent installation to avoid duplicate host reporting; it must be reconfigured as an Agent Control managed sub-agent afterwards if still needed.
 - On-host: fixed integration restarts caused by redundant filesystem sync and full directory recreation when writing OHI config files to the shared filesystem.
 - Make health-check threads initial delay cancellable, to reduce graceful shutdown idle waiting periods.
@@ -31,8 +34,17 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 - Agent Control now always re-reports its remote config status on startup, fixing a missed resend after restart when the server requests a full-state sync.
 - Windows: system shutdown/reboot goes through the same service graceful stop path as a manual service stop instead of ctrl signal handling.
 
-### enhancement
-- Self instrumentation now gets the injected license key as header if none is set in all systems.
+### ⛓️ Dependencies
+- Updated rust crate encoding_rs to 0.8.42
+- Updated alpine/kubectl to v1.37.1
+- Updated rust crate oci-client to 0.18.0
+- Updated opentelemetry-rust monorepo to 0.33.0
+- Updated rust crate config to 0.15.27
+- Updated rust to v1.99.0
+- Updated rust crate tokio to 1.53.2
+- Updated amazon-eks to v1.37
+- Updated rust crate either to 1.19.0
+- Updated rust crate toml to 1.1.7
 
 ## v1.25.1 - 2026-09-25
 

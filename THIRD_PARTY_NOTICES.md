@@ -1546,20 +1546,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## multiversion <https://crates.io/crates/multiversion>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
-## multiversion-macros <https://crates.io/crates/multiversion-macros>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
 ## multiversion_no_op <https://crates.io/crates/multiversion_no_op>
 
 Distributed under the following license(s):
