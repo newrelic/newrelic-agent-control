@@ -20,7 +20,7 @@ runs:
         # renovate: datasource=docker depName=newrelic/nri-apache-artifacts
         echo "APACHE_VERSION=1.18.0" >> "$GITHUB_ENV"
         # renovate: datasource=docker depName=newrelic/nri-memcached-artifacts
-        echo "MEMCACHED_VERSION=2.9.4" >> "$GITHUB_ENV"
+        echo "MEMCACHED_VERSION=2.9.5" >> "$GITHUB_ENV"
         # renovate: datasource=docker depName=newrelic/ebpf-agent-artifacts
         echo "EBPF_AGENT_VERSION=1.6.0" >> "$GITHUB_ENV"
         # renovate: datasource=docker depName=newrelic/nri-flex-artifacts
