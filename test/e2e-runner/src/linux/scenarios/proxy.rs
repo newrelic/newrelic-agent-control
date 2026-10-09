@@ -1,4 +1,5 @@
 use crate::common::config::write_agent_local_config;
+use crate::common::docker_hub::latest_agent_type_id;
 use crate::common::nrql::Region;
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
@@ -86,12 +87,13 @@ pub fn test_agent_control_proxy(args: InstallationArgs) {
     info!("Setup Agent Control config with proxy");
     config::update_config_for_debug_logging(linux::DEFAULT_AC_CONFIG_PATH);
 
+    let infra_agent_type = latest_agent_type_id("com.newrelic.infrastructure");
     let config = format!(
         r#"
 host_id: {test_id}
 agents:
   nr-infra:
-    agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
+    agent_type: "{infra_agent_type}"
 "#
     );
     config::update_config(linux::DEFAULT_AC_CONFIG_PATH, config);

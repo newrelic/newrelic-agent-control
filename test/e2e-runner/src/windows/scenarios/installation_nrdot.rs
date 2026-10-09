@@ -1,5 +1,6 @@
 use crate::common::config::nrdot_config;
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
+use crate::common::docker_hub::latest_agent_type_id;
 use crate::common::health::check_health;
 use crate::common::on_drop::CleanUp;
 use crate::common::test::{retry, retry_panic};
@@ -33,6 +34,7 @@ pub fn test_nrdot(args: InstallationArgs) {
         chrono::Local::now().format("%Y-%m-%d_%H-%M-%S%.3f")
     );
 
+    let nrdot_agent_type = latest_agent_type_id("com.newrelic.opentelemetry.collector");
     update_config(
         windows::DEFAULT_AC_CONFIG_PATH,
         format!(
@@ -40,7 +42,7 @@ pub fn test_nrdot(args: InstallationArgs) {
 host_id: {test_id}
 agents:
   nrdot:
-    agent_type: newrelic/com.newrelic.opentelemetry.collector:0.1.0
+    agent_type: {nrdot_agent_type}
 {DEBUG_LOGGING_CONFIG}
 "#
         ),

@@ -1,6 +1,7 @@
 use crate::common::InstallationArgs;
 use crate::common::config::DEBUG_LOGGING_CONFIG;
 use crate::common::config::{update_config, write_agent_local_config};
+use crate::common::docker_hub::latest_agent_type_id;
 use crate::common::test::TestResult;
 use std::fs::read_dir;
 use std::path::Path;
@@ -69,7 +70,7 @@ pub struct Ohi {
     /// name of the integration.
     pub name: &'static str,
     /// Full agent-type reference to install.
-    pub agent_type_id: &'static str,
+    pub agent_type_id: String,
     /// OCI package version to pin.
     pub version: String,
 }
@@ -107,37 +108,37 @@ pub fn get_all_ohi_to_test(args: &InstallationArgs) -> Vec<Ohi> {
     vec![
         Ohi {
             name: "nri-redis",
-            agent_type_id: "newrelic/com.newrelic.infrastructure.nri_redis:0.1.0",
+            agent_type_id: latest_agent_type_id("com.newrelic.infrastructure.nri_redis"),
             version: redis_version,
         },
         Ohi {
             name: "nri-nginx",
-            agent_type_id: "newrelic/com.newrelic.infrastructure.nri_nginx:0.1.0",
+            agent_type_id: latest_agent_type_id("com.newrelic.infrastructure.nri_nginx"),
             version: nginx_version,
         },
         Ohi {
             name: "nri-apache",
-            agent_type_id: "newrelic/com.newrelic.infrastructure.nri_apache:0.1.0",
+            agent_type_id: latest_agent_type_id("com.newrelic.infrastructure.nri_apache"),
             version: apache_version,
         },
         Ohi {
             name: "nri-memcached",
-            agent_type_id: "newrelic/com.newrelic.infrastructure.nri_memcached:0.1.0",
+            agent_type_id: latest_agent_type_id("com.newrelic.infrastructure.nri_memcached"),
             version: memcached_version,
         },
         Ohi {
             name: "nri-flex",
-            agent_type_id: "newrelic/com.newrelic.infrastructure.nri_flex:0.1.0",
+            agent_type_id: latest_agent_type_id("com.newrelic.infrastructure.nri_flex"),
             version: flex_version,
         },
         Ohi {
             name: "nri-mysql",
-            agent_type_id: "newrelic/com.newrelic.infrastructure.nri_mysql:0.1.0",
+            agent_type_id: latest_agent_type_id("com.newrelic.infrastructure.nri_mysql"),
             version: mysql_version,
         },
         Ohi {
             name: "nri-postgresql",
-            agent_type_id: "newrelic/com.newrelic.infrastructure.nri_postgresql:0.1.0",
+            agent_type_id: latest_agent_type_id("com.newrelic.infrastructure.nri_postgresql"),
             version: postgresql_version,
         },
     ]
@@ -150,6 +151,7 @@ pub const TEST_LABEL_VALUE: &str = "1.2.3";
 /// the invocation with the label, which is what we assert on.
 pub fn update_infra_configs_for_ohis_without_service(infra_agent_version: &str, ohis: &[Ohi]) {
     // AC-level config: infra-agent + one sub-agent per OHI.
+    let infra_agent_type = latest_agent_type_id("com.newrelic.infrastructure");
     let agents_block = ohis
         .iter()
         .map(|o| format!("  {}:\n    agent_type: \"{}\"\n", o.name, o.agent_type_id,))
@@ -165,7 +167,7 @@ pub fn update_infra_configs_for_ohis_without_service(infra_agent_version: &str, 
             r#"
 agents:
   nr-infra:
-    agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
+    agent_type: "{infra_agent_type}"
 {agents_block}
 {DEBUG_LOGGING_CONFIG}
 "#

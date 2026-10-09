@@ -1,4 +1,5 @@
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
+use crate::common::docker_hub::latest_agent_type_id;
 use crate::common::nrql::{self, Region};
 use crate::common::ohi::{
     EMBEDDED_LINUX_OHI_BINARIES, EMBEDDED_LINUX_OHI_CONFIGS, SHARED_LINUX_FILESYSTEM_DIR,
@@ -37,6 +38,8 @@ pub fn test_nri_flex(args: InstallationArgs) {
 
     let staging = args.nr_region == Region::Staging;
 
+    let infra_agent_type = latest_agent_type_id("com.newrelic.infrastructure");
+    let flex_agent_type = latest_agent_type_id("com.newrelic.infrastructure.nri_flex");
     update_config(
         linux::DEFAULT_AC_CONFIG_PATH,
         format!(
@@ -44,9 +47,9 @@ pub fn test_nri_flex(args: InstallationArgs) {
 host_id: {test_id}
 agents:
   nr-infra:
-    agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
+    agent_type: "{infra_agent_type}"
   nr-flex:
-    agent_type: "newrelic/com.newrelic.infrastructure.nri_flex:0.1.0"
+    agent_type: "{flex_agent_type}"
 {DEBUG_LOGGING_CONFIG}
 "#
         ),

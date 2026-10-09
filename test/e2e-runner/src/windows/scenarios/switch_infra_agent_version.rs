@@ -1,4 +1,5 @@
 use crate::common::config::update_config;
+use crate::common::docker_hub::latest_agent_type_id;
 use crate::common::health::check_health;
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
@@ -53,6 +54,7 @@ pub fn switch_infra_agent_version(args: InstallationArgs) {
     config::append_to_config_file(ENV_VARS_FILE, format!("TEST_ID: {test_id}").as_str());
 
     info!("Adding infra-agent to AC config");
+    let infra_agent_type = latest_agent_type_id("com.newrelic.infrastructure");
     update_config(
         windows::DEFAULT_AC_CONFIG_PATH,
         format!(
@@ -60,7 +62,7 @@ pub fn switch_infra_agent_version(args: InstallationArgs) {
 host_id: {test_id}
 agents:
   nr-infra:
-    agent_type: newrelic/com.newrelic.infrastructure:0.1.0
+    agent_type: {infra_agent_type}
 "#
         ),
     );
