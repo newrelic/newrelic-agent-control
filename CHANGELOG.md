@@ -20,6 +20,9 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ## Unreleased
 
+### bugfix
+- On-host: sub-agents without a health check defined no longer log errors from executables publishing health into a closed channel.
+
 ## v1.26.0 - 2026-10-09
 
 ### 🚀 Enhancements
