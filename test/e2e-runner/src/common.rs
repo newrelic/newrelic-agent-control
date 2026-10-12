@@ -94,6 +94,10 @@ pub struct InstallationArgs {
     /// Version of the eBPF agent OCI image to use in tests (not in Instrumentation Metadata yet)
     #[arg(long)]
     pub ebpf_agent_version: Option<String>,
+
+    /// Version of the preload OCI image to use in tests
+    #[arg(long)]
+    pub preload_version: Option<String>,
 }
 
 impl InstallationArgs {
