@@ -22,6 +22,8 @@ const DEFAULT_LOG_PATH: &str = "/var/log/newrelic-agent-control/agent-control/";
 
 const SERVICE_NAME: &str = "newrelic-agent-control";
 
+pub const AGENT_CONTROL_DATA_DIR: &str = "/var/lib/newrelic-agent-control";
+
 /// Run Linux e2e corresponding scenario which will panic on failure
 pub fn run_linux_e2e() {
     let cli = LinuxCli::parse();
@@ -73,6 +75,9 @@ pub fn run_linux_e2e() {
         }
         LinuxScenarios::ServiceLifecycle(args) => {
             scenarios::service_lifecycle::test_service_lifecycle(args);
+        }
+        LinuxScenarios::PreloadAgent(args) => {
+            scenarios::preload_agent::test_installation_with_preload_agent(args);
         }
     };
 }
