@@ -12,15 +12,15 @@ runs:
         # renovate: datasource=docker depName=newrelic/infrastructure-agent-artifacts
         echo "INFRA_AGENT_VERSION=1.80.5" >> "$GITHUB_ENV"
         # renovate: datasource=docker depName=newrelic/nrdot-agent-artifacts
-        echo "NRDOT_VERSION=2.6.0" >> "$GITHUB_ENV"
+        echo "NRDOT_VERSION=2.7.1" >> "$GITHUB_ENV"
         # renovate: datasource=docker depName=newrelic/nri-redis-artifacts
         echo "REDIS_VERSION=1.16.0" >> "$GITHUB_ENV"
         # renovate: datasource=docker depName=newrelic/nri-nginx-artifacts
         echo "NGINX_VERSION=3.9.1" >> "$GITHUB_ENV"
         # renovate: datasource=docker depName=newrelic/nri-apache-artifacts
-        echo "APACHE_VERSION=1.18.0" >> "$GITHUB_ENV"
+        echo "APACHE_VERSION=1.18.1" >> "$GITHUB_ENV"
         # renovate: datasource=docker depName=newrelic/nri-memcached-artifacts
-        echo "MEMCACHED_VERSION=2.9.5" >> "$GITHUB_ENV"
+        echo "MEMCACHED_VERSION=2.9.6" >> "$GITHUB_ENV"
         # renovate: datasource=docker depName=newrelic/ebpf-agent-artifacts
         echo "EBPF_AGENT_VERSION=1.6.0" >> "$GITHUB_ENV"
         # renovate: datasource=docker depName=newrelic/nri-flex-artifacts
