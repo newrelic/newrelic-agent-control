@@ -8,7 +8,6 @@ use crate::linux::{
     bash::exec_bash_command,
     install::{install_agent_control_from_recipe, tear_down_test},
 };
-use glob::glob;
 use std::path::Path;
 use std::time::Duration;
 use tracing::{debug, info};
@@ -82,10 +81,25 @@ deployment:
             repository: ${nr-var:oci.repository}
             version: ${nr-var:version}
             public_key_url: https://publickeys.newrelic.com/g/agent-control-oci/global/nrpreloadagent/jwks.json
-"#;
+        post_download_hook:
+          path: /bin/bash
+          args:
+            - -c
+            - |
+              set -euo pipefail
+              so_path=$(find "$PACKAGE_DIR" -name '*.so' -print -quit)
+              if [ -z "$so_path" ]; then
+                echo "No .so file found in extracted preload package at $PACKAGE_DIR" >&2
+                exit 1
+              fi
+              install -m 0644 -o root -g root "$so_path" __STAGED_PRELOAD_SO__
+              grep -qxF "__STAGED_PRELOAD_SO__" /etc/ld.so.preload 2>/dev/null \
+                || echo "__STAGED_PRELOAD_SO__" >> /etc/ld.so.preload
+"#
+    .replace("__STAGED_PRELOAD_SO__", STAGED_PRELOAD_SO);
     exec_bash_command(&format!("mkdir -p {DYNAMIC_AGENT_TYPES_DIR}"))
         .unwrap_or_else(|err| panic!("Failed to create dynamic agent types directory: {err}"));
-    write(&custom_agent_type_path, custom_agent_type);
+    write(&custom_agent_type_path, &custom_agent_type);
     info!("Setup Agent Control config");
     update_config(
         linux::DEFAULT_AC_CONFIG_PATH,
@@ -105,46 +119,35 @@ agents:
         version: {preload_version}"#},
     );
     linux::service::restart_service(linux::SERVICE_NAME);
-    info!("Waiting for preload OCI package to be downloaded and extracted");
+    info!("Waiting for preload OCI package to be installed and its post-download hook to apply");
     let package_dir = preload_package_dir();
     let retries = 60;
     retry_panic(
         retries,
         Duration::from_secs(10),
-        "preload package download assertion",
-        || assert_preload_package_downloaded(&package_dir),
+        "preload package installation assertion",
+        || assert_preload_agent_installed(&package_dir),
     );
-    info!("Searching for shared library inside extracted package");
-    let so_path = glob(&format!("{package_dir}/**/*.so"))
-        .expect("Failed to read glob pattern")
-        .find_map(|entry| entry.ok())
-        .map(|path| path.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    if so_path.is_empty() {
-        panic!("No .so file found in extracted preload package at {package_dir}");
-    }
-    info!("Found shared library: {so_path}");
-    // Stage to a world-readable path so non-root processes can load it; see the
-    // STAGED_PRELOAD_SO doc comment for why we don't reference so_path directly.
-    info!("Staging shared library to {STAGED_PRELOAD_SO}");
-    exec_bash_command(&format!(
-        "install -m 0644 -o root -g root {so_path} {STAGED_PRELOAD_SO}"
-    ))
-        .unwrap_or_else(|err| panic!("Failed to stage preload .so to {STAGED_PRELOAD_SO}: {err}"));
-    info!("Installing shared library into /etc/ld.so.preload");
-    let install_command = format!(r#"echo "{STAGED_PRELOAD_SO}" >> /etc/ld.so.preload"#);
-    let output = exec_bash_command(&install_command)
-        .unwrap_or_else(|err| panic!("Editing /etc/ld.so.preload failed: {err}"));
-    debug!("Install output:\n{output}");
     info!("Test completed successfully");
 }
 
-fn assert_preload_package_downloaded(package_dir: &str) -> TestResult<()> {
+fn assert_preload_agent_installed(package_dir: &str) -> TestResult<()> {
     let output = exec_bash_command(&format!("ls -d {package_dir}"))?;
     if output.contains("No such file") || output.contains("cannot access") {
         return Err(format!("Preload package directory not found yet at {package_dir}").into());
     }
     let listing = exec_bash_command(&format!("ls -la {package_dir}"))?;
     debug!("Package listing:\n{listing}");
+
+    if !Path::new(STAGED_PRELOAD_SO).exists() {
+        return Err(
+            format!("Staged preload shared library not found yet at {STAGED_PRELOAD_SO}").into(),
+        );
+    }
+    let ld_preload = std::fs::read_to_string("/etc/ld.so.preload")
+        .map_err(|err| format!("Failed to read /etc/ld.so.preload: {err}"))?;
+    if !ld_preload.lines().any(|line| line.trim() == STAGED_PRELOAD_SO) {
+        return Err(format!("{STAGED_PRELOAD_SO} not yet present in /etc/ld.so.preload").into());
+    }
     Ok(())
 }
