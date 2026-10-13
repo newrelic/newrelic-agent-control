@@ -1,6 +1,8 @@
+use crate::common::agent_metadata::{AgentKind, AgentMetadata, AgentMetadataSet};
 use crate::common::nrql::Region;
 use std::path::PathBuf;
 
+pub mod agent_metadata;
 pub mod cert;
 pub mod config;
 pub mod docker_hub;
@@ -85,45 +87,22 @@ pub struct InstallationArgs {
     #[arg(long, ignore_case = true)]
     pub nr_region: Region,
 
-    /// Version of the infrastructure agent OCI image to use in tests
-    #[arg(long)]
-    pub infra_agent_version: Option<String>,
+    /// Agent versions resolved by the `agent-versions` action (its `json` output)
+    #[arg(long, env = "AGENT_METADATA")]
+    pub agent_metadata: Option<AgentMetadataSet>,
 
-    /// Version of the NRDot OCI image to use in tests
-    #[arg(long)]
-    pub nrdot_version: Option<String>,
-
-    /// Version of the eBPF agent OCI image to use in tests
+    /// Version of the eBPF agent OCI image to use in tests (not in Instrumentation Metadata yet)
     #[arg(long)]
     pub ebpf_agent_version: Option<String>,
+}
 
-    /// Version of the Redis OCI image to use in tests
-    #[arg(long)]
-    pub redis_version: Option<String>,
-
-    /// Version of the nri-nginx OCI image to use in tests
-    #[arg(long)]
-    pub nginx_version: Option<String>,
-
-    /// Version of the nri-apache OCI image to use in tests
-    #[arg(long)]
-    pub apache_version: Option<String>,
-
-    /// Version of the nri-memcached OCI image to use in tests
-    #[arg(long)]
-    pub memcached_version: Option<String>,
-
-    /// Version of the nri-flex OCI image to use in tests
-    #[arg(long)]
-    pub flex_version: Option<String>,
-
-    /// Version of the nri-mysql OCI image to use in tests
-    #[arg(long)]
-    pub mysql_version: Option<String>,
-
-    /// Version of the nri-postgresql OCI image to use in tests
-    #[arg(long)]
-    pub postgresql_version: Option<String>,
+impl InstallationArgs {
+    pub fn agent_metadata(&self, agent: AgentKind) -> &AgentMetadata {
+        self.agent_metadata
+            .as_ref()
+            .expect("--agent-metadata is required for this scenario")
+            .get(agent)
+    }
 }
 
 /// Arguments for Fleet Control scenarios that also install Agent Control

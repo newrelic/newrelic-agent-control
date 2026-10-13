@@ -1,3 +1,4 @@
+use crate::common::agent_metadata::AgentKind;
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
 use crate::common::exec::LongRunningProcess;
 use crate::common::on_drop::CleanUp;
@@ -38,10 +39,12 @@ const FLEET_ID: &str = "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOWQyYTE1LTQ4NWEtN2U2My04Zjk4
 
 /// Installs AC configured to use a proxy and verifies that the proxy is used.
 pub fn test_proxy(args: InstallationArgs) {
+    let infra_sub_agent_id = AgentKind::InfraAgent.sub_agent_id();
+    let infra_agent_type = args.agent_metadata(AgentKind::InfraAgent).agent_type_id();
     let infra_agent_version = args
-        .infra_agent_version
-        .clone()
-        .expect("--infra-agent-version is required for this scenario");
+        .agent_metadata(AgentKind::InfraAgent)
+        .package_version()
+        .to_string();
 
     info!("Setting up proxy");
     let mitm_process = setup_mitmproxy();
@@ -70,15 +73,15 @@ pub fn test_proxy(args: InstallationArgs) {
             r#"
 host_id: {test_id}
 agents:
-  nr-infra:
-    agent_type: newrelic/com.newrelic.infrastructure:0.1.0
+  {infra_sub_agent_id}:
+    agent_type: {infra_agent_type}
 {DEBUG_LOGGING_CONFIG}
 "#
         ),
     );
 
     write_agent_local_config(
-        &windows::local_config_path("nr-infra"),
+        &windows::local_config_path(infra_sub_agent_id),
         format!(
             r#"
 config_agent:

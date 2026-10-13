@@ -10,7 +10,7 @@ repository.workspace = true
 
 [dependencies]
 chrono.workspace = true
-clap = { workspace = true, features = ["derive"] }
+clap = { workspace = true, features = ["derive", "env"] }
 glob = "0.3"
 fake-opamp-server = { path = "../crates/fake-opamp-server" }
 oci-test-utils = { path = "../crates/oci-test-utils" }

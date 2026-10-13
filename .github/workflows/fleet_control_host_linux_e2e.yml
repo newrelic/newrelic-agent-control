@@ -50,7 +50,8 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: ./.github/actions/load-latest-agent-versions
+      - uses: ./.github/actions/agent-versions/load
+        id: agent-versions
 
       - uses: ./.github/actions/install-rust-toolchain
 
@@ -93,6 +94,8 @@ jobs:
         run: cargo build -p e2e-runner
 
       - name: Run Fleet Control E2E test
+        env:
+          AGENT_METADATA: ${{ steps.agent-versions.outputs.json }}
         run: |
           echo "${{ secrets.AC_FLEET_CONTROL_STAG_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" > /tmp/newrelic-agent-control-priv.key
 
@@ -108,7 +111,7 @@ jobs:
             --agent-control-private-key "/tmp/newrelic-agent-control-priv.key" \
             --agent-control-version "0.200.${{ github.run_id }}" \
             --recipes-repo-branch "main" \
-            --infra-agent-version "${{ env.INFRA_AGENT_VERSION }}" \
+            --agent-metadata "$AGENT_METADATA" \
             --fleet-id "${{ inputs.fleet_id }}" \
             --fleet-control-token "${{ steps.get-token.outputs.token }}" \
             --fleet-type "linux-fleet" \
