@@ -42,14 +42,6 @@ local_resource(
 
 #### Build the final Docker images with the binary.
 def build_image(ref, dockerfile):
-  if build_on_host_docker:
-    custom_build(
-      ref,
-      'tar -c bin Dockerfiles | DOCKER_BUILDKIT=1 docker build -f %s -t $EXPECTED_REF -' % dockerfile,
-      deps=['./bin'],
-      disable_push=True,
-    )
-  else:
     docker_build(
       ref,
       context='.',
