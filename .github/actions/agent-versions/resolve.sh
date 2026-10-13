@@ -3,6 +3,7 @@
 # Required env: IM_TOKEN, IM_URL, OUTPUT_FILE
 set -euo pipefail
 
+# shellcheck disable=SC2016 # the $variables are GraphQL variables, not shell ones
 QUERY='query($filter: AgentDefinitionFilter!, $cursor: String, $orderBy: [AgentDefinitionOrderBy!]) {
   actor {
     agentDefinitions(filter: $filter, cursor: $cursor, orderBy: $orderBy) {
