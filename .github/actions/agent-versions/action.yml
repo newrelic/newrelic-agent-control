@@ -2,7 +2,9 @@ name: Agent versions
 description: >
   `mode: resolve` queries Instrumentation Metadata (IM) and uploads the raw data as an artifact.
   `mode: load` downloads the latest resolved artifact, selects the latest agent and agent-type
-  versions for one platform, and exports them as env vars (`INFRA_AGENT_VERSION` for the package, `INFRA_AGENT_AT_VERSION` for the agent type, ...). Agents with no enabled version on the platform are not exported.
+  versions for one platform, and exports them as env vars for every agent type in IM, named after the
+  uppercased IM agent type (`NRINFRA_VERSION` for the package, `NRINFRA_AT_VERSION` for the agent type, ...).
+  Agents with no enabled version or agent-type configuration on the platform are not exported.
   The load mode needs `actions: read` if the calling job sets explicit permissions.
 inputs:
   mode:

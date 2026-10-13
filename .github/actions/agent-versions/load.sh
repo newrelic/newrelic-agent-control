@@ -41,8 +41,7 @@ if [ "$age_hours" -ge "$MAX_AGE_HOURS" ]; then
   exit 1
 fi
 
-resolved=$(jq -c --arg target "$target" --argjson agents "$(jq -c . "$ACTION_PATH/agents.json")" \
-  --from-file "$ACTION_PATH/select.jq" "$data_file" 2>&1) || {
+resolved=$(jq -c --arg target "$target" --from-file "$ACTION_PATH/select.jq" "$data_file" 2>&1) || {
   echo "::error::Selecting versions failed: $resolved"
   exit 1
 }
