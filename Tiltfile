@@ -44,7 +44,7 @@ local_resource(
 def build_image(ref, dockerfile):
   custom_build(
     ref,
-    'tar -c bin Dockerfiles | DOCKER_BUILDKIT=1 docker build -f %s -t $EXPECTED_REF -' % dockerfile,
+    'docker build -f %s -t $EXPECTED_REF .' % dockerfile,
     deps=['./bin', './Dockerfiles', './Tiltfile'],
     disable_push=build_on_host_docker,
   )
