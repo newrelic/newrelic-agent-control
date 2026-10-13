@@ -42,20 +42,12 @@ local_resource(
 
 #### Build the final Docker images with the binary.
 def build_image(ref, dockerfile):
-  if build_on_host_docker:
-    custom_build(
-      ref,
-      'tar -c bin Dockerfiles | DOCKER_BUILDKIT=1 docker build -f %s -t $EXPECTED_REF -' % dockerfile,
-      deps=['./bin'],
-      disable_push=True,
-    )
-  else:
-    docker_build(
-      ref,
-      context='.',
-      dockerfile='./' + dockerfile,
-      only = ['./bin','./Dockerfile', './Tiltfile']
-    )
+  custom_build(
+    ref,
+    'tar -c bin Dockerfiles | DOCKER_BUILDKIT=1 docker build -f %s -t $EXPECTED_REF -' % dockerfile,
+    deps=['./bin', './Dockerfiles', './Tiltfile'],
+    disable_push=build_on_host_docker,
+  )
 
 build_image('tilt.local/agent-control-dev', 'Dockerfiles/Dockerfile_agent_control')
 build_image('tilt.local/agent-control-cli-dev', 'Dockerfiles/Dockerfile_agent_control_cli')
