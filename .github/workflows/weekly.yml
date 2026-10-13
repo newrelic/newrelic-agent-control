@@ -224,6 +224,7 @@ jobs:
 
           # Execute newrelic install
           sudo chef-client --local-mode --runlist 'recipe[newrelic-install::default]'
+          # shellcheck disable=SC2024 # output.log is created by this (unprivileged) shell, not by sudo, so no permission issue
           sudo chef-client --local-mode --runlist 'recipe[newrelic-install::default]' > output.log 2>&1
 
       - name: Check for successful installation

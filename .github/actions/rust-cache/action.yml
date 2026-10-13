@@ -4,7 +4,6 @@ inputs:
   identifier:
     description: 'A unique identifier that will be used as part of the cache key'
     required: true
-    type: string
   # Why do we need a "restore-strategy" input field?
   #
   # Before going straight to the explanation, please read how Github Action Caches work.
@@ -50,17 +49,17 @@ inputs:
   # some branch caches stay in the system. This would trigger every other branch to build
   # from scratch again for the first time. This is a minor issue we can live with. It can be
   # improved by building caches every night.
+  # `type`/`options` (as used for `workflow_dispatch` choice inputs) aren't part of the action.yml
+  # input schema: https://docs.github.com/en/actions/sharing-automations/creating-actions/metadata-syntax-for-github-actions#inputsinput_id
+  # only description/required/default/deprecationMessage are. GitHub silently ignores unknown
+  # keys, so they never validated anything here; this input is just a plain string compared
+  # against 'exact'/'nearest' in the steps below.
   restore-strategy:
     description: 'The strategy to use when restoring the cache (exact or nearest)'
     required: true
-    type: choice
-    options:
-      - exact
-      - nearest
   save-cache:
     description: 'If true, save the cache after the workflow run'
     required: true
-    type: boolean
 runs:
   using: "composite"
   steps:

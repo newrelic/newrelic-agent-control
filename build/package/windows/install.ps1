@@ -64,7 +64,7 @@ function Set-RestrictedAcl {
     # Use SID instead of group name to avoid localization issues. The group name changes
     # based on the configured language.
     # For example, BUILTIN\Administrators (english) vs BUILTIN\Administradores (spanish).
-    # 
+    #
     # S-1-5-32-544 is the well-known SID for BUILTIN\Administrators.
     # Reference: https://learn.microsoft.com/es-es/windows-server/identity/ad-ds/manage/understand-security-identifiers
     & icacls $Path /inheritance:r | Out-Null
@@ -240,7 +240,7 @@ while ($TRIES -lt $MAX_RETRIES) {
     $TRIES++
     Write-Host "Running agent status check attempt $TRIES/$MAX_RETRIES..."
 
-    Try { $statusCheckOutput = Invoke-WebRequest -Uri "http://localhost:51200/status" -UseBasicParsing -ErrorAction SilentlyContinue } Catch {    }
+    Try { $statusCheckOutput = Invoke-WebRequest -Uri "http://localhost:51200/status" -UseBasicParsing -ErrorAction SilentlyContinue } Catch { Write-Verbose "Status check request failed; will retry." }
     $statusContent = if ($statusCheckOutput.Content) { $statusCheckOutput.Content } else { "{}" }
 
     Write-Host "Status check output: $statusContent"

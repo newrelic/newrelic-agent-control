@@ -3,8 +3,6 @@ on:
   release:
     types:
       - released
-    tags:
-      - '*'
 
 permissions:
   contents: read
@@ -121,14 +119,14 @@ jobs:
       - name: Push release tags
         run: |
           docker buildx imagetools create \
-            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL:${{ github.event.release.tag_name }} \
-            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL:latest \
-            $DOCKER_IMAGE_NAME_AGENT_CONTROL:${{ github.event.release.tag_name }}-rc
-          
+            -t "$DOCKER_IMAGE_NAME_AGENT_CONTROL:${{ github.event.release.tag_name }}" \
+            -t "$DOCKER_IMAGE_NAME_AGENT_CONTROL:latest" \
+            "$DOCKER_IMAGE_NAME_AGENT_CONTROL:${{ github.event.release.tag_name }}-rc"
+
           docker buildx imagetools create \
-            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:${{ github.event.release.tag_name }} \
-            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:latest \
-            $DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:${{ github.event.release.tag_name }}-rc
+            -t "$DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:${{ github.event.release.tag_name }}" \
+            -t "$DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:latest" \
+            "$DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:${{ github.event.release.tag_name }}-rc"
 
 
   molecule-packaging-tests:

@@ -147,7 +147,7 @@ jobs:
           mkdir -p e2e-results
           mv e2e-result-*-linux-fleet-control-integration.txt e2e-results/ 2>/dev/null || true
           mv fleet-control-test-report.json e2e-results/ 2>/dev/null || true
-          if [ -f e2e-results/e2e-result-*.txt ]; then
+          if compgen -G "e2e-results/e2e-result-*.txt" > /dev/null; then
             bash .github/workflows/scripts/slack_e2e_summary.sh
           else
             echo "No result file found, skipping Slack notification"

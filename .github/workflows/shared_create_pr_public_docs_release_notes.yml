@@ -46,7 +46,7 @@ jobs:
         id: metadata
         run: |
           dashed_version=$(echo "${{ inputs.version }}" | sed 's/\./-/g')
-          echo dashed_version=${dashed_version} >> "$GITHUB_OUTPUT"
+          echo "dashed_version=${dashed_version}" >> "$GITHUB_OUTPUT"
 
           branch_name=chore/agent-control-release-notes-${dashed_version}
           echo "branch_name=${branch_name}" >> "$GITHUB_OUTPUT"
