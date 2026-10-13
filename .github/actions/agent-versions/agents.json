@@ -1,0 +1,12 @@
+[
+  {"imAgentType": "NRInfra", "name": "INFRA_AGENT"},
+  {"imAgentType": "NRDOT", "name": "NRDOT"},
+  {"imAgentType": "NRIRedis", "name": "REDIS"},
+  {"imAgentType": "NRINginx", "name": "NGINX"},
+  {"imAgentType": "NRIApache", "name": "APACHE"},
+  {"imAgentType": "NRIMemcached", "name": "MEMCACHED"},
+  {"imAgentType": "NReBPFAgent", "name": "EBPF_AGENT"},
+  {"imAgentType": "NRIFlex", "name": "FLEX"},
+  {"imAgentType": "NRIMysql", "name": "MYSQL"},
+  {"imAgentType": "NRIPostgresql", "name": "POSTGRESQL"}
+]
