@@ -1,3 +1,4 @@
+use crate::common::agent_metadata::{AgentKind, AgentMetadata};
 use crate::common::config::nrdot_config;
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
 use crate::common::health::check_health;
@@ -14,11 +15,11 @@ use tracing::info;
 
 /// Runs a complete Windows E2E installation test with NRDOT
 pub fn test_nrdot(args: InstallationArgs) {
-    let nrdot_version = args
-        .nrdot_version
-        .clone()
-        .expect("--nrdot-version is required for this scenario");
-
+    let AgentMetadata {
+        sub_agent_id: nrdot_sub_agent_id,
+        agent_type_id: nrdot_agent_type,
+        package_version: nrdot_version,
+    } = args.agent(AgentKind::Nrdot);
     let recipe_data = RecipeData {
         args,
         ..Default::default()
@@ -39,15 +40,15 @@ pub fn test_nrdot(args: InstallationArgs) {
             r#"
 host_id: {test_id}
 agents:
-  nrdot:
-    agent_type: newrelic/com.newrelic.opentelemetry.collector:0.1.0
+  {nrdot_sub_agent_id}:
+    agent_type: {nrdot_agent_type}
 {DEBUG_LOGGING_CONFIG}
 "#
         ),
     );
 
     write_agent_local_config(
-        &windows::local_config_path("nrdot"),
+        &windows::local_config_path(nrdot_sub_agent_id),
         nrdot_config(&nrdot_version),
     );
 

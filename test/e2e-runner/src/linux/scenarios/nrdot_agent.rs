@@ -1,3 +1,4 @@
+use crate::common::agent_metadata::{AgentKind, AgentMetadata};
 use crate::common::config::nrdot_config;
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
 use crate::common::on_drop::CleanUp;
@@ -12,11 +13,11 @@ use std::time::Duration;
 use tracing::info;
 
 pub fn test_nrdot_agent(args: InstallationArgs) {
-    let nrdot_version = args
-        .nrdot_version
-        .clone()
-        .expect("--nrdot-version is required for this scenario");
-
+    let AgentMetadata {
+        sub_agent_id: nrdot_sub_agent_id,
+        agent_type_id: nrdot_agent_type,
+        package_version: nrdot_version,
+    } = args.agent(AgentKind::Nrdot);
     let recipe_data = RecipeData {
         args,
         recipe_list: "agent-control".to_string(),
@@ -38,15 +39,15 @@ pub fn test_nrdot_agent(args: InstallationArgs) {
             r#"
 host_id: {test_id}
 agents:
-  nrdot:
-    agent_type: newrelic/com.newrelic.opentelemetry.collector:0.1.0
+  {nrdot_sub_agent_id}:
+    agent_type: {nrdot_agent_type}
 {DEBUG_LOGGING_CONFIG}
 "#
         ),
     );
 
     write_agent_local_config(
-        &linux::local_config_path("nrdot"),
+        &linux::local_config_path(nrdot_sub_agent_id),
         nrdot_config(&nrdot_version),
     );
 

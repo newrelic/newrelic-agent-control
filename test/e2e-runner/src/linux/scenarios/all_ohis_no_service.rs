@@ -24,13 +24,8 @@ pub fn test_all_ohis_no_service(args: InstallationArgs) {
     let _clean_up = CleanUp::new(tear_down_test);
     install_agent_control_from_recipe(&recipe_data);
 
-    let infra_agent_version = args
-        .infra_agent_version
-        .clone()
-        .expect("--infra-agent-version is required for this scenario");
-
     let ohis = get_all_ohi_to_test(&args);
-    update_infra_configs_for_ohis_without_service(&infra_agent_version, &ohis);
+    update_infra_configs_for_ohis_without_service(&args, &ohis);
 
     linux::service::restart_service(linux::SERVICE_NAME);
 
@@ -49,7 +44,7 @@ pub fn test_all_ohis_no_service(args: InstallationArgs) {
                     linux::DEFAULT_LOG_PATH,
                     &[
                         "component=integrations.runner.Runner",
-                        &format!("integration_name={}", ohi.name),
+                        &format!("integration_name={}", ohi.integration_name),
                         &format!("{TEST_LABEL}={TEST_LABEL_VALUE}"),
                     ],
                 )?;

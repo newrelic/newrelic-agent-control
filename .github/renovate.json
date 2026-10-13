@@ -30,12 +30,6 @@
         "**/test/**/eks_cluster/variables.tf"
       ],
       "enabled": true
-    },
-    {
-      "matchFileNames": [
-        ".github/actions/load-latest-agent-versions/action.yml"
-      ],
-      "groupName": "agent versions"
     }
   ],
   "customManagers": [
@@ -59,15 +53,6 @@
       "datasourceTemplate": "docker",
       "matchStrings": [
         "FROM alpine/kubectl:(?<currentValue>\\S+) AS kubectl"
-      ]
-    },
-    {
-      "customType": "regex",
-      "managerFilePatterns": [
-        "/^\\.github/actions/load-latest-agent-versions/action\\.yml$/"
-      ],
-      "matchStrings": [
-        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)[^=]+=(?<currentValue>\\d+\\.\\d+\\.\\d+)"
       ]
     },
     {
