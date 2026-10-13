@@ -49,7 +49,7 @@ jobs:
 
     steps:
       - name: Promote version to release channel
-        uses: newrelic/agent-metadata-action/promote-release-channel@399d5ba876e7d03bf6215f8283d72ffb8dc8240b # v1.7.0
+        uses: newrelic/agent-metadata-action/promote-release-channel@39a73d441e2787d13d4de26b1f437025cc34dcc7 # v1.7.1
         with:
           agent-type: NRAgentControl
           version: ${{ inputs.version }}
