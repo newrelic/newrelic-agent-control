@@ -590,6 +590,9 @@ jobs:
       - cargo-doc
       - unused-dependencies-check
       - codespell
+      - actionlint
+      - shellcheck
+      - psscriptanalyzer
       - security
       - coverage
       # tests

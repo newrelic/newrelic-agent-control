@@ -1,3 +1,8 @@
+# Config for actionlint (https://github.com/rhysd/actionlint), the GitHub Actions workflow
+# linter run by the `actionlint` CI job. actionlint's own schema/expression checks are stricter
+# than GitHub's runtime, so this file documents the handful of cases where that's a false
+# positive for us (see each `ignore` entry below) rather than a real issue, plus our self-hosted
+# runner labels, which actionlint has no way to discover on its own.
 self-hosted-runner:
   # Custom label for our self-hosted runners, used by canary/e2e workflows.
   labels:
