@@ -55,9 +55,7 @@ jobs:
           - configmap-agent
           - custom-repo
           - dynamic
-          # We were using version 0.2.6, which downloaded the linux headers from an s3 bucket in staging.
-          # This is no longer true and newer versions don't work out of the box.
-          # - ebpf
+          - ebpf
           - fleet-control
           - infra
           - proxy
@@ -70,6 +68,10 @@ jobs:
           # The proxy scenario needs network policies.
           - group: proxy
             minikube_start_args: --cni=calico
+          # The eBPF agent reports host PIDs and resolves them through /proc. With the docker driver the node runs
+          # in its own PID namespace and that lookup fails, so the cluster runs directly on the runner instead.
+          - group: ebpf
+            minikube_driver: none
     steps:
       - name: Record job start time
         run: echo "JOB_START_TIME=$(date +%s)" >> "$GITHUB_ENV"
@@ -79,13 +81,18 @@ jobs:
       - name: Free up space
         run: bash .github/workflows/scripts/space_cleanup.sh
 
+      # setup-minikube chmods this directory when using the none driver, which fails if it does not exist.
+      - name: Create CNI config directory
+        if: matrix.minikube_driver == 'none'
+        run: sudo mkdir -p /etc/cni/net.d
+
       - name: Setup Minikube
         uses: medyagh/setup-minikube@e9e035a86bbc3caea26a450bd4dbf9d0c453682e # v0.0.21
         with:
           minikube-version: 1.35.0
           kubernetes-version: "v1.30.14"
           start-args: ${{ matrix.minikube_start_args }}
-          driver: docker
+          driver: ${{ matrix.minikube_driver || 'docker' }}
 
       - name: Install Tilt
         run: |
@@ -119,6 +126,7 @@ jobs:
           USE_LATEST_FLUX: ${{ inputs.use_latest_flux }}
           # Tilt configs
           ARCH: ${{ matrix.platform.arch }}
+          BUILD_ON_HOST_DOCKER: ${{ matrix.minikube_driver == 'none' }}
         with:
           retry_attempts: 40
           retry_seconds: 15
