@@ -246,6 +246,36 @@ value_providers:
 | `sources.<name>.auth.client_secret` | If `service_principal` | Service principal client secret |
 | `client_timeout` | No | HTTP timeout for all sources (default `30s`) |
 
+#### aws_secrets_manager
+
+Reads secret values from one or more AWS Secrets Manager regions or accounts. Multiple named sources can be defined to target different regions or use different authentication methods.
+
+```yaml
+value_providers:
+  aws_secrets_manager:
+    sources:
+      <source-name>:
+        region: <aws-region>               # required
+        endpoint: <url>                    # optional (default: https://secretsmanager.<region>.amazonaws.com/)
+        auth:                              # optional (default: instance_profile)
+          type: instance_profile
+          # or:
+          # type: static
+          # access_key_id: <access-key-id>
+          # secret_access_key: <secret-access-key>
+    client_timeout: <duration>             # optional (default: 30s)
+```
+
+| Field | Required | Description |
+|---|---|---|
+| `sources` | Yes | Map of named AWS Secrets Manager sources |
+| `sources.<name>.region` | Yes | AWS region of the secrets (e.g. `us-east-1`) |
+| `sources.<name>.endpoint` | No | Overrides the regional endpoint, e.g. to use a VPC endpoint |
+| `sources.<name>.auth.type` | No | Authentication method: `instance_profile` (default) or `static` |
+| `sources.<name>.auth.access_key_id` | If `static` | AWS access key id |
+| `sources.<name>.auth.secret_access_key` | If `static` | AWS secret access key |
+| `client_timeout` | No | HTTP timeout for all sources (default `30s`) |
+
 ### self_update
 
 Configures the on-host self-update mechanism.
