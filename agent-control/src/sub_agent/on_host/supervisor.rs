@@ -97,6 +97,12 @@ where
     pub filesystem: FileSystem,
 }
 
+/// A running health checker and the publisher executables use to report their health to it.
+struct RunningHealthChecker {
+    thread: StartedThreadContext,
+    health_publisher: EventPublisher<(String, HealthWithStartTime)>,
+}
+
 /// An on-host supervisor ready to be started.
 pub struct NotStartedSupervisorOnHost<PM>
 where
@@ -247,12 +253,13 @@ where
         }
     }
 
+    /// Starts the health checker, if configured, along with the publisher executables use to
+    /// feed it. The channel only exists when a checker consumes it.
     fn start_health_check(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-        health_consumer: EventConsumer<(String, HealthWithStartTime)>,
         health_config: &Option<OnHostHealthConfig>,
-    ) -> Result<Option<StartedThreadContext>, SupervisorError> {
+    ) -> Result<Option<RunningHealthChecker>, SupervisorError> {
         let Some(health_config) = health_config else {
             debug!("No health_config: health-checker thread will not be started");
             return Ok(None);
@@ -265,6 +272,7 @@ where
             HealthCheckerError::Generic(format!("could not build the http client: {err}"))
         })?;
 
+        let (health_publisher, health_consumer) = pub_sub();
         let Some(health_checker) = OnHostHealthCheckers::try_new(
             health_consumer,
             http_client,
@@ -276,7 +284,7 @@ where
             return Ok(None);
         };
 
-        let started_thread_context = spawn_health_checker(
+        let thread = spawn_health_checker(
             self.agent_identity.id.clone(),
             health_checker,
             sub_agent_internal_publisher,
@@ -284,7 +292,10 @@ where
             health_config.initial_delay,
             start_time,
         );
-        Ok(Some(started_thread_context))
+        Ok(Some(RunningHealthChecker {
+            thread,
+            health_publisher,
+        }))
     }
 
     /// Runs the agent version check (if configured), publishing detected attributes as events.
@@ -338,8 +349,6 @@ where
         self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Result<StartedSupervisorOnHost<PM>, SupervisorError> {
-        let (health_publisher, health_consumer) = pub_sub();
-
         // Ensure all top-level non-declared files and dirs are deleted.
         if let Err(err) = self
             .filesystem
@@ -359,19 +368,26 @@ where
             .write(&LocalFile, &DirectoryManagerFs)
             .map_err(SupervisorError::FileSystem)?;
 
+        let maybe_health_checker =
+            self.start_health_check(sub_agent_internal_publisher.clone(), &self.health_config)?;
+
+        // Start one thread per executable. If a health checker is running, executables publish
+        // their health to it.
         let mut thread_contexts: Vec<StartedThreadContext> = self
             .executables
             .iter()
-            .map(|e| self.start_process_thread(e, health_publisher.clone()))
+            .map(|e| {
+                // Without a health checker there is no publisher, so the executable never
+                // publishes health.
+                let maybe_health_publisher = maybe_health_checker
+                    .as_ref()
+                    .map(|hc| hc.health_publisher.clone());
+                self.start_process_thread(e, maybe_health_publisher)
+            })
             .collect();
-
-        if let Some(ctx) = self.start_health_check(
-            sub_agent_internal_publisher.clone(),
-            health_consumer,
-            &self.health_config,
-        )? {
-            thread_contexts.push(ctx);
-        }
+        // Track the health checker thread alongside the executable ones, so that stopping or
+        // reloading the supervisor stops and joins it too. Nothing to add if no checker was started.
+        thread_contexts.extend(maybe_health_checker.map(|hc| hc.thread));
 
         Ok(StartedSupervisorOnHost {
             thread_contexts,
@@ -386,7 +402,7 @@ where
     fn start_process_thread(
         &self,
         executable_data: &ExecutableData,
-        health_publisher: EventPublisher<(String, HealthWithStartTime)>,
+        health_publisher: Option<EventPublisher<(String, HealthWithStartTime)>>,
     ) -> StartedThreadContext {
         let mut restart_policy = executable_data.restart_policy.clone();
         let exec_data = executable_data.clone();
@@ -413,7 +429,9 @@ where
 
                 // It's important to create a new health handler for each process instance
                 // Otherwise, the published time won't be updated.
-                let health_handler = HealthHandler::new(exec_id.clone(), health_publisher.clone());
+                let health_handler = health_publisher
+                    .clone()
+                    .map(|hp| HealthHandler::new(exec_id.clone(), hp));
 
                 info!(%agent_id, %exec_id, "Starting executable");
                 let command =
@@ -426,7 +444,7 @@ where
                         cmd,
                         &stop_consumer,
                         HEALTHY_DELAY,
-                        &health_handler,
+                        health_handler.as_ref(),
                         &agent_id,
                         &exec_id,
                     )
@@ -434,8 +452,12 @@ where
 
                 match executable_result {
                     Ok((exit_status, was_cancelled)) => {
-                        last_error =
-                            handle_exit(&agent_id, &exec_data, &exit_status, &health_handler);
+                        last_error = handle_exit(
+                            &agent_id,
+                            &exec_data,
+                            &exit_status,
+                            health_handler.as_ref(),
+                        );
 
                         if was_cancelled {
                             break;
@@ -445,7 +467,9 @@ where
                         warn!(%agent_id, %exec_id, "Launching executable: {err}");
                         debug!(%agent_id, %exec_id, "Error launching executable, marking as unhealthy");
                         let error = format!("Error launching process: {err}");
-                        health_handler.publish_unhealthy(error.clone());
+                        health_handler
+                            .as_ref()
+                            .inspect(|h| h.publish_unhealthy(error.clone()));
                         last_error = Some(error);
                     }
                 }
@@ -459,7 +483,9 @@ where
                         Some(err) => format!("Restart policy exceeded: {err}"),
                         None => "Restart policy exceeded".to_string(),
                     };
-                    health_handler.publish_unhealthy(final_message);
+                    health_handler
+                        .as_ref()
+                        .inspect(|h| h.publish_unhealthy(final_message));
                     break;
                 }
 
@@ -527,7 +553,7 @@ fn wait_exit(
     mut command: CommandOSStarted,
     stop_consumer: &EventConsumer<CancellationMessage>,
     healthy_publish_delay: Duration,
-    health_handler: &HealthHandler,
+    health_handler: Option<&HealthHandler>,
     agent_id: &AgentID,
     exec_id: &str,
 ) -> Result<(ExitStatus, bool), CommandError> {
@@ -553,7 +579,7 @@ fn wait_exit(
         // for an arbitrary long time without issues.
         if !healthy_already_published && Instant::now() > deadline {
             debug!(%agent_id, %exec_id, "{}", format!("Informing executable as healthy after running for {} seconds", healthy_publish_delay.as_secs()));
-            health_handler.publish_healthy();
+            health_handler.inspect(|h| h.publish_healthy());
             healthy_already_published = true;
         }
     }
@@ -566,7 +592,7 @@ fn wait_exit(
         .inspect(|exit_status| {
             if !healthy_already_published && exit_status.success() {
                 debug!(%agent_id, %exec_id, "Informing executable as healthy after terminating successfully");
-                health_handler.publish_healthy();
+                health_handler.inspect(|h| h.publish_healthy());
             }
         })
         .map(|exit_status| (exit_status, was_cancelled))
@@ -610,7 +636,7 @@ fn handle_exit(
     agent_id: &AgentID,
     exec_data: &ExecutableData,
     exit_status: &ExitStatus,
-    health_handler: &HealthHandler,
+    health_handler: Option<&HealthHandler>,
 ) -> Option<String> {
     if exit_status.success() {
         return None;
@@ -631,7 +657,7 @@ fn handle_exit(
         "process exited with code: {}",
         exit_status.code().unwrap_or_default()
     );
-    health_handler.publish_unhealthy_with_status(error.clone(), status);
+    health_handler.inspect(|h| h.publish_unhealthy_with_status(error.clone(), status));
     Some(error)
 }
 
@@ -1234,7 +1260,7 @@ declared-dir:
 
         let executable_thread_contexts = executables_clone
             .iter()
-            .map(|e| agent.start_process_thread(e, health_publisher.clone()));
+            .map(|e| agent.start_process_thread(e, Some(health_publisher.clone())));
 
         for thread_context in executable_thread_contexts {
             while !thread_context.is_thread_finished() {
@@ -1329,7 +1355,7 @@ declared-dir:
 
         let executable_thread_contexts = executables_clone
             .iter()
-            .map(|e| agent.start_process_thread(e, health_publisher.clone()));
+            .map(|e| agent.start_process_thread(e, Some(health_publisher.clone())));
 
         for thread_context in executable_thread_contexts {
             while !thread_context.is_thread_finished() {
@@ -1389,7 +1415,7 @@ declared-dir:
             command,
             &stop_consumer,
             Duration::ZERO,
-            &health_handler,
+            Some(&health_handler),
             &agent_id,
             &exec_data.id,
         );
@@ -1412,6 +1438,57 @@ declared-dir:
             .collect::<Vec<_>>();
 
         assert_eq!(actual_ordered_events, expected_ordered_events);
+    }
+
+    fn build_supervisor_without_health(
+        exec: ExecutableData,
+    ) -> NotStartedSupervisorOnHost<MockPackageManager> {
+        NotStartedSupervisorOnHost::new(
+            AgentIdentity::from((
+                "echo-process".to_owned().try_into().unwrap(),
+                AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
+            )),
+            vec![exec],
+            None,
+            get_empty_packages(),
+            None,
+            MockPackageManager::new_arc(),
+            SubAgentFileLoggingConfig::default(),
+            FileSystem::test_empty(),
+            SharedFileSystem::test_empty(),
+        )
+    }
+
+    #[test]
+    fn test_no_health_config_creates_no_health_checker_nor_publisher() {
+        let agent = build_supervisor_without_health(ExecutableData::new(
+            "echo-process".to_owned(),
+            "echo".to_owned(),
+        ));
+        let (sub_agent_internal_publisher, _consumer) = pub_sub();
+
+        let maybe_health_checker = agent
+            .start_health_check(sub_agent_internal_publisher, &None)
+            .unwrap();
+
+        assert!(maybe_health_checker.is_none());
+    }
+
+    #[test]
+    fn test_executables_without_health_config_run_without_health_checker_thread() {
+        #[cfg(target_family = "unix")]
+        let exec = build_test_exec_data(r#"{"id":"echo-process","path":"echo","args":[]}"#);
+        #[cfg(target_family = "windows")]
+        let exec =
+            build_test_exec_data(r#"{"id":"echo-process","path":"cmd","args":["/C","echo",""]}"#);
+        let agent = build_supervisor_without_health(exec);
+        let (sub_agent_internal_publisher, _consumer) = pub_sub();
+
+        let supervisor = agent.spin_up(sub_agent_internal_publisher).unwrap();
+
+        // Only the executable thread runs.
+        assert_eq!(supervisor.thread_contexts.len(), 1);
+        supervisor.stop().unwrap();
     }
 
     #[test]
@@ -1443,7 +1520,7 @@ declared-dir:
             command,
             &stop_consumer,
             Duration::from_secs(10),
-            &health_handler,
+            Some(&health_handler),
             &agent_id,
             &exec_data.id,
         );
