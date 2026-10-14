@@ -27,10 +27,10 @@ agentControlDeployment:
         level: debug
       agents:
         infra:
-          agent_type: newrelic/com.newrelic.infrastructure:0.1.0
+          agent_type: newrelic/com.newrelic.infrastructure:${NRINFRA_AGENT_TYPE_VERSION}
     agentsConfig:
       infra:
-        chart_version: "*" # Use latest
+        chart_version: "${NRINFRA_VERSION}"
         chart_values:
           # NOTE: nrStaging is set by Tiltfile based on REGION env var (staging vs US)
           global:

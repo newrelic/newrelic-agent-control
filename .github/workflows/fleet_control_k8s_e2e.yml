@@ -50,6 +50,13 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      - uses: ./.github/actions/agent-versions/load
+        with:
+          platform: kubernetes
+
+      - name: Render agent versions in values files
+        run: bash test/k8s-e2e/render-agent-versions.sh
+
       - name: Free up space
         run: bash .github/workflows/scripts/space_cleanup.sh
 
