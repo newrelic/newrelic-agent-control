@@ -19,7 +19,7 @@ agentControlDeployment:
       allowedChartRepositoryUrl: [ "http://chartmuseum.default.svc.cluster.local:8080" ]
       agents:
         prometheus:
-          agent_type: newrelic/com.newrelic.prometheus:0.1.0
+          agent_type: newrelic/com.newrelic.prometheus:${NRPROMETHEUSAGENT_AGENT_TYPE_VERSION}
 
     agentsConfig:
       prometheus:

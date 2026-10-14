@@ -246,6 +246,9 @@ jobs:
 
   k8s-e2e-tests-latest-flux:
     uses: ./.github/workflows/component_k8s_e2e.yml
+    permissions:
+      contents: read
+      actions: read
     with:
       use_latest_flux: true
       caller_workflow: latest_flux_e2e

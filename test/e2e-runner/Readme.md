@@ -27,7 +27,7 @@ Every scenario that installs Agent Control needs:
 - **New Relic credentials**: account id, region, API key, license key, and a System Identity (client id and private key
   file). These are the same values CI reads from the repository secrets.
 - **`--agent-metadata`**: the versions of the agents under test, as a JSON array. CI generates it with the
-  [`agent-versions`](../../.github/actions/agent-versions) action; the exact value used can be seen in the logs of any CI
+  [`agent-versions/load`](../../.github/actions/agent-versions/load) action; the exact value used can be seen in the logs of any CI
   run. It can also be provided through the `AGENT_METADATA` environment variable.
 
 ## Linux

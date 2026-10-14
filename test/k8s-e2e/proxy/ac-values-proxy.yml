@@ -77,10 +77,10 @@ agentControlDeployment:
         # NOTE: This fleet_id is provided by region-specific values file (ac-values-proxy-<region>.yml)
       agents:
         prometheus:
-          agent_type: newrelic/com.newrelic.prometheus:0.1.0
+          agent_type: newrelic/com.newrelic.prometheus:${NRPROMETHEUSAGENT_AGENT_TYPE_VERSION}
     agentsConfig:
       prometheus:
-        chart_version: "*"
+        chart_version: "${NRPROMETHEUSAGENT_VERSION}"
         # NOTE: nrStaging is set by Tiltfile based on REGION env var (staging vs US)
         # Proxy config should be added to Prom config on a prod environment. But this is out of scope of AC.
     systemIdentity:
