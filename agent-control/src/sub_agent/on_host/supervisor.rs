@@ -371,17 +371,18 @@ where
         let maybe_health_checker =
             self.start_health_check(sub_agent_internal_publisher.clone(), &self.health_config)?;
 
-        // Start one thread per executable. If a health checker is running, each executable gets a
-        // health handler that publishes to it.
+        // Start one thread per executable. If a health checker is running, executables publish
+        // their health to it.
         let mut thread_contexts: Vec<StartedThreadContext> = self
             .executables
             .iter()
             .map(|e| {
-                // Creates a health handler only if a health checker was spawned
-                let maybe_health_handler = maybe_health_checker
+                // Without a health checker there is no publisher, so the executable never
+                // publishes health.
+                let maybe_health_publisher = maybe_health_checker
                     .as_ref()
-                    .map(|hc| HealthHandler::new(e.id.clone(), hc.health_publisher.clone()));
-                self.start_process_thread(e, maybe_health_handler)
+                    .map(|hc| hc.health_publisher.clone());
+                self.start_process_thread(e, maybe_health_publisher)
             })
             .collect();
         // Track the health checker thread alongside the executable ones, so that stopping or
@@ -401,7 +402,7 @@ where
     fn start_process_thread(
         &self,
         executable_data: &ExecutableData,
-        health_handler: Option<HealthHandler>,
+        health_publisher: Option<EventPublisher<(String, HealthWithStartTime)>>,
     ) -> StartedThreadContext {
         let mut restart_policy = executable_data.restart_policy.clone();
         let exec_data = executable_data.clone();
@@ -428,9 +429,9 @@ where
 
                 // It's important to create a new health handler for each process instance
                 // Otherwise, the published time won't be updated.
-                let health_handler = health_handler
-                    .as_ref()
-                    .map(|h| HealthHandler::new(exec_id.clone(), h.health_publisher.clone()));
+                let health_handler = health_publisher
+                    .clone()
+                    .map(|hp| HealthHandler::new(exec_id.clone(), hp));
 
                 info!(%agent_id, %exec_id, "Starting executable");
                 let command =
@@ -1257,10 +1258,9 @@ declared-dir:
 
         let executables_clone = agent.executables.clone();
 
-        let executable_thread_contexts = executables_clone.iter().map(|e| {
-            let health_handler = HealthHandler::new(e.id.clone(), health_publisher.clone());
-            agent.start_process_thread(e, Some(health_handler))
-        });
+        let executable_thread_contexts = executables_clone
+            .iter()
+            .map(|e| agent.start_process_thread(e, Some(health_publisher.clone())));
 
         for thread_context in executable_thread_contexts {
             while !thread_context.is_thread_finished() {
@@ -1353,10 +1353,9 @@ declared-dir:
 
         let executables_clone = agent.executables.clone();
 
-        let executable_thread_contexts = executables_clone.iter().map(|e| {
-            let health_handler = HealthHandler::new(e.id.clone(), health_publisher.clone());
-            agent.start_process_thread(e, Some(health_handler))
-        });
+        let executable_thread_contexts = executables_clone
+            .iter()
+            .map(|e| agent.start_process_thread(e, Some(health_publisher.clone())));
 
         for thread_context in executable_thread_contexts {
             while !thread_context.is_thread_finished() {
