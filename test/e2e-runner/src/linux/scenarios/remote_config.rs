@@ -10,8 +10,12 @@ use crate::{
 use std::time::Duration;
 use tracing::info;
 
-/// ac-e2e-onhost-2-9-9 fleet on prod canaries account
-const FLEET_ID: &str = "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTkyOGQyLTg3OTAtNzJlNC05ODgwLTJhYzE0NTRlZDUyZg";
+/// ac-e2e-onhost-2-9-9 fleet on prod canaries account (US)
+const FLEET_ID_US: &str =
+    "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTkyOGQyLTg3OTAtNzJlNC05ODgwLTJhYzE0NTRlZDUyZg";
+/// ac-e2e-onhost-2-9-9 fleet on prod canaries account (EU)
+const FLEET_ID_EU: &str =
+    "NjU1Njk2NnxOR0VQfEZMRUVUfDAxYTEzOTRkLWI1NTYtN2ExZS04NTI2LTg5MDUxMDFlNmMzYQ";
 /// ac-e2e-onhost-2-9-9 fleet on staging canaries account
 const FLEET_ID_STAGING: &str =
     "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTlkMDY2Yy02YzRmLTdkOTgtYWNlMC1hNDZmY2NjNGU3ODM";
@@ -21,7 +25,8 @@ const ENV_VARS_FILE: &str = "/etc/newrelic-agent-control/environment_variables.y
 pub fn test_remote_config_is_applied(args: InstallationArgs) {
     let fleet_id = match args.nr_region {
         Region::Staging => FLEET_ID_STAGING.to_string(),
-        _ => FLEET_ID.to_string(),
+        Region::EU => FLEET_ID_EU.to_string(),
+        _ => FLEET_ID_US.to_string(),
     };
 
     let recipe_data = RecipeData {
