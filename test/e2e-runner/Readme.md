@@ -1,53 +1,39 @@
 # Local e2e execution
 
-## Windows
+The `e2e-runner` executes the on-host end-to-end scenarios that CI runs in
+[`component_onhost_e2e.yml`](../../.github/workflows/component_onhost_e2e.yml). The runner must run on the
+machine under test (it installs, starts and uninstalls Agent Control there).
 
-Requirements:
+Scenarios and their arguments are self-documented:
 
-- Windows Virtual Machine with rust installed
-- Administrator privileges
+```console
+e2e-runner --help                  # available scenarios
+e2e-runner <scenario> --help       # arguments of a scenario
+```
 
-1. Run a PowerShell **Administrator** console
-2. Execute the e2e-runner (scenarios and required arguments are self-documented):
+The scenarios run in CI are the `matrix.group` entries of the workflow for each platform.
 
-  ```console
-  PS> cargo run -p e2e-runner -- --help
-  This tool runs end-to-end tests for newrelic-agent-control on Windows.
+## Common inputs
 
-    PREREQUISITES:
-    - Must be run as Administrator on Windows
+Every scenario that installs Agent Control needs:
 
-    Usage: e2e-runner.exe [OPTIONS] <COMMAND>
-
-    Commands:
-      install Simple installation of Agent Control on Windows
-      help     Print this message or the help of the given subcommand(s)
-
-    Options:
-      -l, --log-level <LOG_LEVEL>
-              Log level (trace, debug, info, warn, error)
-
-              [default: info]
-
-      -h, --help
-              Print help (see a summary with '-h')
-
-    PS> cargo run -p e2e-runner -- install --help
-    Simple installation of Agent Control on Windows
-
-    Usage: e2e-runner.exe install --zip-package <ZIP_PACKAGE>
-
-    Options:
-      -z, --zip-package <ZIP_PACKAGE>  Path to the Windows zip package file
-      -h, --help                       Print help
-  ```
+- **Agent Control package**: `--artifacts-package-dir` points to a folder with the package built from your changes
+  (`.deb` on Linux, `.zip` on Windows). Use a `--agent-control-version` that differs from any released version so the
+  local package is the one installed. Packages are built with goreleaser, see [`.goreleaser.yml`](../../.goreleaser.yml)
+  and the build-related sections of [`docs/DEVELOPMENT.md`](../../docs/DEVELOPMENT.md).
+- **New Relic credentials**: account id, region, API key, license key, and a System Identity (client id and private key
+  file). These are the same values CI reads from the repository secrets.
+- **`--agent-metadata`**: the versions of the agents under test, as a JSON array. CI generates it with the
+  [`agent-versions`](../../.github/actions/agent-versions) action; the exact value used can be seen in the logs of any CI
+  run. It can also be provided through the `AGENT_METADATA` environment variable.
 
 ## Linux
 
 Requirements:
 
-- Ubuntu Linux Virtual Machine (Eg: vagrant + parallels)
+- Ubuntu Linux Virtual Machine
 - The Virtual Machine needs rust and docker
+- Run the runner as root
 
 Vagrantfile example:
 
@@ -71,66 +57,40 @@ Vagrant.configure("2") do |config|
 end
 ```
 
-1. Compile the e2e-runner
+1. Build the `.deb` with your changes and place it in a folder to use as `--artifacts-package-dir`. Build natively
+   inside the VM: cross-compiling from another architecture may not work.
+2. Compile the e2e-runner
 
     ```console
     cd /newrelic-agent-control
     cargo build -p e2e-runner
     ```
 
-2. Execute the e2e-runner (scenarios and arguments are self-documented)
+3. Execute a scenario as root, providing the [common inputs](#common-inputs)
 
     ```console
-    $ sudo -i
-    # /newrelic-agent-control/target/debug/e2e-runner --help
-    This tool runs end-to-end tests for newrelic-agent-control on Linux.
-
-    PREREQUISITES:
-    - Debian package manager
-    - Systemctl
-    - Run as root
-
-    Usage: e2e-runner [OPTIONS] <COMMAND>
-
-    Commands:
-      infra-agent  Arguments to be set for every test that needs Agent Control installation
-      help         Print this message or the help of the given subcommand(s)
-
-    Options:
-      -l, --log-level <LOG_LEVEL>
-              Log level (trace, debug, info, warn, error)
-
-              [default: info]
-
-      -h, --help
-              Print help (see a summary with '-h')
-
-    # /newrelic-agent-control/target/debug/e2e-runner infra-agent --help
-    Arguments to be set for every test that needs Agent Control installation
-
-    Usage: e2e-runner infra-agent [OPTIONS] --artifacts-package-dir <DEB_PACKAGE_DIR> --nr-api-key <NR_API_KEY> --nr-license-key <NR_LICENSE_KEY> --nr-account-id <NR_ACCOUNT_ID> --system-identity-client-id <SYSTEM_IDENTITY_CLIENT_ID> --agent-control-private-key <AGENT_CONTROL_PRIVATE_KEY> --agent-control-version <AGENT_CONTROL_VERSION>
-
-    Options:
-          --artifacts-package-dir <DEB_PACKAGE_DIR>
-              Folder where '.deb' packages are stored
-          --recipes-repo <RECIPES_REPO>
-              Recipes repository [default: https://github.com/newrelic/open-install-library.git]
-          --recipes-repo-branch <RECIPES_REPO_BRANCH>
-              Recipes repository branch [default: main]
-          --nr-api-key <NR_API_KEY>
-              New Relic API key for programmatic access to New Relic services
-          --nr-license-key <NR_LICENSE_KEY>
-              New Relic license key for agent authentication
-          --nr-account-id <NR_ACCOUNT_ID>
-              New Relic account identifier for associating the agent
-          --system-identity-client-id <SYSTEM_IDENTITY_CLIENT_ID>
-              System Identity client id
-          --agent-control-private-key <AGENT_CONTROL_PRIVATE_KEY>
-              System Identity private key
-          --agent-control-version <AGENT_CONTROL_VERSION>
-              Specific version of agent control to install
-          --nr-region <NR_REGION>
-              New Relic region [default: US]
-      -h, --help
-              Print help
+    sudo /newrelic-agent-control/target/debug/e2e-runner <scenario> [OPTIONS]
     ```
+
+Long scenarios block the terminal: run them detached (`nohup`) and follow their output in a file.
+
+## Windows
+
+Requirements:
+
+- Windows Virtual Machine with rust installed
+- Administrator privileges
+
+On an ARM64 VM, build both the e2e-runner and the Agent Control package for `x86_64-pc-windows-msvc`; Windows runs
+them under emulation, and the package naming expects `amd64`.
+
+1. Build the Agent Control `.zip` and place it in a folder to use as `--artifacts-package-dir`.
+2. Run a PowerShell **Administrator** console
+3. Execute a scenario, providing the [common inputs](#common-inputs)
+
+    ```console
+    PS> cargo run -p e2e-runner -- <scenario> [OPTIONS]
+    ```
+
+The scenario teardown runs the shipped `uninstall.ps1`, so Agent Control ends up fully uninstalled from the VM even when
+the scenario succeeds.

@@ -1,3 +1,4 @@
+use crate::common::agent_metadata::AgentKind;
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
 use crate::common::health::check_health;
 use crate::common::ohi::{
@@ -16,10 +17,12 @@ use tracing::info;
 
 /// Runs a complete Windows E2E installation test.
 pub fn test_infra_agent(args: InstallationArgs) {
+    let infra_sub_agent_id = AgentKind::InfraAgent.sub_agent_id();
+    let infra_agent_type = args.agent_metadata(AgentKind::InfraAgent).agent_type_id();
     let infra_agent_version = args
-        .infra_agent_version
-        .clone()
-        .expect("--infra-agent-version is required for this scenario");
+        .agent_metadata(AgentKind::InfraAgent)
+        .package_version()
+        .to_string();
 
     let recipe_data = RecipeData {
         args,
@@ -41,15 +44,15 @@ pub fn test_infra_agent(args: InstallationArgs) {
             r#"
 host_id: {test_id}
 agents:
-  nr-infra:
-    agent_type: newrelic/com.newrelic.infrastructure:0.1.0
+  {infra_sub_agent_id}:
+    agent_type: {infra_agent_type}
 {DEBUG_LOGGING_CONFIG}
 "#
         ),
     );
 
     write_agent_local_config(
-        &windows::local_config_path("nr-infra"),
+        &windows::local_config_path(infra_sub_agent_id),
         format!(
             r#"
 config_agent:

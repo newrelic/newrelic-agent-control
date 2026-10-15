@@ -1,3 +1,4 @@
+use crate::common::agent_metadata::AgentKind;
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
 use crate::common::nrql::{self, Region};
 use crate::common::ohi::{
@@ -14,17 +15,21 @@ use std::time::Duration;
 use tracing::info;
 
 pub fn test_nri_redis(args: InstallationArgs) {
+    let infra_sub_agent_id = AgentKind::InfraAgent.sub_agent_id();
+    let redis_sub_agent_id = AgentKind::Redis.sub_agent_id();
     let staging = args.nr_region == Region::Staging;
 
+    let redis_agent_type = args.agent_metadata(AgentKind::Redis).agent_type_id();
+    let infra_agent_type = args.agent_metadata(AgentKind::InfraAgent).agent_type_id();
     let infra_agent_version = args
-        .infra_agent_version
-        .clone()
-        .expect("--infra-agent-version is required for this scenario");
+        .agent_metadata(AgentKind::InfraAgent)
+        .package_version()
+        .to_string();
 
     let redis_version = args
-        .redis_version
-        .clone()
-        .expect("--redis-version is required for this scenario");
+        .agent_metadata(AgentKind::Redis)
+        .package_version()
+        .to_string();
 
     let test_id = format!(
         "onhost-e2e-nri-redis_{}",
@@ -46,17 +51,17 @@ pub fn test_nri_redis(args: InstallationArgs) {
             r#"
 host_id: {test_id}
 agents:
-  nr-infra:
-    agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
-  nr-redis:
-    agent_type: "newrelic/com.newrelic.infrastructure.nri_redis:0.1.0"
+  {infra_sub_agent_id}:
+    agent_type: "{infra_agent_type}"
+  {redis_sub_agent_id}:
+    agent_type: "{redis_agent_type}"
 {DEBUG_LOGGING_CONFIG}
 "#
         ),
     );
 
     write_agent_local_config(
-        &linux::local_config_path("nr-infra"),
+        &linux::local_config_path(infra_sub_agent_id),
         format!(
             r#"
 config_agent:
@@ -68,7 +73,7 @@ version: {infra_agent_version}
     );
 
     write_agent_local_config(
-        &linux::local_config_path("nr-redis"),
+        &linux::local_config_path(redis_sub_agent_id),
         format!(
             r#"
 config:

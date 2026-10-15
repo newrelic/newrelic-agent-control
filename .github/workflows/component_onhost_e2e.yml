@@ -25,6 +25,11 @@ permissions:
   contents: read
   actions: read
 
+env:
+  # Instrumentation Metadata has no eBPF agent yet, so the agent-versions/load action cannot resolve it.
+  # Once it does, the resolved value overrides this one and the entry can be dropped.
+  EBPF_AGENT_VERSION: 1.6.0
+
 jobs:
   build-packages:
     name: Build packages
@@ -68,7 +73,8 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: ./.github/actions/load-latest-agent-versions
+      - uses: ./.github/actions/agent-versions/load
+        id: agent-versions
 
       - uses: ./.github/actions/install-rust-toolchain
       - uses: ./.github/actions/download-artifact-retry
@@ -78,6 +84,8 @@ jobs:
       - name: Build e2e-runner binary
         run: cargo build -p e2e-runner
       - name: "Linux e2e ${{ matrix.group }}"
+        env:
+          AGENT_METADATA: ${{ steps.agent-versions.outputs.json }}
         run: |
           echo "${{ secrets.NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" > /tmp/newrelic-agent-control-priv.key
           sudo ${{ github.workspace }}/target/debug/e2e-runner ${{ matrix.group }} \
@@ -90,16 +98,8 @@ jobs:
             --agent-control-private-key "/tmp/newrelic-agent-control-priv.key" \
             --agent-control-version "0.900.${{ github.run_id }}" \
             --recipes-repo-branch "main" \
-            --infra-agent-version "${{ env.INFRA_AGENT_VERSION }}" \
-            --nrdot-version "${{ env.NRDOT_VERSION }}" \
-            --redis-version "${{ env.REDIS_VERSION }}" \
-            --apache-version "${{ env.APACHE_VERSION }}" \
-            --nginx-version "${{ env.NGINX_VERSION }}" \
-            --memcached-version "${{ env.MEMCACHED_VERSION }}" \
-            --flex-version "${{ env.FLEX_VERSION }}" \
-            --mysql-version "${{ env.MYSQL_VERSION }}" \
-            --postgresql-version "${{ env.POSTGRESQL_VERSION }}" \
-            --ebpf-agent-version "${{ env.EBPF_AGENT_VERSION }}"
+            --ebpf-agent-version "${{ env.EBPF_AGENT_VERSION }}" \
+            --agent-metadata "$AGENT_METADATA"
 
       - name: Report test result to New Relic
         if: always()
@@ -148,7 +148,8 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: ./.github/actions/load-latest-agent-versions
+      - uses: ./.github/actions/agent-versions/load
+        id: agent-versions
 
       - uses: ./.github/actions/install-rust-toolchain
       - uses: ./.github/actions/download-artifact-retry
@@ -159,6 +160,8 @@ jobs:
         run: cargo build -p e2e-runner
       - name: "Windows e2e ${{ matrix.group }}"
         shell: powershell
+        env:
+          AGENT_METADATA: ${{ steps.agent-versions.outputs.json }}
         run: |
           "${{ secrets.NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" | Out-File -Encoding utf8 -FilePath $env:TEMP\newrelic-agent-control-priv.key
           & "${{ github.workspace }}\target\debug\e2e-runner.exe" ${{ matrix.group }} `
@@ -170,16 +173,7 @@ jobs:
             --system-identity-client-id "${{ secrets.NR_SYSTEM_IDENTITY_CLIENT_ID }}" `
             --agent-control-private-key "$env:TEMP\newrelic-agent-control-priv.key" `
             --agent-control-version "0.900.${{ github.run_id }}" `
-            --recipes-repo-branch "main" `
-            --infra-agent-version "${{ env.INFRA_AGENT_VERSION }}" `
-            --nrdot-version "${{ env.NRDOT_VERSION }}" `
-            --apache-version "${{ env.APACHE_VERSION }}" `
-            --nginx-version "${{ env.NGINX_VERSION }}" `
-            --memcached-version "${{ env.MEMCACHED_VERSION }}" `
-            --redis-version "${{ env.REDIS_VERSION }}"  `
-            --flex-version "${{ env.FLEX_VERSION }}" `
-            --mysql-version "${{ env.MYSQL_VERSION }}" `
-            --postgresql-version "${{ env.POSTGRESQL_VERSION }}"
+            --recipes-repo-branch "main"
 
       - name: Report test result to New Relic
         if: always()

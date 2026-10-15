@@ -1,3 +1,4 @@
+use crate::common::agent_metadata::AgentKind;
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
 use crate::common::nrql::Region;
 use crate::common::ohi::{
@@ -19,10 +20,12 @@ use std::time::Duration;
 use tracing::info;
 
 pub fn test_installation_with_infra_agent(args: InstallationArgs) {
+    let infra_sub_agent_id = AgentKind::InfraAgent.sub_agent_id();
+    let infra_agent_type = args.agent_metadata(AgentKind::InfraAgent).agent_type_id();
     let infra_version = args
-        .infra_agent_version
-        .clone()
-        .expect("--infra-agent-version is required for this scenario");
+        .agent_metadata(AgentKind::InfraAgent)
+        .package_version()
+        .to_string();
 
     let staging = args.nr_region == Region::Staging;
 
@@ -43,8 +46,6 @@ pub fn test_installation_with_infra_agent(args: InstallationArgs) {
         chrono::Local::now().format("%Y-%m-%d_%H-%M-%S%.3f")
     );
 
-    let infra_agent_id: &str = "nr-infra";
-
     info!("Setup Agent Control config");
     update_config(
         linux::DEFAULT_AC_CONFIG_PATH,
@@ -52,15 +53,15 @@ pub fn test_installation_with_infra_agent(args: InstallationArgs) {
             r#"
 host_id: {test_id}
 agents:
-  nr-infra:
-    agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
+  {infra_sub_agent_id}:
+    agent_type: "{infra_agent_type}"
 {DEBUG_LOGGING_CONFIG}
 "#
         ),
     );
 
     write_agent_local_config(
-        &linux::local_config_path(infra_agent_id),
+        &linux::local_config_path(infra_sub_agent_id),
         format!(
             r#"
 config_agent:

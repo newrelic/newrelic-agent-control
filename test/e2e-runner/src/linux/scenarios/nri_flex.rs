@@ -1,3 +1,4 @@
+use crate::common::agent_metadata::AgentKind;
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
 use crate::common::nrql::{self, Region};
 use crate::common::ohi::{
@@ -13,15 +14,19 @@ use std::time::Duration;
 use tracing::info;
 
 pub fn test_nri_flex(args: InstallationArgs) {
+    let infra_sub_agent_id = AgentKind::InfraAgent.sub_agent_id();
+    let flex_sub_agent_id = AgentKind::Flex.sub_agent_id();
+    let flex_agent_type = args.agent_metadata(AgentKind::Flex).agent_type_id();
+    let infra_agent_type = args.agent_metadata(AgentKind::InfraAgent).agent_type_id();
     let infra_agent_version = args
-        .infra_agent_version
-        .clone()
-        .expect("--infra-agent-version is required for this scenario");
+        .agent_metadata(AgentKind::InfraAgent)
+        .package_version()
+        .to_string();
 
     let flex_version = args
-        .flex_version
-        .clone()
-        .expect("--flex-version is required for this scenario");
+        .agent_metadata(AgentKind::Flex)
+        .package_version()
+        .to_string();
 
     let test_id = format!(
         "onhost-e2e-nri-flex_{}",
@@ -43,17 +48,17 @@ pub fn test_nri_flex(args: InstallationArgs) {
             r#"
 host_id: {test_id}
 agents:
-  nr-infra:
-    agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
-  nr-flex:
-    agent_type: "newrelic/com.newrelic.infrastructure.nri_flex:0.1.0"
+  {infra_sub_agent_id}:
+    agent_type: "{infra_agent_type}"
+  {flex_sub_agent_id}:
+    agent_type: "{flex_agent_type}"
 {DEBUG_LOGGING_CONFIG}
 "#
         ),
     );
 
     write_agent_local_config(
-        &linux::local_config_path("nr-infra"),
+        &linux::local_config_path(infra_sub_agent_id),
         format!(
             r#"
 config_agent:
@@ -69,7 +74,7 @@ version: {infra_agent_version}
     // proves both that multiple map entries land on disk and that each is independently usable
     // from the integration config.
     write_agent_local_config(
-        &linux::local_config_path("nr-flex"),
+        &linux::local_config_path(flex_sub_agent_id),
         format!(
             r#"
 files:
