@@ -25,7 +25,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 - HTTP clients no longer pick up proxy settings outside the Agent Control proxy configuration and `ignore_system_proxy: true` is fully honored.
 
 ### Enhancement
-- Added AWS Secrets Manager value provider (`nr-awssm`), supporting static credentials and EC2 instance profiles.
+- Added AWS Secrets Manager value provider (`nr-awssm`), supporting access key credentials and EC2 instance profiles.
 
 ## v1.26.0 - 2026-10-09
 

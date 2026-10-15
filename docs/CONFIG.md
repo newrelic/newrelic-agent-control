@@ -260,7 +260,7 @@ value_providers:
         auth:                              # optional (default: instance_profile)
           type: instance_profile
           # or:
-          # type: static
+          # type: access_key
           # access_key_id: <access-key-id>
           # secret_access_key: <secret-access-key>
     client_timeout: <duration>             # optional (default: 30s)
@@ -271,9 +271,9 @@ value_providers:
 | `sources` | Yes | Map of named AWS Secrets Manager sources |
 | `sources.<name>.region` | Yes | AWS region of the secrets (e.g. `us-east-1`) |
 | `sources.<name>.endpoint` | No | Overrides the regional endpoint, e.g. to use a VPC endpoint |
-| `sources.<name>.auth.type` | No | Authentication method: `instance_profile` (default) or `static` |
-| `sources.<name>.auth.access_key_id` | If `static` | AWS access key id |
-| `sources.<name>.auth.secret_access_key` | If `static` | AWS secret access key |
+| `sources.<name>.auth.type` | No | Authentication method: `instance_profile` (default) or `access_key` |
+| `sources.<name>.auth.access_key_id` | If `access_key` | AWS access key id |
+| `sources.<name>.auth.secret_access_key` | If `access_key` | AWS secret access key |
 | `client_timeout` | No | HTTP timeout for all sources (default `30s`) |
 
 ### self_update
