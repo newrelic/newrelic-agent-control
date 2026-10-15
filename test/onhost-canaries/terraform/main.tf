@@ -242,7 +242,7 @@ locals {
       name               = "UnHealthy agents"
       threshold          = 0
       duration           = 300
-      aggregation_window = 300
+      aggregation_window = 60
       operator           = "above"
       data_account_id    = var.data_account_id
       template_name      = "./alert_nrql_templates/agent_heartbeat_unhealthy.tftpl"

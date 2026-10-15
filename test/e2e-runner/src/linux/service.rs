@@ -14,6 +14,14 @@ pub fn restart_service(service_name: &str) {
         .unwrap_or_else(|err| panic!("could not restart the '{service_name}' service: {err}"));
 }
 
+/// Stops a service using systemctl, which blocks until the unit has stopped.
+pub fn stop_service(service_name: &str) {
+    info!(service = service_name, "Stopping service");
+    let cmd = format!("systemctl stop {service_name}");
+    let _ = exec_bash_command(&cmd)
+        .unwrap_or_else(|err| panic!("could not stop the '{service_name}' service: {err}"));
+}
+
 /// Restarts a service using systemctl and waits for it to reach the expected status
 pub fn restart_service_and_wait(service_name: &str, expected_status: &str) {
     info!(service = service_name, "Restarting service");
@@ -106,4 +114,23 @@ pub fn is_start_limit_hit(service_name: &str) -> bool {
 /// Gets whether a service is enabled to start on boot (`systemctl show --property=UnitFileState`).
 pub fn get_unit_file_state(service_name: &str) -> String {
     get_systemctl_property(service_name, "UnitFileState").unwrap_or_default()
+}
+
+/// Returns the systemd-reported result of the unit's last run (`systemctl show --property=Result`):
+/// `"success"` for a clean exit, or `"exit-code"`/`"signal"`/`"timeout"`/`"watchdog"`/`"core-dump"`
+/// when the unit was killed or failed to stop within `TimeoutStopSec`.
+pub fn get_service_result(service_name: &str) -> String {
+    get_systemctl_property(service_name, "Result").unwrap_or_default()
+}
+
+/// Sends SIGKILL to the unit's main process
+pub fn kill_main_process(service_name: &str) {
+    let pid: u32 = get_systemctl_property(service_name, "MainPID")
+        .and_then(|s| s.parse().ok())
+        .expect("could not read MainPID from systemctl output");
+    // systemd reports 0 when the unit has no active process (stopped, failed or between automatic
+    // restarts), and `kill -9 0` would signal the whole process group, including the test runner.
+    assert_ne!(pid, 0, "service {service_name} has no main process to kill");
+    exec_bash_command(&format!("kill -9 {pid}"))
+        .unwrap_or_else(|err| panic!("could not kill process {pid}: {err}"));
 }

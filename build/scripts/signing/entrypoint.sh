@@ -40,14 +40,16 @@ fi
 prepare() {
     # prepare RPM's
     echo "===> Create .rpmmacros to sign rpm's from Goreleaser"
-    echo "%_gpg_name ${GPG_MAIL}" >> ~/.rpmmacros
-    echo "%_signature gpg" >> ~/.rpmmacros
-    echo "%_gpg_path /root/.gnupg" >> ~/.rpmmacros
-    echo "%_gpgbin /usr/bin/gpg" >> ~/.rpmmacros
-    echo "%__gpg_sign_cmd   %{__gpg} gpg --no-verbose --no-armor --batch --pinentry-mode loopback --passphrase ${GPG_PASSPHRASE} --no-secmem-warning --digest-algo sha256 -u "%{_gpg_name}" -sbo %{__signature_filename} %{__plaintext_filename}" >> ~/.rpmmacros
+    {
+        echo "%_gpg_name ${GPG_MAIL}"
+        echo "%_signature gpg"
+        echo "%_gpg_path /root/.gnupg"
+        echo "%_gpgbin /usr/bin/gpg"
+        echo "%__gpg_sign_cmd   %{__gpg} gpg --no-verbose --no-armor --batch --pinentry-mode loopback --passphrase ${GPG_PASSPHRASE} --no-secmem-warning --digest-algo sha256 -u %{_gpg_name} -sbo %{__signature_filename} %{__plaintext_filename}"
+    } >> ~/.rpmmacros
 
     echo "===> Importing GPG private key from GHA secrets..."
-    printf %s ${GPG_PRIVATE_KEY_BASE64} | base64 -d | gpg --batch --import -
+    printf %s "${GPG_PRIVATE_KEY_BASE64}" | base64 -d | gpg --batch --import -
 
     echo "===> Refreshing the signing key's self-signature with SHA-256"
     # rpm on trixie verifies certificates via librpm-sequoia, which rejects our key's only
@@ -59,8 +61,8 @@ prepare() {
     gpg --batch --pinentry-mode loopback --passphrase "${GPG_PASSPHRASE}" --cert-digest-algo SHA256 --quick-set-expire "${key_fingerprint}" 0
 
     echo "===> Importing GPG signature, needed from Goreleaser to verify signature"
-    gpg --export -a ${GPG_MAIL} > /tmp/RPM-GPG-KEY-${GPG_MAIL}
-    rpm --import /tmp/RPM-GPG-KEY-${GPG_MAIL}
+    gpg --export -a "${GPG_MAIL}" > "/tmp/RPM-GPG-KEY-${GPG_MAIL}"
+    rpm --import "/tmp/RPM-GPG-KEY-${GPG_MAIL}"
 
     # prepare DEB's
     GNUPGHOME="/root/.gnupg"
@@ -91,7 +93,7 @@ sign_file() {
     echo "===> Signing ${targz_file}"
     gpg --sign --armor --detach-sig "${targz_file}"
     echo "===> Sign verification ${targz_file}"
-    gpg --verify ${targz_file}.asc "${targz_file}"
+    gpg --verify "${targz_file}.asc" "${targz_file}"
 }
 
 prepare

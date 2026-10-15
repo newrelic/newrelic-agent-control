@@ -266,8 +266,16 @@ impl Command {
             .transpose()
             .map_err(|e| format!("Failed to setup Windows service: {e}"))?;
 
-        create_shutdown_signal_handler(application_event_publisher)
-            .map_err(|e| format!("Failed to create shutdown signal handler: {e}"))?;
+        // Running as a Windows Service hands shutdown off to the SCM instead.
+        #[cfg(target_family = "windows")]
+        let needs_ctrlc_handler = stop_handler.is_none();
+        #[cfg(not(target_family = "windows"))]
+        let needs_ctrlc_handler = true;
+
+        if needs_ctrlc_handler {
+            create_shutdown_signal_handler(application_event_publisher)
+                .map_err(|e| format!("Failed to create shutdown signal handler: {e}"))?;
+        }
 
         let BootstrapContext {
             base_paths,

@@ -206,7 +206,7 @@ pub struct VaultConfig {
     #[serde(default)]
     pub(crate) client_timeout: ClientTimeout,
 
-    /// Proxy configuration used by the Vault HTTP client.
+    /// Injected at runtime by the caller; not read from config.
     #[serde(skip)]
     pub proxy_config: ProxyConfig,
 }

@@ -1,0 +1,52 @@
+name: Resolve agent versions
+description: >
+  Queries Instrumentation Metadata (IM) and uploads the raw data as the `agent-versions` artifact,
+  which the `agent-versions/load` action consumes.
+inputs:
+  client-id:
+    description: System identity client id
+    required: true
+  private-key:
+    description: System identity private key (PEM contents)
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Resolve agent versions
+      shell: bash
+      env:
+        CLIENT_ID: ${{ inputs.client-id }}
+        PRIVATE_KEY: ${{ inputs.private-key }}
+        IM_URL: https://instrumentation-metadata.service.newrelic.com/graphql
+        OUTPUT_FILE: ${{ runner.temp }}/agent-versions/agent-versions.json
+      run: |
+        # stderr is discarded so the CLI can never echo key material into the log
+        IM_TOKEN=$(printf '%s\n' "$PRIVATE_KEY" | docker run --rm -i \
+          newrelic/agent-control-system-identity-registration:0.6.1@sha256:5c2122a8fd921bb743205c268c779e49ba48100168b8aad984eb0d1acf8af800 authenticate \
+          --client-id "$CLIENT_ID" --private-key-path /dev/stdin \
+          --environment US --output-token-format PLAIN 2>/dev/null) || {
+          echo "::error::Authentication against New Relic failed"
+          exit 1
+        }
+        if [ -z "$IM_TOKEN" ]; then
+          echo "::error::Authentication against New Relic returned an empty token"
+          exit 1
+        fi
+        echo "::add-mask::$IM_TOKEN"
+        # the runner masks exact matches only, so mask each JWT segment too
+        IFS=. read -ra token_segments <<<"$IM_TOKEN"
+        for token_segment in "${token_segments[@]}"; do
+          echo "::add-mask::$token_segment"
+        done
+        export IM_TOKEN
+        mkdir -p "$(dirname "$OUTPUT_FILE")"
+        "${{ github.action_path }}/resolve.sh"
+
+    # The artifact name and file path are shared with agent-versions/load
+    - name: Upload artifact
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      with:
+        name: agent-versions
+        path: ${{ runner.temp }}/agent-versions/agent-versions.json
+        retention-days: 3
+        if-no-files-found: error

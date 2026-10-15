@@ -80,6 +80,8 @@ fn _main(context: Context) -> Result<(), Box<dyn Error>> {
         // Teardown notifies Windows that we're stopping intentionally, avoiding a 1061 state.
         // 1061 occurs in Windows when a service is busy, unresponsive, or experiencing a conflict,
         // preventing it from starting, stopping, or restarting.
+        // Once Windows receives the stopped status, the SCM may terminate the process at any moment,
+        // so anything logged after this point (e.g. the terminal log in `Command::run_main`) can be lost.
         if let Err(e) = handler.teardown(&run_result) {
             tracing::error!("Failed to report service stop to Windows: {e}");
         }

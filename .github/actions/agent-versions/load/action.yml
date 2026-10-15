@@ -1,0 +1,29 @@
+name: Load agent versions
+description: >
+  Downloads the latest `agent-versions` artifact produced by `agent-versions/resolve`, selects the latest
+  agent and agent-type versions for one platform, and exports them as env vars for every agent type in IM,
+  named after the uppercased IM agent type (`NRINFRA_VERSION` for the package, `NRINFRA_AGENT_TYPE_VERSION` for the
+  agent type, ...). Agents with no enabled version or agent-type configuration on the platform are not exported.
+  Needs `actions: read` if the calling job sets explicit permissions.
+inputs:
+  platform:
+    description: "`linux`, `windows` or `kubernetes`. Defaults to the runner OS (`linux` or `windows`)."
+    required: false
+    default: ""
+outputs:
+  json:
+    description: Resolved versions as a JSON array
+    value: ${{ steps.load.outputs.json }}
+runs:
+  using: composite
+  steps:
+    # The artifact name and file path are shared with agent-versions/resolve
+    - name: Load versions
+      id: load
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        ARTIFACT_NAME: agent-versions
+        PLATFORM: ${{ inputs.platform }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: bash "$ACTION_PATH/load.sh"

@@ -21,13 +21,41 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 ## Unreleased
 
 ### bugfix
-- On-host: fixed integration restarts caused by redundant filesystem sync and full directory recreation when writing OHI config files to the shared filesystem.
+- On-host: sub-agents without a health check defined no longer log errors from executables publishing health into a closed channel.
 
 ### enhancement
 - Linux and Windows: Agent Control and its sub-agents now report `os.version` as an OpAMP attribute. Linux also reports `os.name` (the distro id, e.g. "debian").
+
+## v1.26.0 - 2026-10-09
+
+### 🚀 Enhancements
+- Added Azure Key Vault value provider, supporting both Managed Identity and Service Principal authentication.
 - Self instrumentation now gets the injected license key as header if none is set in all systems.
 
+### 🐞 Bug fixes
+- Windows: `install.ps1` now detects and removes a standalone New Relic Infrastructure Agent installation to avoid duplicate host reporting; it must be reconfigured as an Agent Control managed sub-agent afterwards if still needed.
+- On-host: fixed integration restarts caused by redundant filesystem sync and full directory recreation when writing OHI config files to the shared filesystem.
+- Make health-check threads initial delay cancellable, to reduce graceful shutdown idle waiting periods.
+- Fixed minor logging issues: a redundant field, a duplicated log, wrong log levels, and inconsistent message casing.
+- Agent Control now always re-reports its remote config status on startup, fixing a missed resend after restart when the server requests a full-state sync.
+- Windows: system shutdown/reboot goes through the same service graceful stop path as a manual service stop instead of ctrl signal handling.
+
+### ⛓️ Dependencies
+- Updated rust crate encoding_rs to 0.8.42
+- Updated alpine/kubectl to v1.37.1
+- Updated rust crate oci-client to 0.18.0
+- Updated opentelemetry-rust monorepo to 0.33.0
+- Updated rust crate config to 0.15.27
+- Updated rust to v1.99.0
+- Updated rust crate tokio to 1.53.2
+- Updated amazon-eks to v1.37
+- Updated rust crate either to 1.19.0
+- Updated rust crate toml to 1.1.7
+
 ## v1.25.1 - 2026-09-25
+
+### 🐞 Bug fixes
+- On-host: the OpAMP compression for the verify client is disabled so that the server can read the `execution.mode` attribute
 
 ### ⛓️ Dependencies
 - Updated rust crate nr-auth to v0.6.0
@@ -35,10 +63,6 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 - Updated rust crate thiserror to 2.0.21
 
 ## v1.25.0 - 2026-09-18
-
-### bugfix
-- On-host: the OpAMP compression for the verify client is disabled so that the server can read the `execution.mode` attribute
-- Windows: `install.ps1` now detects and removes a standalone New Relic Infrastructure Agent installation to avoid duplicate host reporting; it must be reconfigured as an Agent Control managed sub-agent afterwards if still needed.
 
 ### 🛡️ Security notices
 - Update rustls
@@ -54,6 +78,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 - Linux: `uninstall.sh` now uses `apt-get purge` instead of `apt-get remove`, preventing a dpkg state inconsistency that caused reinstallation to fail, the service could not start because the `systemd-env.conf` conffile was not recreated by the package manager.
 - Windows: the uninstall script now warns instead of silently succeeding when the install or runtime-data directory cannot be removed (e.g. Windows Explorer has it open), and preserves the script itself so it can be re-run once the lock is released.
 - On-host: filesystem entries under `filesystem:`/`shared_filesystem:` are now written to disk in alphabetical order and fsynced after each write, making the write order deterministic.
+- On-host: self-update no longer deletes the downloaded package's binary when replacing the running binary, fixing rollback and same-version reinstall after a self-update.
 - On-host: fixed a spurious `Error reading the log directory/files: No such file or directory` message printed to stderr the first time Agent Control's or a sub-agent's log directory is created.
 - On-host: executable output and lifecycle logs are no longer misleadingly tagged with the `start_agent` span for the entire lifetime of agent processes and supervisors, they carry the explicit fields instead.
 - On exit, the process-terminated log line (success or error) is no longer dropped from the log file: it used to be emitted after the file logger had already shut down, so it only ever reached `journalctl`/stderr.
@@ -112,9 +137,11 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 - Add support for variables override through `variable.agentConfig` syntax in Remote Configuration keys.
 - Add support for a single entry of a `string_map` variable override through `variable.agentConfig.<variable>:<map-key>` syntax in Remote Configuration keys.
 - On-host infrastructure agent type (linux): expose the `nri-docker` integration configuration through a new `config_docker` variable.
+- Agent type: enforce variable name format to `[A-Za-z0-9_-]` starting with a letter and maximum length of 64 characters.
+- On-Host: enable self-update capability by default. Self updates are only executed when commanded by Fleet Control.
 
 ### 🐞 Bug fixes
-- K8s supervisor: force a Flux reconciliation on stalled HelmReleases (e.g. after exhausting install/upgrade retries) when a new remote config
+- K8s supervisor: force a Flux reconciliation on stalled HelmReleases (e.g. after exhausting install/upgrade retries) when a new remote config arrives and restarts the sub-agent supervisor.
 - On-host: report the actual last failure (launch error or non-zero exit) in the `lastErrorMessage` of the unhealthy status once the restart policy is exceeded, instead of the generic "Restart policy exceeded" message.
 - On-host: persist fluent-bit's home directory (`fb.db`) across infra-agent package updates instead of storing it in the replaced package directory
 
@@ -129,8 +156,6 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ### 🚀 Enhancements
 - On-host: enforce a 2400 MiB hard memory limit on the Agent Control process tree (AC + all child agents) via systemd `MemoryMax` on Linux.
-- Agent type: enforce variable name format to `[A-Za-z0-9_-]` starting with a letter and maximum length of 64 characters.
-- On-Host: enable self-update capability by default. Self updates are only executed when commanded by Fleet Control. 
 
 ### 🐞 Bug fixes
 - Linux: prevent systemd service disable after RPM package update
@@ -145,6 +170,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 ### 🚀 Enhancements
 - Windows filesystem: Removed unused code and use higher-level APIs for Windows interaction.
 - Reports the `com.newrelic.remoteAgentTypeRepoReachable` OpAMP custom capability when the configured Agent Type OCI repository is reachable at startup.
+- On-host: added nri-flex agentType.
 
 ### 🐞 Bug fixes
 - Windows: fixed files under Agent Control's managed directories being left with permissions it could not use. Managed directories now use an inheritable Administrators ACE, and Agent Control tries to repair ACEs on startup.
@@ -168,7 +194,6 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 - On-host: added nri-postgresql agentType.
 - On-host: added nri-mysql agentType.
 - On-host: added nri-memcached Agent Type.
-- On-host: added nri-flex agentType.
 - Log files rotated have now 30 days of retention.
 - Added `agent-type validate --file <path>` subcommand to `newrelic-agent-control-cli` and `newrelic-agent-control-k8s-cli` for schema-level validation of agent type definition files.
 - Extended `agent-type validate` with semantic validation: every `${nr-var:X}` reference in `deployment` must have a matching `variables` declaration.

@@ -15,19 +15,33 @@ struct TagEntry {
 }
 
 pub fn latest_published_ac_tag() -> TestResult<String> {
-    latest_semver_tag("newrelic/agent-control-artifacts")
+    Ok(published_ac_tags(1)?.remove(0))
 }
 
-/// Fetches the highest semver tag published for the latest 100 tags in a Docker Hub repository.
-fn latest_semver_tag(repository: &str) -> TestResult<String> {
+/// Top `count` published AC semver tags, descending (index 0 = latest).
+pub fn published_ac_tags(count: usize) -> TestResult<Vec<String>> {
+    highest_semver_tags("newrelic/agent-control-artifacts", count)
+}
+
+/// Top `count` semver tags among the latest 100 tags in a Docker Hub repository, descending.
+fn highest_semver_tags(repository: &str, count: usize) -> TestResult<Vec<String>> {
     let url = format!("{DOCKER_HUB_API}/{repository}/tags/?page_size=100");
     let response: TagsResponse = reqwest::blocking::get(&url)?.error_for_status()?.json()?;
 
-    response
+    let mut versions: Vec<Version> = response
         .results
         .into_iter()
         .filter_map(|entry| Version::parse(&entry.name).ok())
-        .max()
-        .map(|version| version.to_string())
-        .ok_or_else(|| format!("no semver tag found in {repository}").into())
+        .collect();
+    versions.sort_unstable_by(|a, b| b.cmp(a));
+    versions.truncate(count);
+
+    if versions.len() < count {
+        return Err(format!(
+            "only found {} semver tag(s) in {repository}, need {count}",
+            versions.len()
+        )
+        .into());
+    }
+    Ok(versions.into_iter().map(|v| v.to_string()).collect())
 }

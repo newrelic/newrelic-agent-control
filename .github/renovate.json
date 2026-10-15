@@ -73,6 +73,15 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
+        "/^\\.github/workflows/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n\\s*runner: [a-z]+-(?<currentValue>\\S+)"
+      ]
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
         "**/eks_cluster/variables.tf"
       ],
       "matchStrings": [

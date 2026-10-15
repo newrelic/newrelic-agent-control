@@ -35,6 +35,8 @@ builds:
       post:
         # Patch the windows metadata (injecting the current year)
         - cmd: ./build/scripts/patch_windows_metadata.sh ./build/package/windows/metadata/winres-agent.json {{ .Version }} {{ .Path }}
+          env:
+            - SKIP_WINDOWS_METADATA={{ if index .Env "SKIP_WINDOWS_METADATA"}}{{ .Env.SKIP_WINDOWS_METADATA }}{{ else }}{{ end }}
         - cmd: ./build/scripts/windows-exec-sign/sign.sh
           env:
             - SKIP_WINDOWS_SIGN={{ if index .Env "SKIP_WINDOWS_SIGN"}}{{ .Env.SKIP_WINDOWS_SIGN }}{{ else }}{{ end }}
@@ -75,6 +77,8 @@ builds:
       post:
         # Patch the CLI windows metadata (injecting the current year)
         - cmd: ./build/scripts/patch_windows_metadata.sh ./build/package/windows/metadata/winres-cli.json {{ .Version }} {{ .Path }}
+          env:
+            - SKIP_WINDOWS_METADATA={{ if index .Env "SKIP_WINDOWS_METADATA"}}{{ .Env.SKIP_WINDOWS_METADATA }}{{ else }}{{ end }}
         # This step cannot be done inside the 'signs' section because that happens after packaging.
         - cmd: ./build/scripts/windows-exec-sign/sign.sh
           env:

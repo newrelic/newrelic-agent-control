@@ -6,10 +6,10 @@ param(
 )
 
 # Windows-only simple sub-process that sleeps
-$proc = Start-Process -FilePath 'powershell.exe' -ArgumentList @(
+Start-Process -FilePath 'powershell.exe' -ArgumentList @(
   '-NoProfile'
   '-NonInteractive'
   '-Command'
   "# test-id: $Id
    Start-Sleep -Seconds 30"
-) -PassThru -WindowStyle Hidden
+) -WindowStyle Hidden

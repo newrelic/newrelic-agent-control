@@ -6,7 +6,6 @@ pub mod install;
 pub mod redis;
 pub mod scenarios;
 
-mod health;
 mod powershell;
 mod service;
 mod utils;
@@ -53,13 +52,8 @@ pub fn run_windows_e2e() {
         WindowsScenarios::SelfUpdateLatestToCurrent(args) => {
             scenarios::self_update::test_self_update_from_latest_to_current(args);
         }
-        WindowsScenarios::SelfUpdateCurrentToLatest(args) => {
-            scenarios::self_update::test_self_update_from_current_to_latest(args);
-        }
-        WindowsScenarios::WrongConfig(args) => {
-            scenarios::service_wrong_config::test_service_restart_depending_on_config_correctness(
-                args,
-            );
+        WindowsScenarios::SelfUpdateRollback(args) => {
+            scenarios::self_update::test_self_update_rollback(args);
         }
         WindowsScenarios::FleetControl(args) => {
             scenarios::fleet_control::test_fleet_control(args);
@@ -82,8 +76,8 @@ pub fn run_windows_e2e() {
         WindowsScenarios::UninstallLockedDirectory(args) => {
             scenarios::uninstall::test_uninstall_locked_directory(args);
         }
-        WindowsScenarios::ServiceRestartPolicy(args) => {
-            scenarios::service_restart_policy::test_service_restarts_indefinitely_on_failure(args);
+        WindowsScenarios::ServiceLifecycle(args) => {
+            scenarios::service_lifecycle::test_service_lifecycle(args);
         }
     }
 }

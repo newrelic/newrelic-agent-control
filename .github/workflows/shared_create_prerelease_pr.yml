@@ -59,7 +59,7 @@ jobs:
         env:
           # Limits the calculated version from dependencies to be a patch bump (by default it propagates the bump type from the dependency).
           DEPENDENCY_CAP: patch
-        uses: newrelic/release-toolkit/contrib/ohi-release-notes@e28834c3115d501cd42e8458f058591d34bf045f # v1
+        uses: newrelic/release-toolkit/contrib/ohi-release-notes@ffb3113737a732a9aa4821f167747566204483bf # v1
         with:
           # overrides the default "v" prefix for the version.
           output-prefix: ""
@@ -152,7 +152,7 @@ jobs:
 
       - name: Generate app token
         id: app-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           app-id: ${{ secrets.app_id }}
           private-key: ${{ secrets.app_private_key }}

@@ -53,8 +53,8 @@ pub fn run_linux_e2e() {
         LinuxScenarios::SelfUpdateLatestToCurrent(args) => {
             scenarios::self_update::test_self_update_from_latest_to_current(args);
         }
-        LinuxScenarios::SelfUpdateCurrentToLatest(args) => {
-            scenarios::self_update::test_self_update_from_current_to_latest(args);
+        LinuxScenarios::SelfUpdateRollback(args) => {
+            scenarios::self_update::test_self_update_rollback(args);
         }
         LinuxScenarios::NriRedis(args) => {
             scenarios::nri_redis::test_nri_redis(args);
@@ -71,8 +71,8 @@ pub fn run_linux_e2e() {
         LinuxScenarios::UninstallAndReinstall(args) => {
             scenarios::uninstall::test_uninstall_and_reinstall(args);
         }
-        LinuxScenarios::ServiceRestartPolicy(args) => {
-            scenarios::service_restart_policy::test_service_restarts_indefinitely_on_failure(args);
+        LinuxScenarios::ServiceLifecycle(args) => {
+            scenarios::service_lifecycle::test_service_lifecycle(args);
         }
     };
 }

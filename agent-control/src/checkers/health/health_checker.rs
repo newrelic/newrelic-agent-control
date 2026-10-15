@@ -326,7 +326,10 @@ where
     let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
         debug!("Starting to check health with the configured checker");
 
-        sleep(initial_delay.into());
+        // Cancellable initial delay
+        if stop_consumer.is_cancelled_with_timeout(initial_delay.into()) {
+            return;
+        }
 
         loop {
             let span = info_span!(
@@ -355,7 +358,7 @@ where
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod tests {
-    use std::time::{Duration, UNIX_EPOCH};
+    use std::time::{Duration, Instant, UNIX_EPOCH};
 
     use crate::event::channel::pub_sub;
 
@@ -740,5 +743,35 @@ pub mod tests {
 
         // Check there are no more events
         assert!(health_consumer.as_ref().recv().is_err());
+    }
+
+    #[test]
+    fn test_stop_is_not_delayed_by_the_initial_delay() {
+        const LONG_INITIAL_DELAY: Duration = Duration::from_secs(60);
+
+        let (health_publisher, _health_consumer) = pub_sub::<HealthWithStartTime>();
+
+        let mut health_checker = MockHealthCheck::new();
+        health_checker.expect_check_health().never();
+
+        let started_thread_context = spawn_health_checker(
+            AgentID::default(),
+            health_checker,
+            health_publisher,
+            Duration::from_secs(60).into(),
+            LONG_INITIAL_DELAY.into(),
+            SystemTime::now(),
+        );
+
+        // Let the health-checker thread enter the initial delay before stopping it.
+        sleep(Duration::from_millis(200));
+
+        let stop_started_at = Instant::now();
+        started_thread_context.stop_blocking().unwrap();
+
+        assert!(
+            stop_started_at.elapsed() < Duration::from_secs(1),
+            "stopping should not wait for the full initial delay to elapse"
+        );
     }
 }

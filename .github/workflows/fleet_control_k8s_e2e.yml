@@ -54,12 +54,11 @@ jobs:
         run: bash .github/workflows/scripts/space_cleanup.sh
 
       - name: Setup Minikube
-        uses: manusa/actions-setup-minikube@b65276017fdec6f1e6498129fb740e34e260dc55 # v2.18.0
+        uses: medyagh/setup-minikube@e9e035a86bbc3caea26a450bd4dbf9d0c453682e # v0.0.21
         with:
-          minikube version: v1.35.0
-          kubernetes version: "v1.30.14"
+          minikube-version: 1.35.0
+          kubernetes-version: "v1.30.14"
           driver: docker
-          github token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Tilt
         run: |
@@ -81,7 +80,7 @@ jobs:
         with:
           version: 0.15.2
 
-      - uses: taiki-e/install-action@94c31af3204a9f15ab40b35ad084410b905bbc73 # v2.87.17
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: cargo-zigbuild@0.23.0
 
@@ -241,7 +240,7 @@ jobs:
 
       - name: Upload e2e result summary
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: e2e-result-k8s-fleet-control-integration
           path: |
@@ -259,7 +258,7 @@ jobs:
           mkdir -p e2e-results
           mv e2e-result-*-k8s-fleet-control-integration.txt e2e-results/ 2>/dev/null || true
           mv fleet-control-test-report.json e2e-results/ 2>/dev/null || true
-          if [ -f e2e-results/e2e-result-*.txt ]; then
+          if compgen -G "e2e-results/e2e-result-*.txt" > /dev/null; then
             bash .github/workflows/scripts/slack_e2e_summary.sh
           else
             echo "No result file found, skipping Slack notification"

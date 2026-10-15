@@ -60,13 +60,30 @@ pub trait NotStartedSubAgent {
     fn run(self) -> Self::StartedSubAgent;
 }
 
-/// The StartedSubAgent trait defines the interface for a supervisor that is already running.
-///
-/// Exposes information about the Sub Agent and a stop method that will stop the
-/// supervised processes' execution and the loop processing the events.
+/// StartedSubAgent exposes a way to stop a started sub agent.
 pub trait StartedSubAgent {
-    /// Stops all internal services owned by the SubAgent
-    fn stop(self) -> Result<(), SubAgentStopError>;
+    /// Signals the SubAgent to stop, returning a handle to wait on its completion if needed.
+    fn stop(self) -> Result<SubAgentJoinHandle, SubAgentStopError>;
+}
+
+/// A handle to a [StartedSubAgent] that has been signaled to stop, used to wait for it to
+/// actually finish.
+#[must_use = "dropping the handle detaches the sub-agent thread without waiting for it"]
+pub struct SubAgentJoinHandle(JoinHandle<Result<(), SubAgentError>>);
+
+impl SubAgentJoinHandle {
+    /// Waits for the sub-agent thread to finish.
+    pub fn join(self) -> Result<(), SubAgentStopError> {
+        let runtime_join_result = self.0.join().map_err(|err| {
+            let message = err
+                .downcast_ref::<&str>()
+                .map(|s| s.to_string())
+                .or_else(|| err.downcast_ref::<String>().cloned())
+                .unwrap_or_else(|| "The sub agent thread failed unexpectedly".to_string());
+            SubAgentStopError::SubAgentJoinHandle(message)
+        })?;
+        Ok(runtime_join_result?)
+    }
 }
 
 /// Builds a [NotStartedSubAgent] for a given [AgentIdentity].
@@ -242,11 +259,8 @@ where
                 })
         });
 
-        // After all operations, set the hash to a final state
-        // only if it was in the `applying` state.
-        if let Config::RemoteConfig(remote_config) = config
-            && remote_config.is_applying()
-        {
+        // Report the remote-config state on startup
+        if let Config::RemoteConfig(remote_config) = config {
             let state = match &started_supervisor {
                 Ok(_) => ConfigState::Applied,
                 Err(e) => ConfigState::Failed {
@@ -759,18 +773,10 @@ fn log_health_info(health: &Health) {
 }
 
 impl StartedSubAgent for SubAgentStopper {
-    fn stop(self) -> Result<(), SubAgentStopError> {
-        // Stop processing events
+    fn stop(self) -> Result<SubAgentJoinHandle, SubAgentStopError> {
         self.sub_agent_internal_publisher
             .publish(SubAgentInternalEvent::StopRequested)?;
-        // Wait for the sub agent thread to finish
-        let runtime_join_result = self.runtime.join().map_err(|_| {
-            // Error when the 'runtime thread' panics.
-            SubAgentStopError::SubAgentJoinHandle(
-                "The sub agent thread failed unexpectedly".to_string(),
-            )
-        })?;
-        Ok(runtime_join_result?)
+        Ok(SubAgentJoinHandle(self.runtime))
     }
 }
 
@@ -838,6 +844,7 @@ pub mod tests {
     use std::ops::Deref;
     use std::path::PathBuf;
     use std::sync::Arc;
+    use std::thread;
 
     type TestSubAgent = SubAgent<
         MockStartedOpAMPClient,
@@ -851,13 +858,15 @@ pub mod tests {
         pub StartedSubAgent {}
 
         impl StartedSubAgent for StartedSubAgent {
-            fn stop(self) -> Result<(), SubAgentStopError>;
+            fn stop(self) -> Result<SubAgentJoinHandle, SubAgentStopError>;
         }
     }
 
     impl MockStartedSubAgent {
         pub fn should_stop(&mut self) {
-            self.expect_stop().once().returning(|| Ok(()));
+            self.expect_stop()
+                .once()
+                .return_once(|| Ok(SubAgentJoinHandle(thread::spawn(|| Ok(())))));
         }
     }
 
@@ -1274,7 +1283,7 @@ deployment:
             TestAgent::agent_type_definition(),
         );
 
-        sub_agent.run().stop().unwrap();
+        sub_agent.run().stop().unwrap().join().unwrap();
     }
 
     #[test]
@@ -1979,6 +1988,7 @@ deployment:
         let supervisor_builder = expect_build_supervisor_with(TestAgent::valid_config_value());
 
         opamp_client.should_update_effective_config(1);
+        opamp_client.should_set_remote_config_status(TestAgent::status_applied());
 
         let supervisor = test_sub_agent(
             Some(opamp_client),
@@ -2074,15 +2084,13 @@ deployment:
         );
     }
     #[test]
-    fn test_bootstrap_stored_remote_config_failed_to_failed() {
+    fn test_bootstrap_stored_remote_config_failed_to_applied() {
         let (config_repository, mut opamp_client) = test_mocks();
 
-        // In case a remote_config was marked as failed after being in applying state,
-        // if init_supervisor is called again, the supervisor will use the current config even if
-        // it doesn't work but won't report the failure again since the hash was already reported.
-        // The remote config will always be used not falling back to local,
-        // if it has been stored in the repository, even if the hash is failed, but a remote_config
-        // detected as failed by any validator, won't be saved into the repository at all.
+        // A remote_config was marked as failed on a previous run, but this run's supervisor
+        // is built successfully from that same config: init_supervisor always re-evaluates and
+        // reports/persists the outcome of the current run, so the state moves to applied rather
+        // than keeping the stale failed status.
         let hash = TestAgent::hash();
         let state = ConfigState::Failed {
             error_message: "some failure".to_string(),
@@ -2105,6 +2113,7 @@ deployment:
         let supervisor_builder = expect_build_supervisor_with(TestAgent::valid_config_value());
 
         opamp_client.should_update_effective_config(1);
+        opamp_client.should_set_remote_config_status(TestAgent::status_applied());
 
         let supervisor = test_sub_agent(
             Some(opamp_client),
@@ -2118,7 +2127,7 @@ deployment:
         assert_remote_config(
             config_repository.deref(),
             &TestAgent::id(),
-            |remote_config| assert!(remote_config.state.is_failed()),
+            |remote_config| assert!(remote_config.state.is_applied()),
         );
     }
 

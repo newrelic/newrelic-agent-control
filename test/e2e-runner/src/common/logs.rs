@@ -31,12 +31,26 @@ pub fn show_logs(logs_path: &str) -> TestResult<()> {
     Ok(())
 }
 
-/// Reads every log file under `logs_path` (matched as `{logs_path}*`) and returns `Ok(())` when
+/// Truncates every `*.log` file under `logs_path` (matched as `{logs_path}*.log`) to empty.
+pub fn clear_logs(logs_path: &str) -> TestResult<()> {
+    let pattern = format!("{}*.log", logs_path);
+    let paths = glob::glob(&pattern).map_err(|e| format!("failed to list log files: {e}"))?;
+
+    for entry in paths {
+        let path = entry.map_err(|e| format!("error reading path: {e}"))?;
+        fs::write(&path, "")
+            .map_err(|e| format!("could not clear log file {}: {e}", path.display()))?;
+    }
+
+    Ok(())
+}
+
+/// Reads every log file under `logs_path` (matched as `{logs_path}*.log`) and returns `Ok(())` when
 /// at least one line in one of those files contains every substring in `needles`. This is
 /// stronger than "each needle appears somewhere in the log" — it proves the tokens co-occur on
 /// the same log entry (e.g. an integration name together with a specific label value it carried).
 pub fn expect_log_line_contains(logs_path: &str, needles: &[&str]) -> TestResult<()> {
-    let pattern = format!("{}*", logs_path);
+    let pattern = format!("{}*.log", logs_path);
     let paths = glob::glob(&pattern).map_err(|e| format!("failed to list log files: {e}"))?;
 
     for entry in paths {
@@ -50,5 +64,5 @@ pub fn expect_log_line_contains(logs_path: &str, needles: &[&str]) -> TestResult
         }
     }
 
-    Err(format!("no log line under {logs_path}* contains all of {needles:?}").into())
+    Err(format!("no log line under {logs_path}*.log contains all of {needles:?}").into())
 }

@@ -7,14 +7,12 @@ use crate::opamp::remote_config::hash::ConfigState;
 use crate::values::config::RemoteConfig;
 
 /// AgentControlConfigLoader loads a whole AgentControlConfig
-#[cfg_attr(test, mockall::automock)]
 pub trait AgentControlConfigLoader {
     /// Loads the full Agent Control configuration.
     fn load(&self) -> Result<AgentControlConfig, AgentControlConfigError>;
 }
 
 /// AgentControlDynamicConfigRepository loads, stores, deletes or updates agent_control's remote_configs
-#[cfg_attr(test, mockall::automock)]
 pub trait AgentControlDynamicConfigRepository {
     /// load the dynamic part of the AgentControlConfig
     fn load(&self) -> Result<AgentControlDynamicConfig, AgentControlConfigError>;

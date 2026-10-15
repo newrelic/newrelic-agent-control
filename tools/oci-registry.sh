@@ -38,6 +38,7 @@ readonly BINARY="$CONFIG_FOLDER/zot"
 readonly LOCAL_TEST_ONLY_USERNAME="fake-user"
 readonly LOCAL_TEST_ONLY_PASSWORD="fake-password"
 # Pre-computed regenerate with: htpasswd -nbB $LOCAL_TEST_ONLY_USERNAME $LOCAL_TEST_ONLY_PASSWORD
+# shellcheck disable=SC2016 # single quotes are intentional: the bcrypt hash must not be expanded
 readonly LOCAL_TEST_ONLY_HTPASSWD_ENTRY='fake-user:$2y$05$WLvLO1ojdi2NtziBhbb5ge8fQK.aNz2sjCwQ.aS7WpZo1ujmmnIQW'
 
 if [ "$OS" = "windows" ]; then

@@ -164,7 +164,7 @@ impl AgentControlRunner {
             opamp_client_builder(
                 local_dir.clone(),
                 config,
-                self.bootstrap_config.proxy,
+                self.bootstrap_config.proxy.clone(),
                 yaml_config_repository.clone(),
             )
         });
@@ -199,7 +199,7 @@ impl AgentControlRunner {
         let mut value_providers = ValueProviders::default().with_env();
         if let Some(config) = &agent_control_config.value_providers {
             value_providers = value_providers
-                .with_config(config.clone())
+                .with_config(config.clone(), self.bootstrap_config.proxy.clone())
                 .map_err(|e| RunError(format!("failed to load value providers: {e}")))?;
         }
 

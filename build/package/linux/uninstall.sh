@@ -22,12 +22,12 @@ detect_package_manager() {
 remove_agent_control_package() {
     case "$1" in
         apt)
-            OPTIONS="-o DPkg::Lock::Timeout=60"
+            OPTIONS=(-o DPkg::Lock::Timeout=60)
             if [ -n "$HTTPS_PROXY" ]; then
-                OPTIONS="$OPTIONS -o Acquire::Http::Proxy=$HTTPS_PROXY"
+                OPTIONS+=(-o "Acquire::Http::Proxy=$HTTPS_PROXY")
             fi
 
-            apt-get $OPTIONS purge -y -qq newrelic-agent-control || true
+            apt-get "${OPTIONS[@]}" purge -y -qq newrelic-agent-control || true
             ;;
         yum)
             yum -y -q remove newrelic-agent-control || true

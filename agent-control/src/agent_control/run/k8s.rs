@@ -172,7 +172,7 @@ impl AgentControlRunner {
             .with_k8s_configmap(k8s_client.clone());
         if let Some(config) = &agent_control_config.value_providers {
             value_providers = value_providers
-                .with_config(config.clone())
+                .with_config(config.clone(), self.bootstrap_config.proxy.clone())
                 .map_err(|e| RunError(format!("failed to load value providers: {e}")))?;
         }
 

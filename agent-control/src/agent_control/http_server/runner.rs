@@ -136,7 +136,7 @@ impl Runner {
 
 impl Drop for StartedHttpServer {
     fn drop(&mut self) {
-        info!("waiting for status server to stop gracefully...");
+        info!("Waiting for the status server to stop gracefully");
 
         let Some(thread_context) = self.thread_context.take() else {
             return;

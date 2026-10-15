@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -e # Exit immediately if a command exits with a non-zero status
 
+# Exit with no error if metadata patching should be skipped
+if [ -n "$SKIP_WINDOWS_METADATA" ]; then
+    echo "Skipping Windows metadata patching (SKIP_WINDOWS_METADATA is set)"
+    exit 0
+fi
+
 JSON_FILE=$1
 VERSION=$2
 EXECUTABLE=$3

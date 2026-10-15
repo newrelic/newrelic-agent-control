@@ -174,10 +174,7 @@ mod tests {
         // Create a writer and from it build a Logger::File(FileLogger)
         let agent_id = UniqueAgentID::build();
         let mut temp_file = tempfile().unwrap();
-        let file_logger = Logger::File(
-            Box::new(FileLogger::new(temp_file.try_clone().unwrap())),
-            agent_id.clone().into(),
-        );
+        let file_logger = Logger::File(Box::new(FileLogger::new(temp_file.try_clone().unwrap())));
 
         let mut read_mock = MockRead::new();
         // Reading in sequence
@@ -217,12 +214,11 @@ mod tests {
                 .any(|l| l.contains(&format!("logging test 2 agent_id={agent_id}")))
         );
 
-        // Check the file content
+        // Check the file content: no agent_id decoration, the file already lives under a
+        // per-agent directory.
         temp_file.seek(SeekFrom::Start(0)).unwrap();
         let mut content = String::new();
         temp_file.read_to_string(&mut content).unwrap();
-        let expected =
-            format!("logging test 1 agent_id={agent_id}\nlogging test 2 agent_id={agent_id}\n");
-        assert_eq!(content, expected);
+        assert_eq!(content, "logging test 1\nlogging test 2\n");
     }
 }

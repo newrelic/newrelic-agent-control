@@ -69,14 +69,14 @@ for i in {1..150}; do
 
 
     echo "[$(date)] Creating namespace: $NAMESPACE"
-    kubectl create namespace $NAMESPACE || true
+    kubectl create namespace "$NAMESPACE" || true
 
-    echo "[$(date)] Creating identity: $NAMESPACE" -n $NAMESPACE
-    kubectl create secret generic sys-identity --namespace $NAMESPACE --from-literal=CLIENT_ID="$(cat ~/.agent-control/client_id)" --from-literal=private_key="$(cat ~/.agent-control/e2e_key)" || true
+    echo "[$(date)] Creating identity: $NAMESPACE" -n "$NAMESPACE"
+    kubectl create secret generic sys-identity --namespace "$NAMESPACE" --from-literal=CLIENT_ID="$(cat ~/.agent-control/client_id)" --from-literal=private_key="$(cat ~/.agent-control/e2e_key)" || true
     echo "[$(date)] Installing helm chart in $NAMESPACE"
 
-    helm upgrade $RELEASE_NAME newrelic/agent-control-deployment --install \
-     --namespace $NAMESPACE --values local/load-test.yaml --set cluster=$CLUSTER_NAME --set subAgentsNamespace=$NAMESPACE --set licenseKey="$(cat ~/.agent-control/license_key)"
+    helm upgrade "$RELEASE_NAME" newrelic/agent-control-deployment --install \
+     --namespace "$NAMESPACE" --values local/load-test.yaml --set cluster="$CLUSTER_NAME" --set subAgentsNamespace="$NAMESPACE" --set licenseKey="$(cat ~/.agent-control/license_key)"
 
     echo "[$(date)] Completed $NAMESPACE ($i/150)"
 done

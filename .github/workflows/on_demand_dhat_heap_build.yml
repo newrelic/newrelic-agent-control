@@ -34,7 +34,7 @@ jobs:
         with:
           version: 0.15.2
 
-      - uses: taiki-e/install-action@94c31af3204a9f15ab40b35ad084410b905bbc73 # v2.87.17
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: cargo-zigbuild@0.23.0
 
@@ -49,7 +49,7 @@ jobs:
           ARCH=${{ matrix.arch }} BIN=newrelic-agent-control-cli ./build/scripts/build_binary.sh
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           retention-days: 7
           name: dhat-heap-linux-${{ matrix.arch }}-${{ inputs.tag_name }}
@@ -90,7 +90,7 @@ jobs:
           cp target/x86_64-pc-windows-msvc/release-debug/newrelic-agent-control-cli.exe bin/newrelic-agent-control-cli-windows-amd64.exe
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           retention-days: 7
           name: dhat-heap-windows-amd64-${{ inputs.tag_name }}
