@@ -1,37 +1,18 @@
-name: Agent versions
+name: Resolve agent versions
 description: >
-  `mode: resolve` queries Instrumentation Metadata (IM) and uploads the raw data as an artifact.
-  `mode: load` downloads the latest resolved artifact, selects the latest agent and agent-type
-  versions for one platform, and exports them as env vars for every agent type in IM, named after the
-  uppercased IM agent type (`NRINFRA_VERSION` for the package, `NRINFRA_AT_VERSION` for the agent type, ...).
-  Agents with no enabled version or agent-type configuration on the platform are not exported.
-  The load mode needs `actions: read` if the calling job sets explicit permissions.
+  Queries Instrumentation Metadata (IM) and uploads the raw data as the `agent-versions` artifact,
+  which the `agent-versions/load` action consumes.
 inputs:
-  mode:
-    description: "`resolve` or `load`"
-    required: false
-    default: load
-  platform:
-    description: "load: `linux`, `windows` or `kubernetes`. Defaults to the runner OS (`linux` or `windows`)."
-    required: false
-    default: ""
   client-id:
-    description: "resolve: system identity client id"
-    required: false
-    default: ""
+    description: System identity client id
+    required: true
   private-key:
-    description: "resolve: system identity private key (PEM contents)"
-    required: false
-    default: ""
-outputs:
-  json:
-    description: "load: resolved versions as a JSON array"
-    value: ${{ steps.load.outputs.json }}
+    description: System identity private key (PEM contents)
+    required: true
 runs:
   using: composite
   steps:
     - name: Resolve agent versions
-      if: inputs.mode == 'resolve'
       shell: bash
       env:
         CLIENT_ID: ${{ inputs.client-id }}
@@ -61,22 +42,11 @@ runs:
         mkdir -p "$(dirname "$OUTPUT_FILE")"
         "${{ github.action_path }}/resolve.sh"
 
+    # The artifact name and file path are shared with agent-versions/load
     - name: Upload artifact
-      if: inputs.mode == 'resolve'
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       with:
         name: agent-versions
         path: ${{ runner.temp }}/agent-versions/agent-versions.json
         retention-days: 3
         if-no-files-found: error
-
-    - name: Load versions
-      id: load
-      if: inputs.mode == 'load'
-      shell: bash
-      env:
-        GH_TOKEN: ${{ github.token }}
-        ARTIFACT_NAME: agent-versions
-        PLATFORM: ${{ inputs.platform }}
-        ACTION_PATH: ${{ github.action_path }}
-      run: bash "$ACTION_PATH/load.sh"

@@ -1,6 +1,6 @@
 name: 🔄 Resolve agent versions
 
-# Snapshots the latest agent versions from Instrumentation Metadata for the `agent-versions` action to load.
+# Snapshots the latest agent versions from Instrumentation Metadata for the `agent-versions/load` action to load.
 
 on:
   schedule:
@@ -22,9 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: ./.github/actions/agent-versions
+      - uses: ./.github/actions/agent-versions/resolve
         with:
-          mode: resolve
           client-id: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
           private-key: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
 

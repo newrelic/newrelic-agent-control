@@ -46,7 +46,7 @@ resolved=$(jq -c --arg target "$target" --from-file "$ACTION_PATH/select.jq" "$d
   exit 1
 }
 
-jq -r '.[] | "\(.name)_VERSION=\(.packageVersion)", "\(.name)_AT_VERSION=\(.agentTypeVersion)"' <<<"$resolved" >>"$GITHUB_ENV"
+jq -r '.[] | "\(.name)_VERSION=\(.packageVersion)", "\(.name)_AGENT_TYPE_VERSION=\(.agentTypeVersion)"' <<<"$resolved" >>"$GITHUB_ENV"
 echo "json=$resolved" >>"$GITHUB_OUTPUT"
 echo "::group::Resolved versions"
 jq . <<<"$resolved"
