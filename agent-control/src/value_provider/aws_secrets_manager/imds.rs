@@ -40,8 +40,7 @@ impl AwsInstanceProfile {
         timeout: Duration,
         imds_base_url: String,
     ) -> Result<Self, AwsSecretsManagerError> {
-        let client = HttpClient::new(HttpConfig::new(timeout, timeout, ProxyConfig::default()))
-            .map_err(AwsSecretsManagerError::HttpClient)?;
+        let client = HttpClient::new(HttpConfig::new(timeout, timeout, ProxyConfig::default()))?;
         Ok(Self {
             client,
             imds_base_url,
