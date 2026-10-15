@@ -1,4 +1,4 @@
-//! Value provider that reads secrets from AWS Secrets Manager using static credentials or an
+//! Value provider that reads secrets from AWS Secrets Manager using access key credentials or an
 //! EC2 instance profile.
 
 mod imds;
@@ -116,9 +116,9 @@ pub enum AwsAuth {
     #[default]
     InstanceProfile,
 
-    /// Long-lived IAM user credentials. Works from any environment. They are read once from the
+    /// Long-lived IAM user access key credentials. Works from any environment. They are read once from the
     /// configuration, so temporary credentials are not supported as they would expire.
-    Static {
+    AccessKey {
         /// AWS access key id.
         access_key_id: String,
         /// AWS secret access key.
@@ -160,14 +160,14 @@ pub struct AwsSecretsManagerConfig {
 /// Ready-to-use representation of one configured auth method.
 enum AwsAuthRuntime {
     InstanceProfile(imds::AwsInstanceProfile),
-    Static(Credentials),
+    AccessKey(Credentials),
 }
 
 impl AwsAuthRuntime {
     /// Returns valid credentials, refreshing the instance profile ones when they are about to expire.
     fn credentials(&self) -> Result<Credentials, AwsSecretsManagerError> {
         match self {
-            Self::Static(credentials) => Ok(credentials.clone()),
+            Self::AccessKey(credentials) => Ok(credentials.clone()),
             Self::InstanceProfile(profile) => profile.credentials(),
         }
     }
@@ -289,15 +289,15 @@ impl AwsSecretsManagerSource {
             AwsAuth::InstanceProfile => {
                 AwsAuthRuntime::InstanceProfile(AwsInstanceProfile::try_new(timeout)?)
             }
-            AwsAuth::Static {
+            AwsAuth::AccessKey {
                 access_key_id,
                 secret_access_key,
-            } => AwsAuthRuntime::Static(Credentials::new(
+            } => AwsAuthRuntime::AccessKey(Credentials::new(
                 access_key_id,
                 secret_access_key.expose_secret(),
                 None,
                 None,
-                "agent-control-static",
+                "agent-control-access-key",
             )),
         };
 
@@ -387,8 +387,8 @@ pub mod tests {
     const REGION: &str = "us-east-1";
     const AUTH_HEADER_PATTERN: &str = r"^AWS4-HMAC-SHA256 Credential=AKIDTEST/\d{8}/us-east-1/secretsmanager/aws4_request, SignedHeaders=.*content-type;host;.*x-amz-target.*, Signature=[0-9a-f]{64}$";
 
-    fn static_auth() -> AwsAuth {
-        AwsAuth::Static {
+    fn access_key_auth() -> AwsAuth {
+        AwsAuth::AccessKey {
             access_key_id: ACCESS_KEY.to_string(),
             secret_access_key: SECRET_KEY.into(),
         }
@@ -436,7 +436,7 @@ pub mod tests {
     }
 
     #[test]
-    fn test_static_get_secret_success() {
+    fn test_access_key_get_secret_success() {
         let server = MockServer::start();
         let mock = server.mock(|when, then| {
             when.method(POST)
@@ -450,7 +450,7 @@ pub mod tests {
                 .body(r#"{"SecretString":"super-secret-value"}"#);
         });
 
-        let provider = build_provider(&server, static_auth());
+        let provider = build_provider(&server, access_key_auth());
         assert_eq!(
             provider.get_value(&secret_path("my/secret")).unwrap(),
             "super-secret-value"
@@ -469,7 +469,7 @@ pub mod tests {
             then.status(200).body(r#"{"SecretString":"val"}"#);
         });
 
-        let provider = build_provider(&server, static_auth());
+        let provider = build_provider(&server, access_key_auth());
         assert_eq!(provider.get_value(&secret_path(arn)).unwrap(), "val");
         mock.assert();
     }
@@ -484,7 +484,7 @@ pub mod tests {
             );
         });
 
-        let provider = build_provider(&server, static_auth());
+        let provider = build_provider(&server, access_key_auth());
         assert_matches!(
             provider.get_value(&secret_path("missing")),
             Err(AwsSecretsManagerError::NotFound)
@@ -500,7 +500,7 @@ pub mod tests {
                 .body(r#"{"__type":"AccessDeniedException","Message":"denied"}"#);
         });
 
-        let provider = build_provider(&server, static_auth());
+        let provider = build_provider(&server, access_key_auth());
         assert_matches!(
             provider.get_value(&secret_path("my-secret")),
             Err(AwsSecretsManagerError::SecretRequest(_))
@@ -515,7 +515,7 @@ pub mod tests {
             then.status(200).body(r#"{"SecretString":""}"#);
         });
 
-        let provider = build_provider(&server, static_auth());
+        let provider = build_provider(&server, access_key_auth());
         assert_matches!(
             provider.get_value(&secret_path("my-secret")),
             Err(AwsSecretsManagerError::EmptySecret)
@@ -530,7 +530,7 @@ pub mod tests {
             then.status(200).body("{}");
         });
 
-        let provider = build_provider(&server, static_auth());
+        let provider = build_provider(&server, access_key_auth());
         assert_matches!(
             provider.get_value(&secret_path("my-secret")),
             Err(AwsSecretsManagerError::MissingValue)
@@ -545,7 +545,7 @@ pub mod tests {
             then.status(200).body(r#"{"SecretBinary":"AAEC"}"#);
         });
 
-        let provider = build_provider(&server, static_auth());
+        let provider = build_provider(&server, access_key_auth());
         assert_matches!(
             provider.get_value(&secret_path("my-secret")),
             Err(AwsSecretsManagerError::NotAString)
@@ -560,7 +560,7 @@ pub mod tests {
             then.status(200).body("not json at all");
         });
 
-        let provider = build_provider(&server, static_auth());
+        let provider = build_provider(&server, access_key_auth());
         assert_matches!(
             provider.get_value(&secret_path("my-secret")),
             Err(AwsSecretsManagerError::DeserializeError(_))
@@ -575,7 +575,7 @@ pub mod tests {
                 AwsSecretsManagerSourceConfig {
                     region: REGION.to_string(),
                     endpoint: Some(Url::parse("http://127.0.0.1:1").unwrap()),
-                    auth: static_auth(),
+                    auth: access_key_auth(),
                 },
             )]),
             ..Default::default()
@@ -594,7 +594,7 @@ pub mod tests {
             AwsSecretsManagerSourceConfig {
                 region: "eu-west-1".to_string(),
                 endpoint: None,
-                auth: static_auth(),
+                auth: access_key_auth(),
             },
             DEFAULT_CLIENT_TIMEOUT,
         )
@@ -700,7 +700,7 @@ pub mod tests {
     #[test]
     fn test_incorrect_secret_path() {
         let server = MockServer::start();
-        let provider = build_provider(&server, static_auth());
+        let provider = build_provider(&server, access_key_auth());
 
         for path in ["no-colon-here", ":secret", "source:"] {
             assert_matches!(
@@ -714,7 +714,7 @@ pub mod tests {
     #[test]
     fn test_source_not_found() {
         let server = MockServer::start();
-        let provider = build_provider(&server, static_auth());
+        let provider = build_provider(&server, access_key_auth());
 
         assert_matches!(
             provider.get_value("nonexistent-source:my-secret"),
@@ -738,7 +738,7 @@ pub mod tests {
         let source = |server: &MockServer| AwsSecretsManagerSourceConfig {
             region: REGION.to_string(),
             endpoint: Some(Url::parse(&server.base_url()).unwrap()),
-            auth: static_auth(),
+            auth: access_key_auth(),
         };
         let config = AwsSecretsManagerConfig {
             sources: HashMap::from([
@@ -774,14 +774,14 @@ sources:
     }
 
     #[test]
-    fn test_config_deserialization_static() {
+    fn test_config_deserialization_access_key() {
         let config: AwsSecretsManagerConfig = serde_saphyr::from_str(
             r#"
 sources:
   prod:
     region: us-east-1
     auth:
-      type: static
+      type: access_key
       access_key_id: AKID
       secret_access_key: secret
 "#,
@@ -789,7 +789,7 @@ sources:
         .unwrap();
         assert_eq!(
             config.sources["prod"].auth,
-            AwsAuth::Static {
+            AwsAuth::AccessKey {
                 access_key_id: "AKID".to_string(),
                 secret_access_key: "secret".into(),
             }

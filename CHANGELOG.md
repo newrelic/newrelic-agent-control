@@ -24,7 +24,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 - On-host: sub-agents without a health check defined no longer log errors from executables publishing health into a closed channel.
 
 ### Enhancement
-- Added AWS Secrets Manager value provider (`nr-awssm`), supporting static credentials and EC2 instance profiles.
+- Added AWS Secrets Manager value provider (`nr-awssm`), supporting access key credentials and EC2 instance profiles.
 
 ## v1.26.0 - 2026-10-09
 

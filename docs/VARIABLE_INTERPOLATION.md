@@ -27,7 +27,7 @@ Filters are optional post-processing steps applied to the resolved value (e.g. `
 | Environment variables | `nr-env` | Host environment (`std::env`) | On-host |
 | Vault secrets | `nr-vault` | HashiCorp Vault (KV1 or KV2) | On-host |
 | Azure Key Vault secrets | `nr-azurekv` | Azure Key Vault (Managed Identity or Service Principal) | On-host |
-| AWS Secrets Manager secrets | `nr-awssm` | AWS Secrets Manager (static credentials or EC2 instance profile) | On-host |
+| AWS Secrets Manager secrets | `nr-awssm` | AWS Secrets Manager (access key or EC2 instance profile) | On-host |
 | File values | `nr-file` | Local filesystem file contents | On-host |
 | Kubernetes secrets | `nr-kubesec` | Kubernetes Secret objects | K8s |
 | Kubernetes ConfigMaps | `nr-kubecm` | Kubernetes ConfigMap objects | K8s |
@@ -286,7 +286,7 @@ value_providers:
       prod:
         region: us-east-1
         auth:
-          type: static
+          type: access_key
           access_key_id: "AKIAXXXXXXXXXXXXXXXX"
           secret_access_key: "your-secret-access-key"
 ```
