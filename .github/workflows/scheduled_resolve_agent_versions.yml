@@ -1,0 +1,37 @@
+name: 🔄 Resolve agent versions
+
+# Snapshots the latest agent versions from Instrumentation Metadata for the `agent-versions/load` action to load.
+
+on:
+  schedule:
+    # Every 6 hours
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: resolve-agent-versions
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Resolve agent versions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: ./.github/actions/agent-versions/resolve
+        with:
+          client-id: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
+          private-key: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
+
+  notify-failure:
+    name: Notify resolve failure
+    needs: resolve
+    if: failure() && github.event_name == 'schedule'
+    uses: ./.github/workflows/component_send_warning_via_slack.yml
+    with:
+      message: Resolving agent versions failed
+    secrets: inherit
