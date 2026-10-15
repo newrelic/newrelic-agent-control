@@ -1,12 +1,11 @@
 //! Builders for on-host sub-agents and their supervisors.
 
-use crate::agent_control::defaults::{
-    HOST_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
-};
+use crate::agent_control::defaults::{HOST_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION};
 use crate::agent_type::registry::AgentTypeRegistry;
 use crate::event::SubAgentEvent;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::pub_sub;
+use crate::opamp::attributes::os_attributes;
 use crate::opamp::client_builder::BuildOpAMPClient;
 use crate::opamp::client_builder::COMPRESSION_ENABLED;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
@@ -22,7 +21,6 @@ use crate::sub_agent::remote_config_parser::RemoteConfigParser;
 use crate::sub_agent::supervisor::SupervisorBuilder;
 use crate::sub_agent::{SubAgentBuilder, error::SubAgentBuilderError};
 use crate::values::config_repository::ConfigRepository;
-use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::system::hostname::get_hostname;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -77,6 +75,10 @@ where
             .map_err(|e| SubAgentBuilderError::OpampClientBuilderError(e.to_string()))?
             .into();
 
+        let mut non_identifying_attributes =
+            HashMap::from([(HOST_NAME_ATTRIBUTE_KEY.to_string(), hostname)]);
+        non_identifying_attributes.extend(os_attributes());
+
         let opamp_start_settings = sub_agent_start_settings(
             &self.instance_id_getter,
             agent_identity,
@@ -84,13 +86,7 @@ where
                 OPAMP_SERVICE_VERSION.to_string(),
                 agent_identity.agent_type_id.version().to_string().into(),
             )]),
-            HashMap::from([
-                (HOST_NAME_ATTRIBUTE_KEY.to_string(), hostname),
-                (
-                    OS_ATTRIBUTE_KEY.to_string(),
-                    DescriptionValueType::String(OS_ATTRIBUTE_VALUE.to_string()),
-                ),
-            ]),
+            non_identifying_attributes,
             COMPRESSION_ENABLED,
         )
         .map_err(|e| SubAgentBuilderError::OpampClientBuilderError(e.to_string()))?;
@@ -293,23 +289,25 @@ mod tests {
                 agent_identity.agent_type_id.version().to_string().into(),
             ),
         ]);
+        let mut non_identifying_attributes = HashMap::from([
+            (
+                HOST_NAME_ATTRIBUTE_KEY.to_string(),
+                DescriptionValueType::String(hostname.to_string()),
+            ),
+            (
+                PARENT_AGENT_ID_ATTRIBUTE_KEY.to_string(),
+                DescriptionValueType::Bytes(agent_control_instance_id.into()),
+            ),
+        ]);
+        non_identifying_attributes.extend(os_attributes());
+
         StartSettings {
             instance_uid: sub_agent_instance_id.into(),
             capabilities: default_capabilities(),
             custom_capabilities: Some(default_custom_capabilities().into()),
             agent_description: AgentDescription {
                 identifying_attributes,
-                non_identifying_attributes: HashMap::from([
-                    (
-                        HOST_NAME_ATTRIBUTE_KEY.to_string(),
-                        DescriptionValueType::String(hostname.to_string()),
-                    ),
-                    (
-                        PARENT_AGENT_ID_ATTRIBUTE_KEY.to_string(),
-                        DescriptionValueType::Bytes(agent_control_instance_id.into()),
-                    ),
-                    (OS_ATTRIBUTE_KEY.to_string(), OS_ATTRIBUTE_VALUE.into()),
-                ]),
+                non_identifying_attributes,
             },
             enable_compression: COMPRESSION_ENABLED,
         }

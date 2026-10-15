@@ -87,16 +87,20 @@ pub const APM_APPLICATION_ID: &str = "apm.application.id";
 pub const EXECUTION_MODE_ATTRIBUTE_KEY: &str = "execution.mode";
 
 /// OpAMP attribute key for the operating-system type.
-pub const OS_ATTRIBUTE_KEY: &str = "os.type";
-/// Operating-system attribute value for the current target.
+pub const OS_TYPE_ATTRIBUTE_KEY: &str = "os.type";
+/// Operating-system type attribute value for the current target.
 #[cfg(target_os = "macos")]
-pub const OS_ATTRIBUTE_VALUE: &str = "darwin";
-/// Operating-system attribute value for the current target.
+pub const OS_TYPE_ATTRIBUTE_VALUE: &str = "darwin";
+/// Operating-system type attribute value for the current target.
 #[cfg(target_os = "linux")]
-pub const OS_ATTRIBUTE_VALUE: &str = "linux";
-/// Operating-system attribute value for the current target.
+pub const OS_TYPE_ATTRIBUTE_VALUE: &str = "linux";
+/// Operating-system type attribute value for the current target.
 #[cfg(target_os = "windows")]
-pub const OS_ATTRIBUTE_VALUE: &str = "windows";
+pub const OS_TYPE_ATTRIBUTE_VALUE: &str = "windows";
+/// OpAMP attribute key for the OS version.
+pub const OS_VERSION_ATTRIBUTE_KEY: &str = "os.version";
+/// OpAMP attribute key for the OS distro id.
+pub const OS_NAME_ATTRIBUTE_KEY: &str = "os.name";
 
 // Paths
 cfg_if::cfg_if! {
