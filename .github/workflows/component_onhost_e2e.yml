@@ -13,6 +13,29 @@ on:
         required: true
       E2E_LICENSE_KEY:
         required: true
+      # EU-resident equivalents, used for the remote-config EU region run. Install and the NRQL
+      # assertion both talk directly to the EU data center, so the US credentials above don't work there.
+      EU_NR_SYSTEM_IDENTITY_CLIENT_ID:
+        required: false
+      EU_NR_SYSTEM_IDENTITY_PRIVATE_KEY:
+        required: false
+      EU_E2E_ACCOUNT_ID:
+        required: false
+      EU_E2E_API_KEY:
+        required: false
+      EU_E2E_LICENSE_KEY:
+        required: false
+      # JP-resident equivalents, used for the remote-config JP region run. Same reasoning as EU above.
+      JP_NR_SYSTEM_IDENTITY_CLIENT_ID:
+        required: false
+      JP_NR_SYSTEM_IDENTITY_PRIVATE_KEY:
+        required: false
+      JP_E2E_ACCOUNT_ID:
+        required: false
+      JP_E2E_API_KEY:
+        required: false
+      JP_E2E_LICENSE_KEY:
+        required: false
 
     inputs:
       caller_workflow:
@@ -35,7 +58,7 @@ jobs:
       tag_name: 0.900.${{ github.run_id }}
 
   on-host-linux-e2e:
-    name: OnHost Linux E2E tests (${{ matrix.platform.arch }}) ${{ matrix.group }}
+    name: OnHost Linux E2E tests (${{ matrix.platform.arch }}) ${{ matrix.group }} ${{ matrix.region }}
     needs: [ build-packages ]
     runs-on: ${{ matrix.platform.runner }}
     strategy:
@@ -62,6 +85,23 @@ jobs:
           - package-upgrade
           - uninstall-and-reinstall
           - service-lifecycle
+        region:
+          - us
+        include:
+          # Also exercise the remote-config scenario against the EU region (amd64 only, region doesn't depend on arch).
+          - platform:
+              arch: amd64
+              runner: ubuntu-26.04
+              environment: linux
+            group: remote-config
+            region: eu
+          # Also exercise the remote-config scenario against the JP region (amd64 only, region doesn't depend on arch).
+          - platform:
+              arch: amd64
+              runner: ubuntu-26.04
+              environment: linux
+            group: remote-config
+            region: jp
     steps:
       - name: Record job start time
         run: echo "JOB_START_TIME=$(date +%s)" >> "$GITHUB_ENV"
@@ -77,16 +117,48 @@ jobs:
           path: ./
       - name: Build e2e-runner binary
         run: cargo build -p e2e-runner
-      - name: "Linux e2e ${{ matrix.group }}"
+
+      # Credentials are region-scoped: the EU/JP runs need an EU/JP account/API key to install
+      # against and query the EU/JP data center, since the US credentials don't resolve there.
+      # The private key is a multi-line PEM, so it's written straight to a file instead of
+      # $GITHUB_ENV, which only accepts single-line KEY=VALUE entries.
+      - name: Select region credentials
         run: |
-          echo "${{ secrets.NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" > /tmp/newrelic-agent-control-priv.key
+          if [ "${{ matrix.region }}" = "eu" ]; then
+            {
+              echo "NR_ACCOUNT_ID=${{ secrets.EU_E2E_ACCOUNT_ID }}"
+              echo "NR_API_KEY=${{ secrets.EU_E2E_API_KEY }}"
+              echo "NR_LICENSE_KEY=${{ secrets.EU_E2E_LICENSE_KEY }}"
+              echo "NR_SYSTEM_IDENTITY_CLIENT_ID=${{ secrets.EU_NR_SYSTEM_IDENTITY_CLIENT_ID }}"
+            } >> "$GITHUB_ENV"
+            echo "${{ secrets.EU_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" > /tmp/newrelic-agent-control-priv.key
+          elif [ "${{ matrix.region }}" = "jp" ]; then
+            {
+              echo "NR_ACCOUNT_ID=${{ secrets.JP_E2E_ACCOUNT_ID }}"
+              echo "NR_API_KEY=${{ secrets.JP_E2E_API_KEY }}"
+              echo "NR_LICENSE_KEY=${{ secrets.JP_E2E_LICENSE_KEY }}"
+              echo "NR_SYSTEM_IDENTITY_CLIENT_ID=${{ secrets.JP_NR_SYSTEM_IDENTITY_CLIENT_ID }}"
+            } >> "$GITHUB_ENV"
+            echo "${{ secrets.JP_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" > /tmp/newrelic-agent-control-priv.key
+          else
+            {
+              echo "NR_ACCOUNT_ID=${{ secrets.E2E_ACCOUNT_ID }}"
+              echo "NR_API_KEY=${{ secrets.E2E_API_KEY }}"
+              echo "NR_LICENSE_KEY=${{ secrets.E2E_LICENSE_KEY }}"
+              echo "NR_SYSTEM_IDENTITY_CLIENT_ID=${{ secrets.NR_SYSTEM_IDENTITY_CLIENT_ID }}"
+            } >> "$GITHUB_ENV"
+            echo "${{ secrets.NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" > /tmp/newrelic-agent-control-priv.key
+          fi
+
+      - name: "Linux e2e ${{ matrix.group }} (${{ matrix.region }})"
+        run: |
           sudo ${{ github.workspace }}/target/debug/e2e-runner ${{ matrix.group }} \
             --artifacts-package-dir ./dist \
-            --nr-api-key "${{ secrets.E2E_API_KEY }}" \
-            --nr-license-key "${{ secrets.E2E_LICENSE_KEY }}" \
-            --nr-account-id "${{ secrets.E2E_ACCOUNT_ID }}" \
-            --nr-region "us" \
-            --system-identity-client-id "${{ secrets.NR_SYSTEM_IDENTITY_CLIENT_ID }}" \
+            --nr-api-key "$NR_API_KEY" \
+            --nr-license-key "$NR_LICENSE_KEY" \
+            --nr-account-id "$NR_ACCOUNT_ID" \
+            --nr-region "${{ matrix.region }}" \
+            --system-identity-client-id "$NR_SYSTEM_IDENTITY_CLIENT_ID" \
             --agent-control-private-key "/tmp/newrelic-agent-control-priv.key" \
             --agent-control-version "0.900.${{ github.run_id }}" \
             --recipes-repo-branch "main" \
@@ -103,9 +175,8 @@ jobs:
 
       - name: Report test result to New Relic
         if: always()
+        # NR_LICENSE_KEY and NR_ACCOUNT_ID come from the "Select region credentials" step above.
         env:
-          NR_LICENSE_KEY: ${{ secrets.E2E_LICENSE_KEY }}
-          NR_ACCOUNT_ID: ${{ secrets.E2E_ACCOUNT_ID }}
           E2E_SCENARIO: ${{ matrix.group }}
           E2E_ENVIRONMENT: ${{ matrix.platform.environment }}
           E2E_STATUS: ${{ job.status }}
@@ -116,7 +187,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: e2e-result-${{ matrix.platform.environment }}-${{ matrix.group }}
+          name: e2e-result-${{ matrix.platform.environment }}-${{ matrix.group }}-${{ matrix.region }}
           path: e2e-result-*-${{ matrix.platform.environment }}-${{ matrix.group }}.txt
           if-no-files-found: warn
 
