@@ -142,18 +142,16 @@ env:
 value provider on every remote config update, not just at startup. This means their values are
 refreshed automatically when a new config is pushed from Fleet Control.
 
-Value providers are configured under the `value_providers:` key in `agentcontrol.yml` (the legacy
+Value providers are configured under the `value_providers:` key in the Agent Control configuration (the legacy
 key `secrets_providers:` is still accepted as an alias).
 
 ### `nr-vault` — HashiCorp Vault
 
-Reads a value from a Vault KV secret. Requires `value_providers.vault` to be configured in
-`agentcontrol.yml`.
+Reads a value from a Vault KV secret. Requires `value_providers.vault` to be configured in the Agent Control configuration.
 
 **Secret path format:** `<source>:<mount>:<path>:<key>`
 
 ```yaml
-# in agentcontrol.yml
 value_providers:
   vault:
     sources:
@@ -190,7 +188,7 @@ Multiple sources can be defined under `sources`. Each source is identified by it
 ### `nr-azurekv` — Azure Key Vault
 
 Reads a secret value from an Azure Key Vault instance. Requires `value_providers.azure_key_vault`
-to be configured in `agentcontrol.yml`. Multiple named sources can be configured to target
+to be configured in the Agent Control configuration. Multiple named sources can be configured to target
 different vaults.
 
 **Secret path format:** `<source-name>:<secret-name>`
@@ -211,7 +209,7 @@ Identity assigned. No credentials are stored in the config, the identity is atta
 compute resource at the infrastructure level.
 
 ```yaml
-# in agentcontrol.yml
+# in AC configuration
 value_providers:
   azure_key_vault:
     sources:
@@ -227,7 +225,7 @@ Use this when Agent Control runs outside Azure (on-prem, other cloud providers) 
 environment where Managed Identity is unavailable.
 
 ```yaml
-# in agentcontrol.yml
+# in AC configuration
 value_providers:
   azure_key_vault:
     sources:
@@ -243,7 +241,7 @@ value_providers:
 ### `nr-awssm` — AWS Secrets Manager
 
 Reads a string secret from AWS Secrets Manager. Requires `value_providers.aws_secrets_manager`
-to be configured in `agentcontrol.yml`. Multiple named sources can be configured to target
+to be configured in the Agent Control configuration. Multiple named sources can be configured to target
 different regions or accounts.
 
 **Secret path format:** `<source-name>:<secret-id>`, where the secret id is the secret name or its ARN.
@@ -264,7 +262,7 @@ Use this when Agent Control runs on an EC2 instance with an IAM role attached. N
 stored in the config, they are retrieved from IMDSv2 and refreshed before they expire.
 
 ```yaml
-# in agentcontrol.yml
+# in AC config
 value_providers:
   aws_secrets_manager:
     sources:
@@ -281,7 +279,7 @@ access key of an IAM user: temporary credentials (with a session token) are not 
 they are read once from the configuration and would expire while Agent Control is running.
 
 ```yaml
-# in agentcontrol.yml
+# in AC config
 value_providers:
   aws_secrets_manager:
     sources:
@@ -296,7 +294,7 @@ value_providers:
 ### `nr-file` — File values
 
 Reads the contents of a local file. The file content is trimmed of leading/trailing whitespace.
-No configuration needed in `agentcontrol.yml`.
+No configuration needed in the Agent Control configuration.
 
 **Value path format:** absolute path to the file
 
@@ -311,7 +309,7 @@ env:
 ### `nr-kubesec` — Kubernetes secrets
 
 Reads a key from a Kubernetes Secret object. Only available when AC is running on Kubernetes.
-No configuration needed in `agentcontrol.yml`.
+No configuration needed in the Agent Control configuration.
 
 **Secret path format:** `<namespace>:<secret-name>:<key>`
 
@@ -326,7 +324,7 @@ env:
 ### `nr-kubecm` — Kubernetes ConfigMaps
 
 Reads a key from a Kubernetes ConfigMap object. Only available when AC is running on Kubernetes.
-No configuration needed in `agentcontrol.yml`.
+No configuration needed in the Agent Control configuration.
 
 **Value path format:** `<namespace>:<configmap-name>:<key>`
 
@@ -340,7 +338,7 @@ env:
 
 ## Configuration reference for value providers
 
-Only `vault`, `azure_key_vault` and `aws_secrets_manager` require explicit configuration in `agentcontrol.yml`. The
+Only `vault`, `azure_key_vault` and `aws_secrets_manager` require explicit configuration in the Agent Control configuration. The
 other providers are always available.
 
 For the full field reference of each provider, see [`docs/CONFIG.md#value_providers`](CONFIG.md#value_providers).
