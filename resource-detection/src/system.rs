@@ -3,9 +3,7 @@ pub mod detector;
 /// hostname retriever
 pub mod hostname;
 mod machine_identifier;
-/// cross-platform OS distro-id detection
-pub mod os_name;
-/// OS version detection
+/// OS version and distro-id detection
 pub mod os_version;
 
 /// HOSTNAME_KEY represents the hostname key attribute
