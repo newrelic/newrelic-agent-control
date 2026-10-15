@@ -22,6 +22,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ### bugfix
 - On-host: sub-agents without a health check defined no longer log errors from executables publishing health into a closed channel.
+- On-host: Startup failures that happen before logging is configured (e.g. an invalid `local_config.yaml`) are now written to the default Agent Control log file, so they are visible when running as a Windows service.
 
 ## v1.26.0 - 2026-10-09
 
