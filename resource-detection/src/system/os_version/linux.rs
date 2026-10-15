@@ -3,19 +3,27 @@
 //! The file format is a simple `KEY=value` list (see `os-release(5)`), with values
 //! optionally double-quoted. We only need `VERSION_ID` and `ID`.
 
+use tracing::warn;
+
 const OS_RELEASE_PATH: &str = "/etc/os-release";
+const VERSION_ID: &str = "VERSION_ID";
+const DISTRO_IDENTIFIER_FIELD: &str = "ID";
 
 /// Reads `/etc/os-release` and returns its `VERSION_ID` (e.g. "11"). `None` if
 /// the file can't be read or has no `VERSION_ID` line.
 pub fn detect_os_version() -> Option<String> {
-    let content = std::fs::read_to_string(OS_RELEASE_PATH).ok()?;
+    let content = std::fs::read_to_string(OS_RELEASE_PATH)
+        .inspect_err(|e| warn!("Failed to read {}: {}", OS_RELEASE_PATH, e))
+        .ok()?;
     parse_os_version(&content)
 }
 
 /// Reads `/etc/os-release` and returns its `ID` (e.g. "debian", "ubuntu").
 /// `None` if the file can't be read or has no `ID` line.
 pub fn detect_os_id() -> Option<String> {
-    let content = std::fs::read_to_string(OS_RELEASE_PATH).ok()?;
+    let content = std::fs::read_to_string(OS_RELEASE_PATH)
+        .inspect_err(|e| warn!("Failed to read {}: {}", OS_RELEASE_PATH, e))
+        .ok()?;
     parse_os_id(&content)
 }
 
@@ -28,13 +36,13 @@ fn parse_os_release_field(content: &str, field: &str) -> Option<String> {
 }
 
 fn parse_os_version(content: &str) -> Option<String> {
-    parse_os_release_field(content, "VERSION_ID")
+    parse_os_release_field(content, VERSION_ID)
 }
 
 /// `ID` is the distro's short identifier (e.g. "opensuse-leap"), not the
 /// human readable `NAME` (e.g. "openSUSE Leap").
 fn parse_os_id(content: &str) -> Option<String> {
-    parse_os_release_field(content, "ID")
+    parse_os_release_field(content, DISTRO_IDENTIFIER_FIELD)
 }
 
 #[cfg(test)]

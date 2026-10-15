@@ -5,6 +5,7 @@ use std::fmt::Debug;
 use opamp_client::opamp::proto::{AgentDescription as ProtoAgentDescription, KeyValue};
 use opamp_client::operation::settings::{AgentDescription, DescriptionValueType};
 use opamp_client::{ClientError, StartedClient};
+use resource_detection::system::{os_name::detect_os_name, os_version::detect_os_version};
 use tracing::error;
 
 use crate::agent_control::defaults::{
@@ -16,14 +17,14 @@ use crate::event::channel::EventPublisher;
 pub fn os_attributes() -> HashMap<String, DescriptionValueType> {
     let mut attributes = HashMap::from([(
         OS_TYPE_ATTRIBUTE_KEY.to_string(),
-        DescriptionValueType::String(OS_TYPE_ATTRIBUTE_VALUE.to_string()),
+        OS_TYPE_ATTRIBUTE_VALUE.to_string().into(),
     )]);
 
-    if let Some(version_id) = resource_detection::system::os_version::detect_os_version() {
+    if let Some(version_id) = detect_os_version() {
         attributes.insert(OS_VERSION_ATTRIBUTE_KEY.to_string(), version_id.into());
     }
 
-    if let Some(os_id) = resource_detection::system::os_name::detect_os_name() {
+    if let Some(os_id) = detect_os_name() {
         attributes.insert(OS_NAME_ATTRIBUTE_KEY.to_string(), os_id.into());
     }
 
