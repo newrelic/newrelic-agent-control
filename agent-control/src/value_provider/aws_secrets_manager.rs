@@ -33,7 +33,7 @@ const SIGNING_SERVICE: &str = "secretsmanager";
 pub enum AwsSecretsManagerError {
     /// The HTTP client could not be built.
     #[error("could not build the http client: {0}")]
-    HttpClient(HttpBuildError),
+    HttpClient(#[from] HttpBuildError),
 
     /// The endpoint URL could not be built or parsed.
     #[error("could not build endpoint url: {0}")]
@@ -217,7 +217,7 @@ impl AwsSecretsManager {
             .collect::<Result<HashMap<_, _>, AwsSecretsManagerError>>()?;
 
         Ok(Self {
-            client: HttpClient::new(http_config).map_err(AwsSecretsManagerError::HttpClient)?,
+            client: HttpClient::new(http_config)?,
             sources,
         })
     }
