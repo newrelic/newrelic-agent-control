@@ -57,44 +57,42 @@ pub fn test_installation_with_preload_agent(args: InstallationArgs) {
     let custom_agent_type = r#"namespace: newrelic
 name: com.newrelic.preload
 version: 0.1.0
+platform: host
+operating_system: linux
+protocol_version: "1.0"
 variables:
-  linux:
-    oci:
-      repository:
-        description: "Package repository name"
-        type: string
-        required: false
-        default: newrelic/preload-agent-artifacts
-        variants:
-          ac_config_field: "oci_repository_urls"
-          values: ["newrelic/preload-agent-artifacts"]
-    version:
-      description: "Agent version"
+  oci:
+    repository:
+      description: "Package repository name"
       type: string
-      required: true
+      required: false
+      default: newrelic/preload-agent-artifacts
+  version:
+    description: "Agent version"
+    type: string
+    required: true
 deployment:
-  linux:
-    packages:
-      preload-agent:
-        download:
-          oci:
-            repository: ${nr-var:oci.repository}
-            version: ${nr-var:version}
-            public_key_url: https://publickeys.newrelic.com/g/agent-control-oci/global/nrpreloadagent/jwks.json
-        post_download_hook:
-          path: /bin/bash
-          args:
-            - -c
-            - |
-              set -euo pipefail
-              so_path=$(find "$PACKAGE_DIR" -name '*.so' -print -quit)
-              if [ -z "$so_path" ]; then
-                echo "No .so file found in extracted preload package at $PACKAGE_DIR" >&2
-                exit 1
-              fi
-              install -m 0644 -o root -g root "$so_path" __STAGED_PRELOAD_SO__
-              grep -qxF "__STAGED_PRELOAD_SO__" /etc/ld.so.preload 2>/dev/null \
-                || echo "__STAGED_PRELOAD_SO__" >> /etc/ld.so.preload
+  packages:
+    preload-agent:
+      download:
+        oci:
+          repository: ${nr-var:oci.repository}
+          version: ${nr-var:version}
+          public_key_url: https://publickeys.newrelic.com/g/agent-control-oci/global/nrpreloadagent/jwks.json
+      post_download_hook:
+        path: /bin/bash
+        args:
+          - -c
+          - |
+            set -euo pipefail
+            so_path=$(find "$PACKAGE_DIR" -name '*.so' -print -quit)
+            if [ -z "$so_path" ]; then
+              echo "No .so file found in extracted preload package at $PACKAGE_DIR" >&2
+              exit 1
+            fi
+            install -m 0644 -o root -g root "$so_path" __STAGED_PRELOAD_SO__
+            grep -qxF "__STAGED_PRELOAD_SO__" /etc/ld.so.preload 2>/dev/null \
+              || echo "__STAGED_PRELOAD_SO__" >> /etc/ld.so.preload
 "#
     .replace("__STAGED_PRELOAD_SO__", STAGED_PRELOAD_SO);
     exec_bash_command(&format!("mkdir -p {DYNAMIC_AGENT_TYPES_DIR}"))
