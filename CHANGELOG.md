@@ -22,6 +22,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ### bugfix
 - On-host: sub-agents without a health check defined no longer log errors from executables publishing health into a closed channel.
+- HTTP clients no longer pick up proxy settings outside the Agent Control proxy configuration and `ignore_system_proxy: true` is fully honored.
 
 ## v1.26.0 - 2026-10-09
 
