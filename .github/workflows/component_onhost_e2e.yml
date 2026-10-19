@@ -175,12 +175,14 @@ jobs:
 
       - name: Report test result to New Relic
         if: always()
-        # NR_LICENSE_KEY and NR_ACCOUNT_ID come from the "Select region credentials" step above.
         env:
+          NR_LICENSE_KEY: ${{ secrets.E2E_LICENSE_KEY }}
+          NR_ACCOUNT_ID: ${{ secrets.E2E_ACCOUNT_ID }}
           E2E_SCENARIO: ${{ matrix.group }}
           E2E_ENVIRONMENT: ${{ matrix.platform.environment }}
           E2E_STATUS: ${{ job.status }}
           E2E_CALLER_WORKFLOW: ${{ inputs.caller_workflow }}
+          E2E_REGION: ${{ matrix.region }}
         run: bash .github/workflows/scripts/report_e2e_result.sh
 
       - name: Upload e2e result summary

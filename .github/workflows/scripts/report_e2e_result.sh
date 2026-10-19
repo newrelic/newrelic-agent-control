@@ -7,14 +7,13 @@
 #   E2E_ENVIRONMENT       - One of: linux, windows, k8s
 #   E2E_STATUS            - job.status value: success, failure, or cancelled
 #   E2E_CALLER_WORKFLOW   - Name of the top-level workflow that triggered this run
-#   E2E_REGION            - New Relic region: "staging" or "production" (default: production)
+#   E2E_REGION            - New Relic region: "staging", "production", "eu", or "jp" (default: production) 
 #   NR_ACCOUNT_ID         - New Relic account ID
 #   NR_LICENSE_KEY        - New Relic license key (used as the Events API ingest key)
 #
 # Optional environment variables:
 #   E2E_ACCOUNT           - Display name for the account (shown in Slack table). If not set,
-#                           defaults to "Agent Control Canaries (staging)" or "Agent Control Canaries (prod)"
-#                           based on E2E_REGION.
+#                           defaults to "Agent Control Canaries (us)".
 #
 # Standard GitHub Actions variables (automatically injected by the runner):
 #   GITHUB_EVENT_NAME, GITHUB_HEAD_REF, GITHUB_REF_NAME, GITHUB_RUN_ID
@@ -28,10 +27,18 @@ DURATION=$((END_TIME - JOB_START_TIME))
 E2E_REGION="${E2E_REGION:-production}"
 if [[ "$E2E_REGION" == "staging" ]]; then
   INSIGHTS_COLLECTOR_URL="https://staging-insights-collector.newrelic.com"
-  DEFAULT_ACCOUNT="Agent Control Canaries (staging)"
 else
   INSIGHTS_COLLECTOR_URL="https://insights-collector.newrelic.com"
-  DEFAULT_ACCOUNT="Agent Control Canaries (prod)"
+fi
+
+if [[ "$E2E_REGION" == "staging" ]]; then
+  DEFAULT_ACCOUNT="Agent Control Canaries (staging)"
+elif [[ "$E2E_REGION" == "eu" ]]; then
+  DEFAULT_ACCOUNT="Fleet Management EU Org (europe)"
+elif [[ "$E2E_REGION" == "jp" ]]; then
+  DEFAULT_ACCOUNT="testorg_fleet_management_region (japan)"
+else
+  DEFAULT_ACCOUNT="Agent Control Canaries (us)"
 fi
 
 # Allow custom account name override
