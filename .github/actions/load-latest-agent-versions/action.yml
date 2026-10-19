@@ -31,3 +31,6 @@ runs:
         echo "POSTGRESQL_VERSION=2.32.0" >> "$GITHUB_ENV"
         # renovate: datasource=docker depName=newrelic/preload-agent-artifacts
         echo "PRELOAD_VERSION=0.3.0" >> "$GITHUB_ENV"
+        # Only v0.1.0 is published for linux/amd64; newer tags are linux/arm64 only. Not tracked by
+        # Renovate on purpose: a bump to a tag without an amd64 build would break the amd64 job.
+        echo "PRELOAD_AMD64_VERSION=v0.1.0" >> "$GITHUB_ENV"

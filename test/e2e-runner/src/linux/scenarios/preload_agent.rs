@@ -175,42 +175,78 @@ fn assert_preload_agent_installed(package_dir: &str) -> TestResult<()> {
     assert_preload_library_runs()
 }
 
-/// Runs an unrelated dynamically linked binary and checks the preload library was loaded into it
-/// and executed, without requiring it to instrument anything. The library logs a failed APM
-/// lookup for any process that is not a supported runtime, which is what we detect.
+/// Extracts the stdout of a successful `exec_bash_command` result, which also echoes the command
+/// text. Assertions must read this, or they could match the command itself.
+fn stdout_of(result: &str) -> &str {
+    let stdout = result
+        .split_once("\nsuccess\nStdout: ")
+        .map_or(result, |(_, rest)| rest);
+    stdout
+        .rsplit_once("\nStderr: ")
+        .map_or(stdout, |(out, _)| out)
+}
+
+/// Checks the preload library gets loaded into new processes, and that it ran when the library
+/// version can tell us so, without requiring it to instrument anything.
 ///
-/// The probe output is computed so that it can't be matched against the command text, which is
-/// included in the result of `exec_bash_command`.
+/// - Loaded: a fresh `grep` lists the library in its own `/proc/self/maps`, both with an explicit
+///   `LD_PRELOAD` and with none (so only `/etc/ld.so.preload` can have loaded it). This holds for
+///   every library version.
+/// - Ran: versions that log (they embed `NR_PRELOAD_LOG`) emit a failed APM lookup for any process
+///   that is not a supported runtime, which is detected on an unrelated binary. Versions without
+///   logging can't be observed this way.
 fn assert_preload_library_runs() -> TestResult<()> {
-    let probe = |ld_preload: &str| {
-        exec_bash_command(&format!(
-            "{ld_preload}{PRELOAD_LOG_ENV}=warn /bin/echo probe-$((20+22))"
-        ))
-    };
+    for (mode, ld_preload) in [
+        (
+            "explicit LD_PRELOAD",
+            format!("LD_PRELOAD={STAGED_PRELOAD_SO} "),
+        ),
+        ("/etc/ld.so.preload", String::new()),
+    ] {
+        let out = exec_bash_command(&format!(
+            "{ld_preload}grep -c {STAGED_PRELOAD_SO} /proc/self/maps || true"
+        ))?;
+        let mapped = stdout_of(&out).trim().parse::<u32>().unwrap_or(0);
+        debug!("Preload library mappings through {mode}: {mapped}");
+        if mapped == 0 {
+            return Err(format!(
+                "Preload library not loaded into a new process through {mode}: {out}"
+            )
+            .into());
+        }
+    }
 
-    // Explicit LD_PRELOAD: the staged library is loadable and its constructor runs.
-    let explicit = probe(&format!("LD_PRELOAD={STAGED_PRELOAD_SO} "))?;
+    // The computed output can't be confused with the command text.
+    let out = exec_bash_command(&format!(
+        "{PRELOAD_LOG_ENV}=warn /bin/echo probe-$((20+22))"
+    ))?;
+    debug!("Probe through /etc/ld.so.preload: {out}");
+    if !stdout_of(&out).contains("probe-42") {
+        return Err(
+            format!("Probed binary did not produce its output while preloaded: {out}").into(),
+        );
+    }
+
+    let logs = exec_bash_command(&format!(
+        "grep -c {PRELOAD_LOG_ENV} {STAGED_PRELOAD_SO} || true"
+    ))?;
+    if stdout_of(&logs).trim() == "0" {
+        info!("Preload library does not log, skipping the check that its constructor ran");
+        return Ok(());
+    }
+    if !stdout_of(&out).contains(PRELOAD_RAN_LOG) {
+        return Err(
+            format!("Preload library did not log through /etc/ld.so.preload: {out}").into(),
+        );
+    }
+    let explicit = exec_bash_command(&format!(
+        "LD_PRELOAD={STAGED_PRELOAD_SO} {PRELOAD_LOG_ENV}=warn /bin/echo probe-$((20+22))"
+    ))?;
     debug!("Probe with explicit LD_PRELOAD: {explicit}");
-    if !explicit.contains(PRELOAD_RAN_LOG) {
+    if !stdout_of(&explicit).contains(PRELOAD_RAN_LOG) {
         return Err(
-            format!("Preload library did not run with explicit LD_PRELOAD: {explicit}").into(),
+            format!("Preload library did not log with explicit LD_PRELOAD: {explicit}").into(),
         );
-    }
-
-    // Without LD_PRELOAD: /etc/ld.so.preload alone must load it into new processes.
-    let implicit = probe("")?;
-    debug!("Probe through /etc/ld.so.preload: {implicit}");
-    if !implicit.contains(PRELOAD_RAN_LOG) {
-        return Err(
-            format!("Preload library did not run through /etc/ld.so.preload: {implicit}").into(),
-        );
-    }
-    // The probed binary must keep working while preloaded.
-    if !implicit.contains("probe-42") {
-        return Err(format!(
-            "Probed binary did not produce its output while preloaded: {implicit}"
-        )
-        .into());
     }
     Ok(())
 }
