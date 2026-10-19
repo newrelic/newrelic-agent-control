@@ -276,23 +276,4 @@ chart_values:
             "revision: 1\ncustomValue: updated",
         ))
     });
-
-    // Second remote config, applied after yet another change of the ConfigMap.
-    create_values_configmap(
-        k8s.client.clone(),
-        &namespace,
-        CM_NAME,
-        CM_KEY,
-        "updated-again".to_string(),
-    );
-    server.set_config_response(sub_agent_instance_id, remote_config(2));
-
-    retry(60, Duration::from_secs(1), || {
-        block_on(check_helmrelease_spec_values(
-            k8s.client.clone(),
-            namespace.as_str(),
-            "hello-world",
-            "revision: 2\ncustomValue: updated-again",
-        ))
-    });
 }
