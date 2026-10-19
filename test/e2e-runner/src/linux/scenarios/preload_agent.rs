@@ -17,6 +17,26 @@ const DYNAMIC_AGENT_TYPES_DIR: &str = "/etc/newrelic-agent-control/dynamic-agent
 /// isn't traversable by non-root, so referencing the OCI-managed copy directly from
 /// /etc/ld.so.preload breaks every dynamically linked binary for non-root users.
 const STAGED_PRELOAD_SO: &str = "/usr/local/lib/newrelic-preload-agent.so";
+/// Env var that sets the preload library log level. Its logger writes to stdout.
+const PRELOAD_LOG_ENV: &str = "NR_PRELOAD_LOG";
+/// Log emitted by the preload library constructor when the process it was loaded into is not a
+/// supported APM runtime (e.g. `echo`), which is the case for any binary used as probe.
+const PRELOAD_RAN_LOG: &str =
+    "newrelic_agent_preload] pre-load failed: Lookup error: Failed to parse lookup language target";
+/// Removes the preload library from the host so it does not leak into later processes, then
+/// runs the common test tear down.
+fn tear_down_preload_test() {
+    let cleanup = format!(
+        "sed -i '\\|^{STAGED_PRELOAD_SO}$|d' /etc/ld.so.preload; \
+         [ -s /etc/ld.so.preload ] || rm -f /etc/ld.so.preload; \
+         rm -f {STAGED_PRELOAD_SO}"
+    );
+    if let Err(err) = exec_bash_command(&cleanup) {
+        debug!("Failed to remove the preload library from the host: {err}");
+    }
+    tear_down_test();
+}
+
 /// Expected package installation directory for the preload agent.
 fn preload_package_dir() -> String {
     format!(
@@ -34,7 +54,7 @@ pub fn test_installation_with_preload_agent(args: InstallationArgs) {
         args,
         ..Default::default()
     };
-    let _clean_up = CleanUp::new(tear_down_test);
+    let _clean_up = CleanUp::new(tear_down_preload_test);
     install_agent_control_from_recipe(&recipe_data);
     // after the above is done inspect the directory structures to make sure everything is in there
     // particularly the AC local configuration
@@ -151,6 +171,46 @@ fn assert_preload_agent_installed(package_dir: &str) -> TestResult<()> {
         .any(|line| line.trim() == STAGED_PRELOAD_SO)
     {
         return Err(format!("{STAGED_PRELOAD_SO} not yet present in /etc/ld.so.preload").into());
+    }
+    assert_preload_library_runs()
+}
+
+/// Runs an unrelated dynamically linked binary and checks the preload library was loaded into it
+/// and executed, without requiring it to instrument anything. The library logs a failed APM
+/// lookup for any process that is not a supported runtime, which is what we detect.
+///
+/// The probe output is computed so that it can't be matched against the command text, which is
+/// included in the result of `exec_bash_command`.
+fn assert_preload_library_runs() -> TestResult<()> {
+    let probe = |ld_preload: &str| {
+        exec_bash_command(&format!(
+            "{ld_preload}{PRELOAD_LOG_ENV}=warn /bin/echo probe-$((20+22))"
+        ))
+    };
+
+    // Explicit LD_PRELOAD: the staged library is loadable and its constructor runs.
+    let explicit = probe(&format!("LD_PRELOAD={STAGED_PRELOAD_SO} "))?;
+    debug!("Probe with explicit LD_PRELOAD: {explicit}");
+    if !explicit.contains(PRELOAD_RAN_LOG) {
+        return Err(
+            format!("Preload library did not run with explicit LD_PRELOAD: {explicit}").into(),
+        );
+    }
+
+    // Without LD_PRELOAD: /etc/ld.so.preload alone must load it into new processes.
+    let implicit = probe("")?;
+    debug!("Probe through /etc/ld.so.preload: {implicit}");
+    if !implicit.contains(PRELOAD_RAN_LOG) {
+        return Err(
+            format!("Preload library did not run through /etc/ld.so.preload: {implicit}").into(),
+        );
+    }
+    // The probed binary must keep working while preloaded.
+    if !implicit.contains("probe-42") {
+        return Err(format!(
+            "Probed binary did not produce its output while preloaded: {implicit}"
+        )
+        .into());
     }
     Ok(())
 }
