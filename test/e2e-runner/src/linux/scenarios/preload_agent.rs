@@ -115,8 +115,10 @@ agents:
     );
     write_agent_local_config(
         &linux::local_config_path(preload_agent_id),
-        format! {r#"
-        version: {preload_version}"#},
+        format!(
+            r#"
+        version: {preload_version}"#
+        ),
     );
     linux::service::restart_service(linux::SERVICE_NAME);
     info!("Waiting for preload OCI package to be installed and its post-download hook to apply");
@@ -146,7 +148,10 @@ fn assert_preload_agent_installed(package_dir: &str) -> TestResult<()> {
     }
     let ld_preload = std::fs::read_to_string("/etc/ld.so.preload")
         .map_err(|err| format!("Failed to read /etc/ld.so.preload: {err}"))?;
-    if !ld_preload.lines().any(|line| line.trim() == STAGED_PRELOAD_SO) {
+    if !ld_preload
+        .lines()
+        .any(|line| line.trim() == STAGED_PRELOAD_SO)
+    {
         return Err(format!("{STAGED_PRELOAD_SO} not yet present in /etc/ld.so.preload").into());
     }
     Ok(())
