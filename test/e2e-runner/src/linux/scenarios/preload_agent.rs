@@ -186,15 +186,14 @@ fn stdout_of(result: &str) -> &str {
         .map_or(stdout, |(out, _)| out)
 }
 
-/// Checks the preload library gets loaded into new processes, and that it ran when the library
-/// version can tell us so, without requiring it to instrument anything.
+/// Checks the preload library gets loaded into new processes and that it ran, without requiring
+/// it to instrument anything.
 ///
 /// - Loaded: a fresh `grep` lists the library in its own `/proc/self/maps`, both with an explicit
-///   `LD_PRELOAD` and with none (so only `/etc/ld.so.preload` can have loaded it). This holds for
-///   every library version.
-/// - Ran: versions that log (they embed `NR_PRELOAD_LOG`) emit a failed APM lookup for any process
-///   that is not a supported runtime, which is detected on an unrelated binary. Versions without
-///   logging can't be observed this way.
+///   `LD_PRELOAD` and with none (so only `/etc/ld.so.preload` can have loaded it).
+/// - Ran: the library logs a failed APM lookup (enabled with `NR_PRELOAD_LOG`) for any process that
+///   is not a supported runtime, which is detected on an unrelated binary. This requires a library
+///   version that logs.
 fn assert_preload_library_runs() -> TestResult<()> {
     for (mode, ld_preload) in [
         (
@@ -227,13 +226,6 @@ fn assert_preload_library_runs() -> TestResult<()> {
         );
     }
 
-    let logs = exec_bash_command(&format!(
-        "grep -c {PRELOAD_LOG_ENV} {STAGED_PRELOAD_SO} || true"
-    ))?;
-    if stdout_of(&logs).trim() == "0" {
-        info!("Preload library does not log, skipping the check that its constructor ran");
-        return Ok(());
-    }
     if !stdout_of(&out).contains(PRELOAD_RAN_LOG) {
         return Err(
             format!("Preload library did not log through /etc/ld.so.preload: {out}").into(),
