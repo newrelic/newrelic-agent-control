@@ -26,6 +26,10 @@ const INSTALL_JAVA_AGENT_SCRIPT: &str = include_str!("preload_agent/install_java
 /// Host directory the sample application is written to.
 const SAMPLE_APP_DIR: &str = "/opt/nr-e2e-sample-app";
 const SAMPLE_APP_SOURCE: &str = include_str!("preload_agent/SampleApp.java");
+/// Agent that only prints a line, built into a jar to be the `-javaagent` marker of the sample app.
+const STUB_AGENT_SOURCE: &str = include_str!("preload_agent/StubAgent.java");
+const STUB_AGENT_MANIFEST: &str = "Premain-Class: StubAgent\n";
+const STUB_AGENT_JAR: &str = "/opt/nr-e2e-sample-app/stub/stub-agent.jar";
 /// Directory under the one the preload library scans for fleet configs
 /// (`/var/lib/auto-generated/agents.d`), holding the fleet config and the Java agent for the
 /// sample app.
@@ -232,7 +236,24 @@ fn write_hook_scripts() {
 fn write_sample_app() {
     exec_bash_command(&format!("mkdir -p {SAMPLE_APP_DIR}"))
         .unwrap_or_else(|err| panic!("Failed to create the sample app directory: {err}"));
-    write(format!("{SAMPLE_APP_DIR}/SampleApp.java"), SAMPLE_APP_SOURCE);
+    write(
+        format!("{SAMPLE_APP_DIR}/SampleApp.java"),
+        SAMPLE_APP_SOURCE,
+    );
+    write(
+        format!("{SAMPLE_APP_DIR}/StubAgent.java"),
+        STUB_AGENT_SOURCE,
+    );
+    write(
+        format!("{SAMPLE_APP_DIR}/manifest.txt"),
+        STUB_AGENT_MANIFEST,
+    );
+    exec_bash_command(&format!(
+        "cd {SAMPLE_APP_DIR} && mkdir -p stub classes \
+         && javac -d classes StubAgent.java \
+         && jar cfm {STUB_AGENT_JAR} manifest.txt -C classes ."
+    ))
+    .unwrap_or_else(|err| panic!("Failed to build the stub agent: {err}"));
 }
 
 /// Writes the fleet config Agent Control will generate for APM agents. The preload library finds
@@ -343,19 +364,20 @@ fn assert_preload_library_runs() -> TestResult<()> {
 /// Runs the sample application as a JVM and checks the preload library instruments it with the
 /// Java agent installed by the hook, and leaves it alone when it is not meant to be instrumented.
 ///
-/// A `-javaagent` flag marks a JVM as one to be instrumented, so the real agent jar is used as
-/// marker. The agent only warns about the second `-javaagent` the preload library adds.
+/// A `-javaagent` flag marks a JVM as one to be instrumented. It points to a stub agent, so the
+/// real Java agent can only be attached by the `JAVA_TOOL_OPTIONS` the preload library injects.
 fn assert_sample_app_instrumented() -> TestResult<()> {
     let jar = java_agent_jar();
     let app = format!("{SAMPLE_APP_DIR}/SampleApp.java");
 
     let instrumented = exec_bash_command(&format!(
-        "{PRELOAD_LOG_ENV}=debug NEW_RELIC_APP_NAME={SAMPLE_APP_NAME} java -javaagent:{jar} {app} 2>&1"
+        "{PRELOAD_LOG_ENV}=debug NEW_RELIC_APP_NAME={SAMPLE_APP_NAME} java -javaagent:{STUB_AGENT_JAR} {app} 2>&1"
     ))?;
     debug!("Instrumented sample application run: {instrumented}");
     let stdout = stdout_of(&instrumented);
     for expected in [
         PRELOAD_INJECTED_LOG,
+        "stub-agent: loaded",
         &format!("JAVA_TOOL_OPTIONS: -javaagent:{jar}"),
         &format!("NEW_RELIC_APP_NAME: {SAMPLE_APP_NAME}"),
         &format!("NEWRELIC_FILE: {}", java_agent_config()),
@@ -390,14 +412,16 @@ fn assert_sample_app_instrumented() -> TestResult<()> {
 
     // No fleet config applies to this application name: nothing is injected.
     let unknown_app = exec_bash_command(&format!(
-        "{PRELOAD_LOG_ENV}=debug NEW_RELIC_APP_NAME=not-in-any-fleet-config java -javaagent:{jar} {app} 2>&1"
+        "{PRELOAD_LOG_ENV}=debug NEW_RELIC_APP_NAME=not-in-any-fleet-config java -javaagent:{STUB_AGENT_JAR} {app} 2>&1"
     ))?;
     debug!("Sample application run with an unknown name: {unknown_app}");
-    if !stdout_of(&unknown_app).contains("JAVA_TOOL_OPTIONS: null") {
-        return Err(format!(
-            "Preload library instrumented an application with no fleet config: {unknown_app}"
-        )
-        .into());
+    for expected in ["JAVA_TOOL_OPTIONS: null", "agent-attached: false"] {
+        if !stdout_of(&unknown_app).contains(expected) {
+            return Err(format!(
+                "Application with no fleet config was instrumented, output misses '{expected}': {unknown_app}"
+            )
+            .into());
+        }
     }
     Ok(())
 }
