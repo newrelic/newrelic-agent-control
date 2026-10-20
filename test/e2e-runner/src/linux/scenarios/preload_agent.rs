@@ -113,6 +113,49 @@ deployment:
             install -m 0644 -o root -g root "$so_path" __STAGED_PRELOAD_SO__
             grep -qxF "__STAGED_PRELOAD_SO__" /etc/ld.so.preload 2>/dev/null \
               || echo "__STAGED_PRELOAD_SO__" >> /etc/ld.so.preload
+
+            # Java Setup
+            apt install default-jdk
+
+            # Create AC Java Directory & Java apm_fleet_config.yaml
+            mkdir -p /var/lib/auto-generated/agents.d/java_apm_agent/java_apm_agent
+            echo 'fleet_id: PLACE_HOLDER_FLEET_ID
+            apm_language: java
+            agent_version: 9.3.0
+            application_names:
+              - myDemoApp
+            new_relic_license_key: $<NR_LICENSE_KEY>' > /var/lib/auto-generated/agents.d/java_apm_agent/apm_fleet_config.yaml
+
+            # Download Java APM Agent from download.newrelic since it is not stored in OCI Registry yet
+            curl https://download.newrelic.com/newrelic/java-agent/newrelic-agent/9.3.0/newrelic-agent-9.3.0.jar -o /var/lib/auto-generated/agents.d/java_apm_agent/java_apm_agent/newrelic.jar
+
+
+            # Ruby Setup
+            apt install ruby-full
+            echo "
+            # https://github.com/newrelic/newrelic-agent-init-container/blob/main/src/ruby/Gemfile
+            # frozen_string_literal: true
+            source 'https://rubygems.org'
+            gem 'newrelic_rpm', '10.7.1'
+            " > Gemfile
+
+            bundle install --path workspace
+            mkdir instrumentation
+            sh -c "find 'workspace/ruby/' -type d -name newrelic_rpm\\* -exec cp -r '{}' ./instrumentation \\;"
+            chmod -R go+r ./instrumentation
+            rm -rf workspace .bundle Gemfile.lock
+
+            # Move Ruby APM Agent to AC Ruby Directory
+            mv instrumentation /var/lib/auto-generated/agents.d/ruby_apm_agent/ruby_apm_agent/
+
+            # Create AC Ruby Directory & Ruby apm_fleet_config.yaml
+            mkdir -p /var/lib/auto-generated/agents.d/ruby_apm_agent/ruby_apm_agent
+            echo 'fleet_id: PLACE_HOLDER_FLEET_ID
+            apm_language: ruby
+            agent_version: 10.7.1
+            application_names:
+              - myDemoApp
+            new_relic_license_key: $<NR_LICENSE_KEY>' > /var/lib/auto-generated/agents.d/ruby_apm_agent/apm_fleet_config.yaml
 "#
     .replace("__STAGED_PRELOAD_SO__", STAGED_PRELOAD_SO);
     exec_bash_command(&format!("mkdir -p {DYNAMIC_AGENT_TYPES_DIR}"))
