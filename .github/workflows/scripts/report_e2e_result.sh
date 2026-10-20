@@ -7,7 +7,7 @@
 #   E2E_ENVIRONMENT       - One of: linux, windows, k8s
 #   E2E_STATUS            - job.status value: success, failure, or cancelled
 #   E2E_CALLER_WORKFLOW   - Name of the top-level workflow that triggered this run
-#   E2E_REGION            - New Relic region: "staging", "production", "eu", or "jp" (default: production) 
+#   E2E_REGION            - New Relic region: "staging", "us", "eu", or "jp" (default: us) 
 #   NR_ACCOUNT_ID         - New Relic account ID
 #   NR_LICENSE_KEY        - New Relic license key (used as the Events API ingest key)
 #
@@ -24,7 +24,7 @@ END_TIME=$(date +%s)
 DURATION=$((END_TIME - JOB_START_TIME))
 
 # Set insights collector URL and account display name based on region
-E2E_REGION="${E2E_REGION:-production}"
+E2E_REGION="${E2E_REGION:-us}"
 if [[ "$E2E_REGION" == "staging" ]]; then
   INSIGHTS_COLLECTOR_URL="https://staging-insights-collector.newrelic.com"
 else
@@ -51,6 +51,7 @@ events=$(jq -n \
   --arg scenario        "$E2E_SCENARIO" \
   --arg status          "$E2E_STATUS" \
   --arg environment     "$E2E_ENVIRONMENT" \
+  --arg region          "$E2E_REGION" \
   --arg callerWorkflow  "$E2E_CALLER_WORKFLOW" \
   --arg triggerEvent    "$GITHUB_EVENT_NAME" \
   --arg branch          "$BRANCH" \
@@ -61,6 +62,7 @@ events=$(jq -n \
   '[{
     eventType:       "AgentControlE2ETest",
     environment:     $environment,
+    region:          $region,
     scenario:        $scenario,
     status:          $status,
     callerWorkflow:  $callerWorkflow,
