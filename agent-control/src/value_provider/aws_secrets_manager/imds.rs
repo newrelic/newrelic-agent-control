@@ -23,7 +23,7 @@ const IMDS_TOKEN_TTL_SECONDS: &str = "21600";
 const CREDENTIALS_REFRESH_MARGIN: Duration = Duration::from_secs(60);
 
 /// Represents the AWS Instance Profile to obtain credentials from
-pub(super) struct AwsInstanceProfile {
+pub struct AwsInstanceProfile {
     /// Dedicated client without proxy: IMDS is link-local and unreachable through a proxy.
     client: HttpClient,
     imds_base_url: String,
@@ -32,11 +32,11 @@ pub(super) struct AwsInstanceProfile {
 }
 
 impl AwsInstanceProfile {
-    pub(super) fn try_new(timeout: Duration) -> Result<Self, AwsSecretsManagerError> {
+    pub fn try_new(timeout: Duration) -> Result<Self, AwsSecretsManagerError> {
         Self::with_base_url(timeout, DEFAULT_IMDS_BASE_URL.to_string())
     }
 
-    pub(super) fn with_base_url(
+    pub fn with_base_url(
         timeout: Duration,
         imds_base_url: String,
     ) -> Result<Self, AwsSecretsManagerError> {
@@ -51,7 +51,7 @@ impl AwsInstanceProfile {
     /// Returns cached credentials, fetching new ones from IMDS when they are about to expire.
     ///
     /// The lock is held during the fetch in order to avoid that concurrent callers refresh twice.
-    pub(super) fn credentials(&self) -> Result<Credentials, AwsSecretsManagerError> {
+    pub fn credentials(&self) -> Result<Credentials, AwsSecretsManagerError> {
         let mut cached = self.cache.lock().unwrap_or_else(PoisonError::into_inner);
         if let Some(credentials) = cached.as_ref().filter(|c| !is_expiring(c)) {
             return Ok(credentials.clone());
