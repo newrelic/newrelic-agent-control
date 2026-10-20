@@ -196,6 +196,11 @@ struct AwsErrorResponse {
 }
 
 /// AWS Secrets Manager provider. Holds a shared HTTP client and one runtime source per configured name.
+// NOTE: `aws-sdk-secretsmanager` was discarded because its async HTTP client has its own proxy
+// handling, which behaves differently from the HTTP client used by the rest of Agent Control.
+// Adopting it would require extra research to align the proxy behavior (e.g. a custom HTTP client
+// implementation for the SDK). Reconsider it if more authentication methods are needed, since the
+// SDK's credential provider chain supports them out of the box.
 pub struct AwsSecretsManager {
     client: HttpClient,
     sources: HashMap<String, AwsSecretsManagerSource>,
