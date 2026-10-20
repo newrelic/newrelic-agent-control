@@ -18,8 +18,15 @@ const IMDS_TOKEN_PATH: &str = "/latest/api/token";
 const IMDS_ROLE_PATH: &str = "/latest/meta-data/iam/security-credentials/";
 const IMDS_TOKEN_TTL_HEADER: &str = "x-aws-ec2-metadata-token-ttl-seconds";
 const IMDS_TOKEN_HEADER: &str = "x-aws-ec2-metadata-token";
+/// Requested lifetime of the IMDSv2 session token: 21600s (6 hours), the maximum IMDS allows.
+/// Sent as a header value, hence a string.
+/// See <https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-metadata-v2-how-it-works.html>.
 const IMDS_TOKEN_TTL_SECONDS: &str = "21600";
 /// Instance profile credentials are refreshed when they expire within this margin.
+/// It avoids handing out credentials that expire mid-request due to latency or clock skew.
+/// AWS makes new credentials available at least 5 minutes before the old ones expire, so
+/// refreshing 60s before expiry always finds fresh credentials.
+/// See <https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-metadata-security-credentials.html>.
 const CREDENTIALS_REFRESH_MARGIN: Duration = Duration::from_secs(60);
 
 /// Represents the AWS Instance Profile to obtain credentials from
@@ -40,6 +47,7 @@ impl AwsInstanceProfile {
         timeout: Duration,
         imds_base_url: String,
     ) -> Result<Self, AwsSecretsManagerError> {
+        // We use default (empty) proxy config because IMDS is only reachable from the instance itself.
         let client = HttpClient::new(HttpConfig::new(timeout, timeout, ProxyConfig::default()))?;
         Ok(Self {
             client,
