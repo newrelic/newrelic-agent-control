@@ -62,6 +62,14 @@ jobs:
           - package-upgrade
           - uninstall-and-reinstall
           - service-lifecycle
+          - preload-agent
+        exclude:
+          # The published preload library is linux/arm64 only for the versions that log.
+          - platform:
+              arch: amd64
+              runner: ubuntu-26.04
+              environment: linux
+            group: preload-agent
     steps:
       - name: Record job start time
         run: echo "JOB_START_TIME=$(date +%s)" >> "$GITHUB_ENV"
@@ -99,7 +107,8 @@ jobs:
             --flex-version "${{ env.FLEX_VERSION }}" \
             --mysql-version "${{ env.MYSQL_VERSION }}" \
             --postgresql-version "${{ env.POSTGRESQL_VERSION }}" \
-            --ebpf-agent-version "${{ env.EBPF_AGENT_VERSION }}"
+            --ebpf-agent-version "${{ env.EBPF_AGENT_VERSION }}" \
+            --preload-version "${{ env.PRELOAD_VERSION }}"
 
       - name: Report test result to New Relic
         if: always()

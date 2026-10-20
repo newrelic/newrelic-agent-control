@@ -29,3 +29,5 @@ runs:
         echo "MYSQL_VERSION=1.25.0" >> "$GITHUB_ENV"
         # renovate: datasource=docker depName=newrelic/nri-postgresql-artifacts
         echo "POSTGRESQL_VERSION=2.32.0" >> "$GITHUB_ENV"
+        # renovate: datasource=docker depName=newrelic/preload-agent-artifacts
+        echo "PRELOAD_VERSION=0.3.0" >> "$GITHUB_ENV"
