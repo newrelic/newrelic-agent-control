@@ -112,6 +112,8 @@ pub fn test_installation_with_preload_agent(args: InstallationArgs) {
         ..Default::default()
     };
     let _clean_up = CleanUp::new(tear_down_preload_test);
+    info!("Installing the tools the post download hook scripts and the sample applications need");
+    install_host_dependencies();
     install_agent_control_from_recipe(&recipe_data);
     // after the above is done inspect the directory structures to make sure everything is in there
     // particularly the AC local configuration
@@ -130,7 +132,6 @@ pub fn test_installation_with_preload_agent(args: InstallationArgs) {
     );
     let preload_agent_id = "nr-preload";
 
-    assert_host_dependencies();
     info!("Writing post download hook scripts and the sample application");
     write_hook_scripts();
     write_sample_apps();
@@ -245,15 +246,16 @@ ruby_agent:
     info!("Test completed successfully");
 }
 
-/// Checks the tools the post download hook scripts and the sample applications need, which the
-/// host (the CI workflow step for this scenario) is expected to provide: `unzip` and a JDK that can
-/// compile for the Java agent, and `ruby` for the Ruby agent.
-fn assert_host_dependencies() {
-    for tool in ["unzip", "javac", "jar", "java", "ruby", "gem"] {
-        exec_bash_command(&format!("command -v {tool}")).unwrap_or_else(|_| {
-            panic!("'{tool}' is required on the host to run this scenario, install it first")
-        });
-    }
+/// Installs the tools the post download hook scripts and the sample applications need: `unzip`
+/// and a JDK for the Java agent, and `ruby` for the Ruby agent. This must run before the Agent
+/// Control installation, which replaces the apt sources with a local repository that stops
+/// `apt-get update` from working.
+fn install_host_dependencies() {
+    exec_bash_command(
+        "export DEBIAN_FRONTEND=noninteractive; apt-get update -qq \
+         && apt-get install -y -qq unzip default-jdk-headless ruby",
+    )
+    .unwrap_or_else(|err| panic!("Failed to install the host dependencies: {err}"));
 }
 
 fn write_hook_scripts() {

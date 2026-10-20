@@ -78,12 +78,6 @@ jobs:
           path: ./
       - name: Build e2e-runner binary
         run: cargo build -p e2e-runner
-      # Installed before the e2e-runner sets up its local apt repository, which breaks `apt-get update`.
-      - name: Install the preload-agent scenario dependencies
-        if: matrix.group == 'preload-agent'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y unzip default-jdk-headless ruby
       - name: "Linux e2e ${{ matrix.group }}"
         run: |
           echo "${{ secrets.NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" > /tmp/newrelic-agent-control-priv.key
