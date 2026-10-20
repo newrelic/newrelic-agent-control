@@ -1,3 +1,4 @@
+use crate::common::agent_metadata::{AgentKind, AgentMetadata};
 use crate::common::config::write_agent_local_config;
 use crate::common::nrql::Region;
 use crate::common::on_drop::CleanUp;
@@ -50,13 +51,13 @@ const EXPECTED_DOMAINS_STAGING: &[&str] = &[
 ];
 
 pub fn test_agent_control_proxy(args: InstallationArgs) {
+    let AgentMetadata {
+        sub_agent_id: infra_sub_agent_id,
+        agent_type_id: infra_agent_type,
+        package_version: infra_version,
+    } = args.agent(AgentKind::InfraAgent);
     info!("Setting up mitmproxy container");
     setup_mitmproxy();
-
-    let infra_version = args
-        .infra_agent_version
-        .clone()
-        .expect("--infra-agent-version is required for this scenario");
 
     let staging = args.nr_region == Region::Staging;
 
@@ -90,14 +91,14 @@ pub fn test_agent_control_proxy(args: InstallationArgs) {
         r#"
 host_id: {test_id}
 agents:
-  nr-infra:
-    agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
+  {infra_sub_agent_id}:
+    agent_type: "{infra_agent_type}"
 "#
     );
     config::update_config(linux::DEFAULT_AC_CONFIG_PATH, config);
 
     write_agent_local_config(
-        &linux::local_config_path("nr-infra"),
+        &linux::local_config_path(infra_sub_agent_id),
         format!(
             r#"
 config_agent:

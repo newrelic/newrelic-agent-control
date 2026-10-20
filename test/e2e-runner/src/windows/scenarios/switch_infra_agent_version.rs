@@ -1,3 +1,4 @@
+use crate::common::agent_metadata::{AgentKind, AgentMetadata};
 use crate::common::config::update_config;
 use crate::common::health::check_health;
 use crate::common::on_drop::CleanUp;
@@ -21,14 +22,14 @@ const ENV_VARS_FILE: &str =
 const UPDATE_FROM_INFRA_AGENT_VERSION: &str = "1.71.4";
 
 pub fn switch_infra_agent_version(args: InstallationArgs) {
-    let update_to_infra_agent_version = args
-        .infra_agent_version
-        .clone()
-        .expect("--infra-agent-version is required for this scenario");
-
+    let AgentMetadata {
+        sub_agent_id: infra_sub_agent_id,
+        package_version: update_to_infra_agent_version,
+        ..
+    } = args.agent(AgentKind::InfraAgent);
     assert!(
         UPDATE_FROM_INFRA_AGENT_VERSION != update_to_infra_agent_version,
-        "--infra-agent-version must be different from the built-in update-from version ({UPDATE_FROM_INFRA_AGENT_VERSION}) for this test to be meaningful."
+        "the resolved infra agent version must be different from the built-in update-from version ({UPDATE_FROM_INFRA_AGENT_VERSION}) for this test to be meaningful."
     );
 
     // Setup recipe data with fleet configuration
@@ -59,7 +60,7 @@ pub fn switch_infra_agent_version(args: InstallationArgs) {
             r#"
 host_id: {test_id}
 agents:
-  nr-infra:
+  {infra_sub_agent_id}:
     agent_type: newrelic/com.newrelic.infrastructure:0.1.0
 "#
         ),
@@ -68,7 +69,7 @@ agents:
     // Setup infra-agent config
     info!("Setup infra-agent config");
     config::write_agent_local_config(
-        &windows::local_config_path("nr-infra"),
+        &windows::local_config_path(infra_sub_agent_id),
         format!(
             r#"
 config_agent:
@@ -117,7 +118,7 @@ version: {UPDATE_FROM_INFRA_AGENT_VERSION}
     // Setup infra-agent config with different version
     info!("Replace infra-agent version");
     config::modify_agents_config(
-        windows::local_config_path("nr-infra"),
+        windows::local_config_path(infra_sub_agent_id),
         UPDATE_FROM_INFRA_AGENT_VERSION,
         update_to_infra_agent_version.to_string().as_str(),
     );

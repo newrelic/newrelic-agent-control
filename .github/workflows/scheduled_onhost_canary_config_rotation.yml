@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   # Never overlap rotation runs (each run already deploys every environment/platform combination).
@@ -26,13 +27,13 @@ env:
   # metrics keep flowing regardless of which OHI is the rotating companion.
   # ---------------------------------------------------------------------------
   # AC US Production Account `canaries-infra-config` config
-  INFRA_SPEC_LINUX_PRODUCTION: "NRInfra:$INFRA_AGENT_VERSION:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmNGM3Yi1lYjAyLTc1MmQtOGViOC0zNDYyMWM2ZDRkMzQ"
+  INFRA_SPEC_LINUX_PRODUCTION: "NRInfra:$NRINFRA_VERSION:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmNGM3Yi1lYjAyLTc1MmQtOGViOC0zNDYyMWM2ZDRkMzQ"
   # AC US Production Account `canaries-infra-config-windows` config
-  INFRA_SPEC_WINDOWS_PRODUCTION: "NRInfra:$INFRA_AGENT_VERSION:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmNGNjNC0zNmU1LTdmMmQtYjIyMS1mM2ZjY2QzOTAwOTg"
+  INFRA_SPEC_WINDOWS_PRODUCTION: "NRInfra:$NRINFRA_VERSION:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmNGNjNC0zNmU1LTdmMmQtYjIyMS1mM2ZjY2QzOTAwOTg"
   # AC Staging Account `canaries-infra-config` config
-  INFRA_SPEC_LINUX_STAGING: "NRInfra:$INFRA_AGENT_VERSION:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDFhMDVjZWMtZWI1My03MjI4LTk3ZWEtM2I4ZjRmZmIyOGE4"
+  INFRA_SPEC_LINUX_STAGING: "NRInfra:$NRINFRA_VERSION:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDFhMDVjZWMtZWI1My03MjI4LTk3ZWEtM2I4ZjRmZmIyOGE4"
   # AC Staging Account `canaries-infra-config-windows` config
-  INFRA_SPEC_WINDOWS_STAGING: "NRInfra:$INFRA_AGENT_VERSION:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDFhMDVjZWUtMmQzNi03YzViLTlkZmYtOGI4OTdkZTJlMDk1"
+  INFRA_SPEC_WINDOWS_STAGING: "NRInfra:$NRINFRA_VERSION:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDFhMDVjZWUtMmQzNi03YzViLTlkZmYtOGI4OTdkZTJlMDk1"
 
   # ---------------------------------------------------------------------------
   # NRIFlex companion spec per platform/environment. Each run toggles:
@@ -40,13 +41,13 @@ env:
   #   Even runs (run_number % 2 == 0) -> NRInfra only        (remove)
   # ---------------------------------------------------------------------------
   # AC US Production Account `canaries-linux-flex-config` config
-  FLEX_SPEC_LINUX_PRODUCTION: "NRIFlex:$FLEX_VERSION:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMWEwNjJlZC1iODE1LTdlNGYtODE5NC1mZmZmOGI4ZmM4ZDg"
+  FLEX_SPEC_LINUX_PRODUCTION: "NRIFlex:$NRIFLEX_VERSION:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMWEwNjJlZC1iODE1LTdlNGYtODE5NC1mZmZmOGI4ZmM4ZDg"
   # AC US Production Account `canaries-windows-flex-config` config
-  FLEX_SPEC_WINDOWS_PRODUCTION: "NRIFlex:$FLEX_VERSION:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMWEwMTU3YS1iZWFlLTdiZWMtYTI1NC0wNDQyNjdlZmNlN2Q"
+  FLEX_SPEC_WINDOWS_PRODUCTION: "NRIFlex:$NRIFLEX_VERSION:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMWEwMTU3YS1iZWFlLTdiZWMtYTI1NC0wNDQyNjdlZmNlN2Q"
   # AC Staging Account `canaries-linux-flex-config` config
-  FLEX_SPEC_LINUX_STAGING: "NRIFlex:$FLEX_VERSION:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDFhMDYyZWUtODczNi03MzhjLWEwZDMtZTQzZDZkNmI2MzYx"
+  FLEX_SPEC_LINUX_STAGING: "NRIFlex:$NRIFLEX_VERSION:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDFhMDYyZWUtODczNi03MzhjLWEwZDMtZTQzZDZkNmI2MzYx"
   # AC Staging Account `canaries-windows-flex-config` config
-  FLEX_SPEC_WINDOWS_STAGING: "NRIFlex:$FLEX_VERSION:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZmVjMDAtYmU3Ni03NWEyLWExODMtM2EwNGJiYTRjOTgx"
+  FLEX_SPEC_WINDOWS_STAGING: "NRIFlex:$NRIFLEX_VERSION:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZmVjMDAtYmU3Ni03NWEyLWExODMtM2EwNGJiYTRjOTgx"
 
 jobs:
   rotate-config-deployment:
@@ -62,7 +63,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: ./.github/actions/load-latest-agent-versions
+      - uses: ./.github/actions/agent-versions/load
+        with:
+          platform: ${{ matrix.platform }}
 
       - name: Resolve fleet and select rotating companion spec
         id: target
@@ -92,9 +95,9 @@ jobs:
             fi
           fi
           # shellcheck disable=SC2016 # envsubst's argument is its own template syntax, must not be shell-expanded
-          INFRA_SPEC=$(echo "$INFRA_SPEC" | envsubst '$INFRA_AGENT_VERSION')
+          INFRA_SPEC=$(echo "$INFRA_SPEC" | envsubst '$NRINFRA_VERSION')
           # shellcheck disable=SC2016
-          FLEX_SPEC=$(echo "$FLEX_SPEC"   | envsubst '$FLEX_VERSION')
+          FLEX_SPEC=$(echo "$FLEX_SPEC"   | envsubst '$NRIFLEX_VERSION')
 
           # Odd run numbers add NRIFlex; even run numbers deploy NRInfra only.
           RUN_NUMBER=${{ github.run_number }}
