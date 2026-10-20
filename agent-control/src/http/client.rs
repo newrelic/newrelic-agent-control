@@ -43,6 +43,11 @@ impl HttpClient {
             builder = builder.tls_info(true);
         }
 
+        // The proxy is setup on `http_config.proxy` which already resolves the supported environment variables
+        // unless ignored. `builder.no_proxy()` disables the default environment variables resolution for the
+        // client builder.
+        builder = builder.no_proxy();
+
         let proxy_config = http_config.proxy;
         let proxy_url = proxy_config.url_as_string();
         if !proxy_url.is_empty() {
@@ -422,6 +427,69 @@ pub(crate) mod tests {
         // Check responses from the target server
         assert_eq!(resp.status(), StatusCode::OK.as_u16());
         assert_eq!(resp.text().unwrap(), expected_response.to_string())
+    }
+
+    #[test]
+    fn test_http_client_ignores_system_proxy_env_vars() {
+        const ENV_PROXY_CHILD_MARKER: &str = "NR_AC_TEST_ENV_PROXY_CHILD";
+        if std::env::var_os(ENV_PROXY_CHILD_MARKER).is_none() {
+            // Re-run this test in a child process so the proxy env vars don't leak into other tests
+            let test_name = format!(
+                "{}::test_http_client_ignores_system_proxy_env_vars",
+                module_path!().split_once("::").unwrap().1 // drop the crate name
+            );
+            // Nothing listens on port 1, so the request fails if the env proxy is used
+            let unreachable_proxy = "http://127.0.0.1:1";
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", &test_name, "--nocapture"])
+                .env(ENV_PROXY_CHILD_MARKER, "1")
+                .env("HTTP_PROXY", unreachable_proxy)
+                .env("HTTPS_PROXY", unreachable_proxy)
+                .env("ALL_PROXY", unreachable_proxy)
+                // Inherited values would make reqwest bypass the env proxy and hide a regression
+                .env_remove("NO_PROXY")
+                .env_remove("no_proxy")
+                .env_remove("REQUEST_METHOD")
+                .output()
+                .unwrap();
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            assert!(
+                output.status.success(),
+                "child test failed:\n{stdout}\n{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            // Guard against the filter matching no test, which libtest reports as success
+            assert!(
+                stdout.contains("1 passed"),
+                "child test did not run:\n{stdout}"
+            );
+            return;
+        }
+
+        // Child process: the proxy env vars are set and the client must not use them as set in configuration
+        assert!(std::env::var_os("HTTP_PROXY").is_some());
+        assert!(std::env::var_os("HTTPS_PROXY").is_some());
+        let target_server = MockServer::start();
+        let mock = target_server.mock(|when, then| {
+            when.any_request();
+            then.status(200);
+        });
+        let proxy_config: ProxyConfig =
+            serde_json::from_value(serde_json::json!({"ignore_system_proxy": true})).unwrap();
+        let http_config = HttpConfig::new(
+            Duration::from_secs(3),
+            Duration::from_secs(3),
+            proxy_config.try_with_url_from_env().unwrap(),
+        );
+        let http_client = HttpClient::new(http_config).unwrap();
+        let request = Request::builder()
+            .uri(target_server.url("/").as_str())
+            .method("GET")
+            .body(Vec::new())
+            .unwrap();
+
+        http_client.send(request).unwrap();
+        mock.assert();
     }
 
     #[test]
