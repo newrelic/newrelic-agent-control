@@ -136,8 +136,8 @@ pub fn load_env_vars() -> VariableValues {
 mod tests {
     use super::*;
     use crate::value_provider::{
-        Registry, ValueProviders, azure_key_vault::tests::MockAzureKeyVault,
-        vault::tests::MockVault,
+        Registry, ValueProviders, aws_secrets_manager::tests::MockAwsSecretsManager,
+        azure_key_vault::tests::MockAzureKeyVault, vault::tests::MockVault,
     };
     use mockall::predicate;
     use rstest::rstest;
@@ -245,6 +245,35 @@ eof"#;
             result,
             HashMap::from([(
                 VariableName::new(Namespace::AzureKeyVault, "test-vault:my-secret"),
+                VariableValue::String("secret-value".to_string())
+            )])
+        );
+    }
+
+    #[test]
+    fn test_load_values_awssm() {
+        let variables = DynamicVariables {
+            variables: HashMap::from([(
+                "nr-awssm".to_string(),
+                HashSet::from(["prod:my/secret".to_string()]),
+            )]),
+        };
+
+        let mut mock_asm = MockAwsSecretsManager::new();
+        mock_asm
+            .expect_get_value()
+            .with(predicate::eq("prod:my/secret"))
+            .returning(|_| Ok("secret-value".to_string()));
+
+        let registry = Registry::from(HashMap::from_iter(vec![(
+            Namespace::AwsSecretsManager,
+            mock_asm,
+        )]));
+        let result = variables.load_values(&registry).unwrap();
+        assert_eq!(
+            result,
+            HashMap::from([(
+                VariableName::new(Namespace::AwsSecretsManager, "prod:my/secret"),
                 VariableValue::String("secret-value".to_string())
             )])
         );
