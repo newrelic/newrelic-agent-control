@@ -164,6 +164,7 @@ envVarKey: bar4
 fn k8s_value_providers_are_refreshed_on_remote_config() {
     const CM_NAME: &str = "cluster-info";
     const CM_KEY: &str = "custom_value";
+    const AGENT_ID: &str = "hello-world";
 
     let mut server = FakeServer::start(tokio_runtime().handle());
 
@@ -210,7 +211,7 @@ release:
 
     K8sAgentControlConfigBuilder::new(&namespace)
         .with_fleet(server.endpoint(), server.jwks_endpoint())
-        .with_agent("hello-world", agent_type_id)
+        .with_agent(AGENT_ID, agent_type_id)
         .write(k8s.client.clone(), tmp_dir.path());
 
     // The ConfigMap exists before Agent Control starts.
@@ -226,7 +227,7 @@ release:
     block_on(create_config_map(
         k8s.client.clone(),
         &namespace,
-        "local-data-hello-world",
+        &format!("local-data-{AGENT_ID}"),
         format!("chart_values:\n  customValue: ${{nr-kubecm:{namespace}:{CM_NAME}:{CM_KEY}}}\n"),
     ));
 
@@ -235,7 +236,7 @@ release:
     let sub_agent_instance_id = instance_id::get_instance_id(
         k8s.client.clone(),
         &namespace,
-        &AgentID::try_from("hello-world").unwrap(),
+        &AgentID::try_from(AGENT_ID).unwrap(),
     );
 
     // Wait until the sub-agent is deployed from local config with the value read at startup.
@@ -243,7 +244,7 @@ release:
         block_on(check_helmrelease_spec_values(
             k8s.client.clone(),
             namespace.as_str(),
-            "hello-world",
+            AGENT_ID,
             "customValue: initial",
         ))
     });
@@ -272,7 +273,7 @@ chart_values:
         block_on(check_helmrelease_spec_values(
             k8s.client.clone(),
             namespace.as_str(),
-            "hello-world",
+            AGENT_ID,
             "revision: 1\ncustomValue: updated",
         ))
     });
