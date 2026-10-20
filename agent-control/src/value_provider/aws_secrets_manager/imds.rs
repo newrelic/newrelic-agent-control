@@ -13,7 +13,7 @@ use std::{
 };
 
 /// EC2 instance metadata service base URL.
-pub(super) const DEFAULT_IMDS_BASE_URL: &str = "http://169.254.169.254";
+pub const DEFAULT_IMDS_BASE_URL: &str = "http://169.254.169.254";
 const IMDS_TOKEN_PATH: &str = "/latest/api/token";
 const IMDS_ROLE_PATH: &str = "/latest/meta-data/iam/security-credentials/";
 const IMDS_TOKEN_TTL_HEADER: &str = "x-aws-ec2-metadata-token-ttl-seconds";
@@ -73,7 +73,7 @@ struct ImdsCredentialsResponse {
 }
 
 /// Retrieves the instance profile credentials following the IMDSv2 flow.
-pub(super) fn fetch_instance_credentials(
+pub fn fetch_instance_credentials(
     client: &HttpClient,
     imds_base_url: &str,
 ) -> Result<Credentials, AwsSecretsManagerError> {
@@ -165,7 +165,7 @@ fn is_expiring(credentials: &Credentials) -> bool {
 }
 
 #[cfg(test)]
-pub(super) mod tests {
+pub mod tests {
     use super::*;
     use crate::http::config::{HttpConfig, ProxyConfig};
     use assert_matches::assert_matches;
@@ -173,8 +173,8 @@ pub(super) mod tests {
     use httpmock::{Mock, MockServer};
     use std::time::Duration;
 
-    pub(in crate::value_provider::aws_secrets_manager) const ACCESS_KEY: &str = "AKIDTEST";
-    pub(in crate::value_provider::aws_secrets_manager) const SECRET_KEY: &str = "test-secret-key";
+    pub const ACCESS_KEY: &str = "AKIDTEST";
+    pub const SECRET_KEY: &str = "test-secret-key";
     const SESSION_TOKEN: &str = "session-token";
     const IMDS_TOKEN: &str = "imds-token";
     const ROLE: &str = "test-role";
