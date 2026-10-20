@@ -19,6 +19,7 @@ pub fn latest_published_ac_tag() -> TestResult<String> {
 }
 
 pub const INFRA_AGENT_REPOSITORY: &str = "newrelic/infrastructure-agent-artifacts";
+pub const AGENT_TYPES_REPOSITORY: &str = "newrelic/agent-control-agent-types";
 
 /// Top `count` published AC semver tags, descending (index 0 = latest).
 pub fn published_ac_tags(count: usize) -> TestResult<Vec<String>> {

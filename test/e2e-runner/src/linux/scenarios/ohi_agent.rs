@@ -5,9 +5,9 @@ use crate::common::health::dump_status;
 use crate::common::nrql::{Region, check_query_results_have_value};
 use crate::common::oci::OciRegistry;
 use crate::common::ohi_agent::{
-    AGENT_TYPE_REPOSITORY, NRQL_ASSERTION_RETRIES, OhiAgentArgs, POLL_INTERVAL, mirror_infra_agent,
-    package_media_type, push_agent_package, push_agent_type, render_agent_local_config,
-    substitute_test_id, test_id,
+    AGENT_TYPE_REPOSITORY, NRQL_ASSERTION_RETRIES, OhiAgentArgs, POLL_INTERVAL, mirror_agent_type,
+    mirror_infra_agent, package_media_type, push_agent_package, push_agent_type,
+    render_agent_local_config, substitute_test_id, test_id,
 };
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
@@ -56,9 +56,11 @@ pub fn test_ohi_agent(args: OhiAgentArgs) {
         push_agent_type(&registry, &args.agent_type_file, &test_id);
     info!(%agent_type_reference, "Agent type pushed");
 
-    // As the mirror config forces to fetch all artifacts from there we need to mirror the infra-agent as well.
+    // As the mirror config forces to fetch all artifacts from there we need to mirror the infra-agent package and type as well.
     let infra_agent_reference = mirror_infra_agent(&registry, &infra_agent_version);
     info!(%infra_agent_reference, "Infra agent package mirrored");
+    let infra_agent_type_reference = mirror_agent_type(&registry, &infra_agent_type, "host-linux");
+    info!(%infra_agent_type_reference, "Infra agent type mirrored");
 
     update_config(
         linux::DEFAULT_AC_CONFIG_PATH,

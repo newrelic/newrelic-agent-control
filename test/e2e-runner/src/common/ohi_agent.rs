@@ -2,7 +2,7 @@
 
 use crate::common::InstallationArgs;
 use crate::common::agent_metadata::{AgentKind, AgentMetadata, AgentMetadataSet};
-use crate::common::docker_hub::INFRA_AGENT_REPOSITORY;
+use crate::common::docker_hub::{AGENT_TYPES_REPOSITORY, INFRA_AGENT_REPOSITORY};
 use crate::common::nrql::Region;
 use crate::common::oci::OciRegistry;
 use crate::common::runtime::tokio_runtime;
@@ -193,4 +193,25 @@ pub fn mirror_infra_agent(registry: &OciRegistry, version: &str) -> Reference {
     publisher(registry, INFRA_AGENT_REPOSITORY)
         .mirror(&source, version)
         .unwrap_or_else(|err| panic!("could not mirror the infra agent package: {err}"))
+}
+
+/// Copies the published agent type `agent_type_id` (`<namespace>/<name>:<version>`) to the test
+/// registry, where AC looks up every remote agent type. `environment_prefix` is the platform part
+/// of the tag, e.g. `host-linux`.
+pub fn mirror_agent_type(
+    registry: &OciRegistry,
+    agent_type_id: &str,
+    environment_prefix: &str,
+) -> Reference {
+    let (qualified_name, version) = agent_type_id
+        .split_once(':')
+        .unwrap_or_else(|| panic!("invalid agent type id '{agent_type_id}'"));
+    let name = qualified_name.rsplit('/').next().unwrap_or(qualified_name);
+    let tag = format!("{environment_prefix}-{name}-{version}");
+    let source: Reference = format!("docker.io/{AGENT_TYPES_REPOSITORY}:{tag}")
+        .parse()
+        .unwrap_or_else(|err| panic!("invalid agent type reference: {err}"));
+    publisher(registry, AGENT_TYPE_REPOSITORY)
+        .mirror(&source, &tag)
+        .unwrap_or_else(|err| panic!("could not mirror the agent type '{agent_type_id}': {err}"))
 }
