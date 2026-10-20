@@ -30,4 +30,6 @@ runs:
         # renovate: datasource=docker depName=newrelic/nri-postgresql-artifacts
         echo "POSTGRESQL_VERSION=2.32.0" >> "$GITHUB_ENV"
         # renovate: datasource=docker depName=newrelic/preload-agent-artifacts
-        echo "PRELOAD_VERSION=0.3.0" >> "$GITHUB_ENV"
+        echo "PRELOAD_VERSION=0.5.0" >> "$GITHUB_ENV"
+        # renovate: datasource=maven depName=com.newrelic.agent.java:newrelic-java
+        echo "JAVA_AGENT_VERSION=9.5.0" >> "$GITHUB_ENV"

@@ -128,6 +128,10 @@ pub struct InstallationArgs {
     /// Version of the preload OCI image to use in tests
     #[arg(long)]
     pub preload_version: Option<String>,
+
+    /// Version of the Java APM agent to download from Maven Central in tests
+    #[arg(long)]
+    pub java_agent_version: Option<String>,
 }
 
 /// Arguments for Fleet Control scenarios that also install Agent Control
