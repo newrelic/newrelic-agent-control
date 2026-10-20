@@ -212,11 +212,14 @@ java_agent:
     info!("Test completed successfully");
 }
 
-/// Installs `unzip` (used by the Java agent script) and a JDK that can run a single source file.
+/// Installs `unzip` (used by the Java agent script) and a JDK that can run a single source file,
+/// unless they are already present. `apt-get update` may fail on a stale local source left by the
+/// Agent Control installation, which does not prevent installing from the other sources.
 fn install_host_dependencies() {
     exec_bash_command(
-        "DEBIAN_FRONTEND=noninteractive apt-get update -qq \
-         && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq unzip default-jdk-headless",
+        "export DEBIAN_FRONTEND=noninteractive; \
+         command -v javac >/dev/null && command -v unzip >/dev/null \
+         || { apt-get update -qq || true; apt-get install -y -qq unzip default-jdk-headless; }",
     )
     .unwrap_or_else(|err| panic!("Failed to install the host dependencies: {err}"));
 }
