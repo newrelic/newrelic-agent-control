@@ -92,5 +92,8 @@ case "$E2E_STATUS" in
   cancelled) STATUS_DISPLAY="⚠️ Cancelled" ;;
   *)         STATUS_DISPLAY="$E2E_STATUS" ;;
 esac
-# The file set the report-table ordering <status>-<environment>-<scenario>
-printf "%s\t%s\t%s\t%s\t%s\n" "$ACCOUNT" "$E2E_ENVIRONMENT" "$E2E_SCENARIO" "$DURATION_FMT" "$STATUS_DISPLAY" > "e2e-result-${E2E_STATUS}-${E2E_ENVIRONMENT}-${E2E_SCENARIO}.txt"
+# The file name sets the report-table ordering: <status>-<environment>-<scenario>-<region>.
+# The region suffix keeps the file unique when the same scenario runs against multiple
+# regions (e.g. remote-config against us/eu/jp), so merging result artifacts from
+# different regions doesn't collide on the same file name.
+printf "%s\t%s\t%s\t%s\t%s\n" "$ACCOUNT" "$E2E_ENVIRONMENT" "$E2E_SCENARIO" "$DURATION_FMT" "$STATUS_DISPLAY" > "e2e-result-${E2E_STATUS}-${E2E_ENVIRONMENT}-${E2E_SCENARIO}-${E2E_REGION}.txt"
