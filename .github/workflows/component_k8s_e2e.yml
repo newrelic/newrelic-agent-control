@@ -152,7 +152,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: e2e-result-${{ matrix.platform.environment }}-${{ matrix.group }}
-          path: e2e-result-*-${{ matrix.platform.environment }}-${{ matrix.group }}.txt
+          path: e2e-result-*-${{ matrix.platform.environment }}-${{ matrix.group }}-*.txt
           if-no-files-found: warn
 
   k8s-e2e-tests-check: # The job is useful to notify the failure

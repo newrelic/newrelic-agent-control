@@ -136,7 +136,7 @@ jobs:
         with:
           name: e2e-result-linux-fleet-control-integration
           path: |
-            e2e-result-*-linux-fleet-control-integration.txt
+            e2e-result-*-linux-fleet-control-integration-*.txt
             fleet-control-test-report.json
           if-no-files-found: warn
 
@@ -148,7 +148,7 @@ jobs:
           E2E_REPORT_TITLE: "OnHost Fleet Control E2E Test with Running AC"
         run: |
           mkdir -p e2e-results
-          mv e2e-result-*-linux-fleet-control-integration.txt e2e-results/ 2>/dev/null || true
+          mv e2e-result-*-linux-fleet-control-integration-*.txt e2e-results/ 2>/dev/null || true
           mv fleet-control-test-report.json e2e-results/ 2>/dev/null || true
           if compgen -G "e2e-results/e2e-result-*.txt" > /dev/null; then
             bash .github/workflows/scripts/slack_e2e_summary.sh

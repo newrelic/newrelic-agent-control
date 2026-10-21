@@ -8,7 +8,7 @@
 # Optional environment variables:
 #   E2E_REPORT_TITLE   - Custom title prefix (default: "Agent Control Nightly E2E Results")
 #
-# Expects per-scenario TSV result files at e2e-results/e2e-result-{env}-{scenario}.txt
+# Expects per-scenario TSV result files at e2e-results/e2e-result-{status}-{env}-{scenario}-{region}.txt
 # (written by report_e2e_result.sh), each with the format:
 #   environment<TAB>scenario<TAB>duration<TAB>status
 
