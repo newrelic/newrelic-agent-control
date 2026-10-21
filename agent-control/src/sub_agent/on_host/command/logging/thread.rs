@@ -9,7 +9,7 @@ use std::{
     io::{BufRead, BufReader, Read},
     thread::JoinHandle,
 };
-use tracing::dispatcher;
+use tracing::{dispatcher, error};
 
 pub(crate) fn spawn_logger<R>(handle: R, loggers: Vec<Logger>)
 where
@@ -39,11 +39,19 @@ where
     let sender_thread = spawn_named_thread("OnHost log sender", move || {
         let _guard = dispatcher::set_default(&dispatch);
 
-        let log_entries = BufReader::new(handle).lines();
+        // Split on raw bytes so lines with non-UTF-8 content (e.g. a Latin-1 file path) are kept.
+        let log_entries = BufReader::new(handle).split(b'\n');
         for line in log_entries {
-            let line = line.expect("Failed to read line from buffered reader");
-            // Send each line to all existing loggers.
-            loggers_channel.broadcast(line);
+            let line = match line {
+                Ok(line) => line,
+                Err(err) => {
+                    // Read errors on the pipe repeat on every call, retrying would loop forever.
+                    error!("Failed to read executable output, stopping log forwarding: {err}");
+                    break;
+                }
+            };
+            let line = line.strip_suffix(b"\r").unwrap_or(&line);
+            loggers_channel.broadcast(String::from_utf8_lossy(line).into_owned());
         }
     });
 
@@ -60,6 +68,7 @@ mod tests {
     use crate::sub_agent::on_host::test_utils::global_logs_lines;
     use mockall::predicate::*;
     use mockall::{Sequence, mock};
+    use rstest::rstest;
     use std::io::{Read, Seek, SeekFrom, Write};
     use tempfile::tempfile;
     use tracing_test::traced_test;
@@ -220,5 +229,94 @@ mod tests {
         let mut content = String::new();
         temp_file.read_to_string(&mut content).unwrap();
         assert_eq!(content, "logging test 1\nlogging test 2\n");
+    }
+
+    /// Latin-1 maps every char below U+0100 to a single byte, e.g. 'é' becomes 0xE9.
+    fn latin1(text: &str) -> Vec<u8> {
+        text.chars().map(latin1_byte).collect()
+    }
+
+    fn latin1_byte(c: char) -> u8 {
+        u8::try_from(u32::from(c)).unwrap_or_else(|_| panic!("'{c}' is not a Latin-1 char"))
+    }
+
+    /// Windows-1252 matches Latin-1 except for 0x80-0x9F. Only the chars used by tests are mapped.
+    fn windows_1252(text: &str) -> Vec<u8> {
+        text.chars()
+            .map(|c| match c {
+                '€' => 0x80,
+                c => latin1_byte(c),
+            })
+            .collect()
+    }
+
+    fn utf16le(text: &str) -> Vec<u8> {
+        text.encode_utf16().flat_map(u16::to_le_bytes).collect()
+    }
+
+    #[rstest]
+    #[case::latin1(latin1("/var/log/méxico/app.log"))]
+    // '€' is the single byte 0x80 in Windows-1252, never valid on its own in UTF-8
+    #[case::windows_1252(windows_1252("/var/log/€/app.log"))]
+    #[case::utf16le(utf16le("/var/log/méxico/app.log"))]
+    #[traced_test]
+    fn spawn_logger_with_non_utf8(#[case] file_name: Vec<u8>) {
+        let agent_id = UniqueAgentID::build();
+        let mut temp_file = tempfile().unwrap();
+        let file_logger = Logger::File(Box::new(FileLogger::new(temp_file.try_clone().unwrap())));
+
+        let output = [
+            b"level=info msg=\"Tailing log files\"\n".as_slice(),
+            b"level=warning msg=\"Cannot read file\" file=",
+            &file_name,
+            b"\r\n",
+            b"level=info msg=\"Integration started\"\n",
+        ]
+        .concat();
+        let loggers = vec![Logger::Stdout(agent_id.into()), file_logger];
+
+        let (sender_thd, logger_thds) = spawn_logger_inner(std::io::Cursor::new(output), loggers);
+        sender_thd
+            .join()
+            .expect("sender thread should not panic on non-UTF-8 output");
+        for thd in logger_thds {
+            thd.join().unwrap();
+        }
+
+        temp_file.seek(SeekFrom::Start(0)).unwrap();
+        let mut content = String::new();
+        temp_file.read_to_string(&mut content).unwrap();
+        let lines: Vec<&str> = content.lines().collect();
+        assert_eq!(lines.len(), 3, "every input line is forwarded: {lines:?}");
+        assert_eq!(lines[0], "level=info msg=\"Tailing log files\"");
+        assert!(
+            lines[1].starts_with("level=warning msg=\"Cannot read file\" file=")
+                && lines[1].contains('\u{FFFD}')
+                && !lines[1].ends_with('\r'),
+            "invalid bytes replaced and CRLF stripped: {:?}",
+            lines[1]
+        );
+        assert_eq!(lines[2], "level=info msg=\"Integration started\"");
+    }
+
+    #[test]
+    fn spawn_logger_stops_on_read_error() {
+        let mut read_mock = MockRead::new();
+        // A retry would call `read` again and panic the sender thread
+        read_mock
+            .expect_read()
+            .once()
+            .returning(|_| Err(std::io::Error::other("broken pipe")));
+
+        let agent_id = UniqueAgentID::build();
+        let loggers = vec![Logger::Stdout(agent_id.into())];
+
+        let (sender_thd, logger_thds) = spawn_logger_inner(read_mock, loggers);
+        sender_thd
+            .join()
+            .expect("sender thread should stop after the first read error");
+        for thd in logger_thds {
+            thd.join().unwrap();
+        }
     }
 }
