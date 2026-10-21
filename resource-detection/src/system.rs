@@ -3,6 +3,8 @@ pub mod detector;
 /// hostname retriever
 pub mod hostname;
 mod machine_identifier;
+/// OS version and distro-id detection
+pub mod os_version;
 
 /// HOSTNAME_KEY represents the hostname key attribute
 pub const HOSTNAME_KEY: &str = "hostname";

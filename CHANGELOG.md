@@ -28,6 +28,9 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 ### Enhancement
 - Added AWS Secrets Manager value provider (`nr-awssm`), supporting access key credentials and EC2 instance profiles.
 
+### enhancement
+- Linux and Windows: Agent Control and its sub-agents now report `os.version` and `host.arch` as OpAMP attributes. Linux also reports `os.name` (the distro id, e.g. "debian").
+
 ## v1.26.0 - 2026-10-09
 
 ### 🚀 Enhancements
