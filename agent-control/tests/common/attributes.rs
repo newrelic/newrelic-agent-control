@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::opamp::capabilities::CustomCapabilities;
@@ -6,6 +6,7 @@ use newrelic_agent_control::opamp::instance_id::InstanceID;
 
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::{AnyValue, KeyValue};
+use opamp_client::operation::settings::DescriptionValueType;
 
 pub fn check_latest_identifying_attributes_match_expected(
     opamp_server: &FakeServer,
@@ -131,6 +132,17 @@ pub fn convert_to_vec_key_value(data: Vec<(&str, Value)>) -> Vec<KeyValue> {
         .map(|(k, v)| KeyValue {
             key: k.to_string(),
             value: Some(AnyValue { value: Some(v) }),
+        })
+        .collect()
+}
+
+pub fn convert_description_attributes_to_vec_key_value(
+    data: HashMap<String, DescriptionValueType>,
+) -> Vec<KeyValue> {
+    data.into_iter()
+        .map(|(key, value)| KeyValue {
+            key,
+            value: value.into(),
         })
         .collect()
 }

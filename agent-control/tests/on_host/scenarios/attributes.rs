@@ -1,7 +1,8 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::attributes::{
     check_latest_identifying_attributes_match_expected,
-    check_latest_non_identifying_attributes_match_expected, convert_to_vec_key_value,
+    check_latest_non_identifying_attributes_match_expected,
+    convert_description_attributes_to_vec_key_value, convert_to_vec_key_value,
 };
 use crate::common::base_paths::TempBasePaths;
 use crate::common::retry::retry;
@@ -13,15 +14,16 @@ use crate::on_host::tools::oci_package_manager::push_test_package;
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
-    AGENT_CONTROL_NAMESPACE, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
+    AGENT_CONTROL_NAMESPACE, HOST_ARCH_ATTRIBUTE_KEY, HOST_ARCH_ATTRIBUTE_VALUE,
+    HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
     OPAMP_PACKAGE_VERSION_ATTRIBUTE_KEY_PREFIX, OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE,
-    OPAMP_SERVICE_VERSION, OPAMP_SUPERVISOR_KEY, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
-    PARENT_AGENT_ID_ATTRIBUTE_KEY,
+    OPAMP_SERVICE_VERSION, OPAMP_SUPERVISOR_KEY, PARENT_AGENT_ID_ATTRIBUTE_KEY,
 };
 use newrelic_agent_control::agent_control::run::on_host::{
     AGENT_CONTROL_MODE_ON_HOST, OCI_TEST_REGISTRY_URL,
 };
 use newrelic_agent_control::agent_type::agent_type_id::AgentTypeID;
+use newrelic_agent_control::opamp::attributes::os_attributes;
 use oci_test_utils::OCISigner;
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::any_value::Value::BytesValue;
@@ -69,11 +71,7 @@ fn test_attributes() {
         ),
     ]));
 
-    let expected_non_identifying_attributes = convert_to_vec_key_value(Vec::from([
-        (
-            OS_ATTRIBUTE_KEY,
-            Value::StringValue(OS_ATTRIBUTE_VALUE.to_string()),
-        ),
+    let mut expected_non_identifying_attributes = convert_to_vec_key_value(Vec::from([
         (
             HOST_NAME_ATTRIBUTE_KEY,
             Value::StringValue(get_hostname().unwrap_or_default()),
@@ -82,7 +80,14 @@ fn test_attributes() {
             PARENT_AGENT_ID_ATTRIBUTE_KEY,
             BytesValue(ac_instance_id.clone().into()),
         ),
+        (
+            HOST_ARCH_ATTRIBUTE_KEY,
+            Value::StringValue(HOST_ARCH_ATTRIBUTE_VALUE.to_string()),
+        ),
     ]));
+    expected_non_identifying_attributes.extend(convert_description_attributes_to_vec_key_value(
+        os_attributes(),
+    ));
 
     retry(30, Duration::from_secs(1), || {
         check_latest_identifying_attributes_match_expected(
@@ -241,11 +246,7 @@ agents:
         ),
     ]));
 
-    let expected_non_identifying_attributes = convert_to_vec_key_value(Vec::from([
-        (
-            OS_ATTRIBUTE_KEY,
-            Value::StringValue(OS_ATTRIBUTE_VALUE.to_string()),
-        ),
+    let mut expected_non_identifying_attributes = convert_to_vec_key_value(Vec::from([
         (
             HOST_NAME_ATTRIBUTE_KEY,
             Value::StringValue(get_hostname().unwrap_or_default()),
@@ -254,7 +255,14 @@ agents:
             PARENT_AGENT_ID_ATTRIBUTE_KEY,
             BytesValue(ac_instance_id.into()),
         ),
+        (
+            HOST_ARCH_ATTRIBUTE_KEY,
+            Value::StringValue(HOST_ARCH_ATTRIBUTE_VALUE.to_string()),
+        ),
     ]));
+    expected_non_identifying_attributes.extend(convert_description_attributes_to_vec_key_value(
+        os_attributes(),
+    ));
 
     retry(30, Duration::from_secs(1), || {
         check_latest_identifying_attributes_match_expected(

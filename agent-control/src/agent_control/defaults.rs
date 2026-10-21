@@ -87,16 +87,44 @@ pub const APM_APPLICATION_ID: &str = "apm.application.id";
 pub const EXECUTION_MODE_ATTRIBUTE_KEY: &str = "execution.mode";
 
 /// OpAMP attribute key for the operating-system type.
-pub const OS_ATTRIBUTE_KEY: &str = "os.type";
-/// Operating-system attribute value for the current target.
+pub const OS_TYPE_ATTRIBUTE_KEY: &str = "os.type";
+/// Operating-system type attribute value for the current target.
 #[cfg(target_os = "macos")]
-pub const OS_ATTRIBUTE_VALUE: &str = "darwin";
-/// Operating-system attribute value for the current target.
+pub const OS_TYPE_ATTRIBUTE_VALUE: &str = "darwin";
+/// Operating-system type attribute value for the current target.
 #[cfg(target_os = "linux")]
-pub const OS_ATTRIBUTE_VALUE: &str = "linux";
-/// Operating-system attribute value for the current target.
+pub const OS_TYPE_ATTRIBUTE_VALUE: &str = "linux";
+/// Operating-system type attribute value for the current target.
 #[cfg(target_os = "windows")]
-pub const OS_ATTRIBUTE_VALUE: &str = "windows";
+pub const OS_TYPE_ATTRIBUTE_VALUE: &str = "windows";
+/// OpAMP attribute key for the OS version.
+pub const OS_VERSION_ATTRIBUTE_KEY: &str = "os.version";
+/// OpAMP attribute key for the OS distro id.
+pub const OS_NAME_ATTRIBUTE_KEY: &str = "os.name";
+
+/// OpAMP attribute key for the host CPU architecture.
+pub const HOST_ARCH_ATTRIBUTE_KEY: &str = opentelemetry_semantic_conventions::attribute::HOST_ARCH;
+
+/// Host CPU architecture attribute value for the current target, using the `host.arch`
+/// OpenTelemetry semantic convention values.
+///
+/// `ia64` has no corresponding `target_arch`, since the Rust compiler doesn't support Itanium.
+///
+/// OpenTelemetry arch values - <https://opentelemetry.io/docs/specs/semconv/registry/attributes/host/#host-arch>
+#[cfg(target_arch = "x86_64")]
+pub const HOST_ARCH_ATTRIBUTE_VALUE: &str = "amd64";
+#[cfg(target_arch = "arm")]
+pub const HOST_ARCH_ATTRIBUTE_VALUE: &str = "arm32";
+#[cfg(target_arch = "aarch64")]
+pub const HOST_ARCH_ATTRIBUTE_VALUE: &str = "arm64";
+#[cfg(target_arch = "powerpc")]
+pub const HOST_ARCH_ATTRIBUTE_VALUE: &str = "ppc32";
+#[cfg(target_arch = "powerpc64")]
+pub const HOST_ARCH_ATTRIBUTE_VALUE: &str = "ppc64";
+#[cfg(target_arch = "s390x")]
+pub const HOST_ARCH_ATTRIBUTE_VALUE: &str = "s390x";
+#[cfg(target_arch = "x86")]
+pub const HOST_ARCH_ATTRIBUTE_VALUE: &str = "x86";
 
 // Paths
 cfg_if::cfg_if! {
@@ -185,5 +213,6 @@ pub(crate) mod tests {
         // Detect possible breaking changes when upgrading opentelemetry-semantic-conventions
         assert_eq!(HOST_NAME_ATTRIBUTE_KEY, "host.name");
         assert_eq!(HOST_ID_ATTRIBUTE_KEY, "host.id");
+        assert_eq!(HOST_ARCH_ATTRIBUTE_KEY, "host.arch");
     }
 }
