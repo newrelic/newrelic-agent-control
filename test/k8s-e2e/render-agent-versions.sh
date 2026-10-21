@@ -10,11 +10,12 @@ for values_file in */ac-values-*.yml; do
   [ -z "$placeholders" ] && continue
 
   for placeholder in $placeholders; do
-    variable=$(tr -d '${}' <<<"$placeholder")
+    variable=$(tr -d '{}$' <<<"$placeholder")
     if [ -z "${!variable:-}" ]; then
       echo "::error::$variable is not set but $values_file uses it; Instrumentation Metadata has no version for it on kubernetes"
       exit 1
     fi
+    echo "Rendering $variable=${!variable} in $values_file"
   done
 
   envsubst "$placeholders" <"$values_file" >"$values_file.rendered"
