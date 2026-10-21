@@ -6,6 +6,13 @@ on:
         description: 'Image tag'
         type: string
         required: true
+  workflow_dispatch:
+    inputs:
+      image-tag:
+        description: 'Image tag'
+        type: string
+        required: true
+        default: nightly
 
 permissions:
   contents: read
