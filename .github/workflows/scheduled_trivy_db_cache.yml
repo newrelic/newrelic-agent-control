@@ -42,3 +42,12 @@ jobs:
         with:
           path: ${{ github.workspace }}/.cache/trivy
           key: cache-trivy-${{ steps.date.outputs.date }}
+
+  notify-failure:
+    name: Notify Trivy DB cache failure
+    needs: update-trivy-db-cache
+    if: failure() && github.event_name == 'schedule'
+    uses: ./.github/workflows/component_send_warning_via_slack.yml
+    with:
+      message: Updating the Trivy DB cache failed
+    secrets: inherit
