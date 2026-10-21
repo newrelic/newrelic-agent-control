@@ -98,6 +98,14 @@ pub struct InstallationArgs {
     /// Version of the preload OCI image to use in tests
     #[arg(long)]
     pub preload_version: Option<String>,
+
+    /// Version of the Java APM agent to download from Maven Central in tests
+    #[arg(long)]
+    pub java_agent_version: Option<String>,
+
+    /// Version of the Ruby APM agent gem to download from rubygems.org in tests
+    #[arg(long)]
+    pub ruby_agent_version: Option<String>,
 }
 
 impl InstallationArgs {
