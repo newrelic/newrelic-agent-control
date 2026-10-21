@@ -17,27 +17,27 @@ agentControlDeployment:
         level: debug
       agents:
         infra:
-          agent_type: newrelic/com.newrelic.infrastructure:0.1.0
+          agent_type: newrelic/com.newrelic.infrastructure:${NRINFRA_AGENT_TYPE_VERSION}
         prometheus:
-          agent_type: newrelic/com.newrelic.prometheus:0.1.0
+          agent_type: newrelic/com.newrelic.prometheus:${NRPROMETHEUSAGENT_AGENT_TYPE_VERSION}
         logs:
-          agent_type: newrelic/io.fluentbit:0.1.0
+          agent_type: newrelic/io.fluentbit:${FLUENTBIT_AGENT_TYPE_VERSION}
         gateway:
-          agent_type: newrelic/com.newrelic.pipeline_control_gateway:0.1.0
+          agent_type: newrelic/com.newrelic.pipeline_control_gateway:${PIPELINECONTROLGATEWAY_AGENT_TYPE_VERSION}
 
     agentsConfig:
       infra:
-        chart_version: "*" # Use latest
+        chart_version: "${NRINFRA_VERSION}"
         chart_values:
           global: # add 'cluster_name' (nri-kubernetes events have 'clusterName' attribute)
             customAttributes:
               cluster_name: ${nr-env:NR_CLUSTER_NAME}
       prometheus:
-        chart_version: "*" # Use latest
+        chart_version: "${NRPROMETHEUSAGENT_VERSION}"
       logs:
-        chart_version: "*" # Use latest
+        chart_version: "${FLUENTBIT_VERSION}"
       gateway:
-        chart_version: "*" # Use latest
+        chart_version: "${PIPELINECONTROLGATEWAY_VERSION}"
         chart_values:
           # we override resources since to fit in the small ci/cd minikube
           gateway:

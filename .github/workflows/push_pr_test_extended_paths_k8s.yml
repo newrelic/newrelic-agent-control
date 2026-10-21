@@ -9,6 +9,7 @@ on:
       - "test/k8s-e2e/**"
       - "agent-control/agent-type-registry/**"
       - "build/**"
+      - ".github/actions/agent-versions/**"
   pull_request:
     types: [ opened, synchronize, labeled ] # Also check labels
     paths:
@@ -16,6 +17,7 @@ on:
       - "test/k8s-e2e/**"
       - "agent-control/agent-type-registry/**"
       - "build/**"
+      - ".github/actions/agent-versions/**"
   merge_group:
 
 permissions:
@@ -30,6 +32,9 @@ jobs:
   k8s-e2e-tests-extended:
     if: "!contains(github.event.pull_request.labels.*.name, 'k8s-extended-e2e')" # Avoid triggering twice if the label is set
     uses: ./.github/workflows/component_k8s_e2e.yml
+    permissions:
+      contents: read
+      actions: read
     with:
       caller_workflow: push_pr_test_extended_paths_k8s
     secrets:

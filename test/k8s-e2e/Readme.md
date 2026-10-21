@@ -18,6 +18,13 @@ brew install jq
 The test leverages the Tilt environment so all requirements to launch Tilt must be followed.
 Notice that the local execution expect to use Testing account.
 
+The `ac-values-*.yml` files take agent and agent-type versions from `${<AGENT>_VERSION}` and `${<AGENT>_AGENT_TYPE_VERSION}`
+placeholders, which CI fills in with the versions of Instrumentation Metadata (`.github/actions/agent-versions/load`).
+To run locally, export the `<AGENT>_VERSION` and `<AGENT>_AGENT_TYPE_VERSION` variables used by the values files you run
+(for example `NRINFRA_VERSION` and `NRINFRA_AGENT_TYPE_VERSION`; the names are the uppercased Instrumentation Metadata agent
+types) and run `test/k8s-e2e/render-agent-versions.sh`. It fails if a placeholder has no value and edits the files in
+place, so do not commit the result.
+
 ```bash
 export ACCOUNT_ID=<NewRelic Staging testing account number>
 export API_REST_KEY=<NewRelic Staging testing api rest key>

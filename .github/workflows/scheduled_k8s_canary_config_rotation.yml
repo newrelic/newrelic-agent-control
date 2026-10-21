@@ -30,8 +30,8 @@ env:
   # NRInfra spec — always included in every deployment to not break the alerts.
   # (canaries-k8s-infra-config)
   # ---------------------------------------------------------------------------
-  INFRA_SPEC_PRODUCTION: "NRInfra:8.0.14:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmYTQ0OC1iNGVmLTc1NDUtYWFiMS1mMTY2YzVhZTlmYTk"
-  INFRA_SPEC_STAGING: "NRInfra:8.0.14:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZmE0MGItNTM2MS03ZDllLTgyZTMtNTI4YWVlYjI5ZTA3"
+  INFRA_SPEC_PRODUCTION: "NRInfra:$NRINFRA_VERSION:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmYTQ0OC1iNGVmLTc1NDUtYWFiMS1mMTY2YzVhZTlmYTk"
+  INFRA_SPEC_STAGING: "NRInfra:$NRINFRA_VERSION:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZmE0MGItNTM2MS03ZDllLTgyZTMtNTI4YWVlYjI5ZTA3"
 
   # ---------------------------------------------------------------------------
   # Rotating companion specs — one is picked per run and deployed alongside NRInfra.
@@ -39,16 +39,19 @@ env:
   #   Second -> NRPrometheusAgent  (canaries-k8s-prom-config)
   # ---------------------------------------------------------------------------
   AGENT_SPECS_PRODUCTION: >-
-    FluentBit:1.40.0:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmYTQ0YS0xODE2LTcyMDEtYTIwNi00ZTQ4ZTA3ZjUxYzI
-    NRPrometheusAgent:2.13.1:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmYTQ0OS03YjFjLTcyZGEtYWQ1Yi03OGQ1M2VjY2FlM2Q
+    FluentBit:$FLUENTBIT_VERSION:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmYTQ0YS0xODE2LTcyMDEtYTIwNi00ZTQ4ZTA3ZjUxYzI
+    NRPrometheusAgent:$NRPROMETHEUSAGENT_VERSION:NjQyNTg2NXxOR0VQfEFHRU5UX0NPTkZJR1VSQVRJT05fVkVSU0lPTnwwMTlmYTQ0OS03YjFjLTcyZGEtYWQ1Yi03OGQ1M2VjY2FlM2Q
   AGENT_SPECS_STAGING: >-
-    FluentBit:1.40.0:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDFhMDZjYjAtZjNiNS03YmJkLTlhNzUtNjJhMmRjZTVkYTcw
-    NRPrometheusAgent:2.13.1:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZmE0MTUtNDc1Zi03MTg5LThiYmUtNTc5NDUwNjA4NjBj
+    FluentBit:$FLUENTBIT_VERSION:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDFhMDZjYjAtZjNiNS03YmJkLTlhNzUtNjJhMmRjZTVkYTcw
+    NRPrometheusAgent:$NRPROMETHEUSAGENT_VERSION:MTIyMTMwNjh8TkdFUHxBR0VOVF9DT05GSUdVUkFUSU9OX1ZFUlNJT058MDE5ZmE0MTUtNDc1Zi03MTg5LThiYmUtNTc5NDUwNjA4NjBj
 
 jobs:
   rotate-config-deployment:
     name: Deploy next config in rotation (${{ matrix.environment }})
     runs-on: linux-4-core-nr-control
+    permissions:
+      contents: read
+      actions: read
     strategy:
       # A failure on one environment must not skip the other.
       fail-fast: false
@@ -56,6 +59,10 @@ jobs:
         environment: [staging, production]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: ./.github/actions/agent-versions/load
+        with:
+          platform: kubernetes
 
       - name: Resolve fleet and select rotating spec
         id: target
@@ -71,6 +78,16 @@ jobs:
             INFRA_SPEC="${INFRA_SPEC_STAGING}"
             SPECS_STR="${AGENT_SPECS_STAGING}"
           fi
+
+          : "${NRINFRA_VERSION:?not resolved from Instrumentation Metadata}"
+          : "${FLUENTBIT_VERSION:?not resolved from Instrumentation Metadata}"
+          : "${NRPROMETHEUSAGENT_VERSION:?not resolved from Instrumentation Metadata}"
+
+          # The $<AGENT>_VERSION placeholders in the specs are expanded here, not by the workflow env.
+          # shellcheck disable=SC2016 # envsubst's argument is its own template syntax, must not be shell-expanded
+          INFRA_SPEC=$(echo "$INFRA_SPEC" | envsubst '$NRINFRA_VERSION')
+          # shellcheck disable=SC2016
+          SPECS_STR=$(echo "$SPECS_STR" | envsubst '$FLUENTBIT_VERSION $NRPROMETHEUSAGENT_VERSION')
 
           read -ra SPECS <<< "${SPECS_STR}"
           COUNT=${#SPECS[@]}

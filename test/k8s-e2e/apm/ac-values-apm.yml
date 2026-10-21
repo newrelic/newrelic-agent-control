@@ -22,21 +22,21 @@ agentControlDeployment:
         insecure_fine_grained_level: newrelic_agent_control=debug,opamp_client=trace,off
       agents:
         operator:
-          agent_type: newrelic/com.newrelic.k8s_agent_operator:0.1.0
+          agent_type: newrelic/com.newrelic.k8s_agent_operator:${NRAPMOPERATOR_AGENT_TYPE_VERSION}
         # One agent per language
         java-agent:
-          agent_type: newrelic/com.newrelic.apm_java:0.1.0
+          agent_type: newrelic/com.newrelic.apm_java:${NRJAVAAGENT_AGENT_TYPE_VERSION}
         python-agent:
-          agent_type: newrelic/com.newrelic.apm_python:0.1.0
+          agent_type: newrelic/com.newrelic.apm_python:${NRPYTHONAGENT_AGENT_TYPE_VERSION}
         node-agent:
-          agent_type: newrelic/com.newrelic.apm_node:0.1.0
+          agent_type: newrelic/com.newrelic.apm_node:${NRNODEAGENT_AGENT_TYPE_VERSION}
         ruby-agent:
-          agent_type: newrelic/com.newrelic.apm_ruby:0.1.0
+          agent_type: newrelic/com.newrelic.apm_ruby:${NRRUBYAGENT_AGENT_TYPE_VERSION}
         dotnet-agent:
-          agent_type: newrelic/com.newrelic.apm_dotnet:0.1.0
+          agent_type: newrelic/com.newrelic.apm_dotnet:${NRDOTNETAGENT_AGENT_TYPE_VERSION}
     agentsConfig:
       operator:
-        chart_version: "0.43.1"
+        chart_version: "${NRAPMOPERATOR_VERSION}"
       # One agent per language
       java-agent:
         podLabelSelector:
