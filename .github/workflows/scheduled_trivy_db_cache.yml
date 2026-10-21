@@ -1,0 +1,44 @@
+name: Update Trivy DB cache
+
+# Keeps a recent Trivy vulnerability DB in the default branch cache so image scans can restore it
+# (trivy-action looks up `cache-trivy-<date>` and falls back to the `cache-trivy-` prefix) instead of
+# depending on the DB registries being available at scan time.
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  update-trivy-db-cache:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@3fb12ec12f41e471780db15c232d5dd185dcb514 # v0.2.6
+
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+
+      # Default DB repositories are used so Trivy can fall back between registries.
+      - name: Download vulnerability DBs
+        env:
+          TRIVY_CACHE_DIR: ${{ github.workspace }}/.cache/trivy
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if trivy image --download-db-only && trivy image --download-java-db-only; then
+              exit 0
+            fi
+            echo "Attempt ${attempt} failed, retrying"
+            sleep $((attempt * 30))
+          done
+          exit 1
+
+      - name: Save DBs to cache
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ${{ github.workspace }}/.cache/trivy
+          key: cache-trivy-${{ steps.date.outputs.date }}

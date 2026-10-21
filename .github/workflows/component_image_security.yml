@@ -31,8 +31,9 @@ jobs:
           ignore-unfixed: true
           severity: ${{ env.SEVERITY }}
         env:
-          TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db
-          TRIVY_JAVA_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-java-db
+          # DBs are downloaded and cached by the scheduled_trivy_db_cache workflow.
+          TRIVY_SKIP_DB_UPDATE: true
+          TRIVY_SKIP_JAVA_DB_UPDATE: true
 
   scan-scheduled:
     name: Scan image
@@ -49,8 +50,9 @@ jobs:
           ignore-unfixed: false  # Get full report when running nightly.
           severity: ${{ env.SEVERITY }}
         env:
-          TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db
-          TRIVY_JAVA_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-java-db
+          # DBs are downloaded and cached by the scheduled_trivy_db_cache workflow.
+          TRIVY_SKIP_DB_UPDATE: true
+          TRIVY_SKIP_JAVA_DB_UPDATE: true
 
       # TODO Upload Trivy scan results to GitHub Security tab when the repo gets public state.
       # more info about current limitation https://docs.github.com/en/code-security/code-scanning/troubleshooting-code-scanning/advanced-security-must-be-enabled
