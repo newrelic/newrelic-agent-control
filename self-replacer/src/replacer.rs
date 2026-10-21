@@ -117,10 +117,10 @@ impl SelfReplacer for BinaryReplacer {
 fn replace_binary(current_exe: &Path, new_bin: &Path) -> Result<(), ReplaceError> {
     let backup = backup_path(current_exe);
 
-    let original_permissions = {
-        let metadata = current_exe.metadata().map_err(ReplaceError::Metadata)?;
-        metadata.permissions()
-    };
+    let original_permissions = current_exe
+        .metadata()
+        .map_err(ReplaceError::Metadata)?
+        .permissions();
 
     // Create backup — strategy differs by platform:
     // Unix: copy (the OS keeps the inode alive for the running process)
@@ -130,6 +130,8 @@ fn replace_binary(current_exe: &Path, new_bin: &Path) -> Result<(), ReplaceError
         backup = %backup.display(),
         "Creating backup"
     );
+
+    let new_bin_temp = create_temp_file(current_exe, new_bin, &original_permissions)?;
 
     #[cfg(unix)]
     fs::copy(current_exe, &backup).map_err(ReplaceError::BackupCreationFailed)?;
@@ -148,8 +150,6 @@ fn replace_binary(current_exe: &Path, new_bin: &Path) -> Result<(), ReplaceError
     //
     #[cfg(windows)]
     fs::rename(current_exe, &backup).map_err(ReplaceError::BackupCreationFailed)?;
-
-    let new_bin_temp = create_temp_file(current_exe, new_bin, &original_permissions)?;
 
     debug!(
         temp_path = %new_bin_temp.display(),
@@ -320,6 +320,36 @@ mod tests {
             BinaryReplacer::with_target(temp_dir.path().join("program")).self_replace(&new_bin);
         // Should fail with NewBinaryNotFound at the early validation check
         assert_matches!(result, Err(ReplaceError::NewBinaryNotFound(_)));
+    }
+
+    #[test]
+    fn test_replace_keeps_current_binary_if_tmp_bin_creation_fails() {
+        let temp_dir = TempDir::new().unwrap();
+        let current_exe = temp_dir.path().join("program");
+        // A directory passes the existence check but cannot be copied, failing the staging step
+        let new_bin = temp_dir.path().join("program-new");
+
+        fs::write(&current_exe, b"old binary").unwrap();
+        fs::create_dir(&new_bin).unwrap();
+
+        let result = BinaryReplacer::with_target(current_exe.clone()).self_replace(&new_bin);
+
+        assert_matches!(result, Err(ReplaceError::TempCopyFailed(_)));
+        assert_eq!(
+            fs::read(&current_exe).unwrap(),
+            b"old binary",
+            "current binary should remain unchanged after failed replacement"
+        );
+        let mut entries: Vec<_> = fs::read_dir(temp_dir.path())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect();
+        entries.sort();
+        assert_eq!(
+            entries,
+            ["program", "program-new"],
+            "a failed replacement should leave the directory as it was"
+        );
     }
 
     #[test]
