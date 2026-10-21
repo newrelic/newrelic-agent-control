@@ -24,6 +24,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 - On-host: sub-agents without a health check defined no longer log errors from executables publishing health into a closed channel.
 - HTTP clients no longer pick up proxy settings outside the Agent Control proxy configuration and `ignore_system_proxy: true` is fully honored.
 - On-host: sub-agent output containing non-UTF-8 bytes no longer stops log forwarding and terminates the sub-agent. Such lines are now logged with the invalid bytes replaced.
+- Windows: a self-update that fails while staging the new binary no longer leaves Agent Control without an executable, which prevented the service from starting after the next restart.
 
 ### Enhancement
 - Added AWS Secrets Manager value provider (`nr-awssm`), supporting access key credentials and EC2 instance profiles.
