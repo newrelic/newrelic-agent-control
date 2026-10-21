@@ -55,6 +55,10 @@ env:
   # Preload and the APM agents the preload scenario instruments are not in Instrumentation Metadata.
   # renovate: datasource=docker depName=newrelic/preload-agent-artifacts
   PRELOAD_VERSION: 0.5.0
+  # renovate: datasource=maven depName=com.newrelic.agent.java:newrelic-java
+  JAVA_AGENT_VERSION: 9.5.0
+  # renovate: datasource=rubygems depName=newrelic_rpm
+  RUBY_AGENT_VERSION: 10.7.1
 
 jobs:
   build-packages:
@@ -96,13 +100,6 @@ jobs:
           - preload-agent
         region:
           - us
-        exclude:
-          # The published preload library is linux/arm64 only for the versions that log.
-          - platform:
-              arch: amd64
-              runner: ubuntu-26.04
-              environment: linux
-            group: preload-agent
         include:
           # Also exercise the remote-config scenario against the EU region (amd64 only, region doesn't depend on arch).
           - platform:
@@ -182,7 +179,9 @@ jobs:
             --agent-control-version "0.900.${{ github.run_id }}" \
             --recipes-repo-branch "main" \
             --ebpf-agent-version "${{ env.EBPF_AGENT_VERSION }}" \
-            --preload-version "${{ env.PRELOAD_VERSION }}"
+            --preload-version "${{ env.PRELOAD_VERSION }}" \
+            --java-agent-version "${{ env.JAVA_AGENT_VERSION }}" \
+            --ruby-agent-version "${{ env.RUBY_AGENT_VERSION }}"
 
       - name: Report test result to New Relic
         if: always()
