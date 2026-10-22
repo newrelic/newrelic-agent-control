@@ -648,15 +648,16 @@ fn handle_exit(
         args,
         ..
     } = &exec_data;
-    warn!(%agent_id,supervisor = bin,exit_code = ?exit_status.code(),"Executable exited unsuccessfully");
+    warn!(%agent_id, supervisor = bin, %exit_status, "Executable exited unsuccessfully");
     debug!(%agent_id, %exec_id, %exit_status, "Error executing executable, marking as unhealthy");
 
     let args = args.join(" ");
     let error = format!("path '{bin}' with args '{args}' failed with '{exit_status}'",);
-    let status = format!(
-        "process exited with code: {}",
-        exit_status.code().unwrap_or_default()
-    );
+    let status = match exit_status.code() {
+        Some(code) => format!("process exited with code: {code}"),
+        // No exit code: killed by a signal, which `ExitStatus` displays as e.g. `signal: 9 (SIGKILL)`
+        None => format!("process terminated by {exit_status}"),
+    };
     health_handler.inspect(|h| h.publish_unhealthy_with_status(error.clone(), status));
     Some(error)
 }
@@ -1438,6 +1439,30 @@ declared-dir:
             .collect::<Vec<_>>();
 
         assert_eq!(actual_ordered_events, expected_ordered_events);
+    }
+
+    #[cfg(target_family = "unix")]
+    #[test]
+    fn test_handle_exit_reports_signal_of_killed_process() {
+        use std::os::unix::process::ExitStatusExt;
+
+        let exec_data = ExecutableData::new("sleep".to_owned(), "sleep".to_owned());
+        let (health_publisher, health_consumer) = pub_sub();
+        let health_handler = HealthHandler::new(exec_data.id.clone(), health_publisher);
+        // Raw wait status 9: terminated by SIGKILL, e.g. by the OOM killer, so there is no exit code
+        let exit_status = ExitStatus::from_raw(9);
+
+        handle_exit(
+            &AgentID::AgentControl,
+            &exec_data,
+            &exit_status,
+            Some(&health_handler),
+        );
+
+        let (_, health) = health_consumer.as_ref().try_recv().unwrap();
+        let health: Health = health.into();
+        assert!(!health.is_healthy());
+        assert_eq!(health.status(), "process terminated by signal: 9 (SIGKILL)");
     }
 
     fn build_supervisor_without_health(
