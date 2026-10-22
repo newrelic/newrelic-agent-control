@@ -3320,8 +3320,8 @@ checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
 name = "opamp-client"
-version = "0.2.1"
-source = "git+https://github.com/newrelic/newrelic-opamp-rs.git?tag=0.2.1#a79d422d0a93abb2c7640fc58d54377ca2f33312"
+version = "0.3.0"
+source = "git+https://github.com/newrelic/newrelic-opamp-rs.git?tag=0.3.0#8412985c84d63ae17f48fbd5a85edce510f38358"
 dependencies = [
  "crossbeam",
  "http 1.5.0",
@@ -3777,7 +3777,7 @@ dependencies = [
 [[package]]
 name = "proto"
 version = "0.1.0"
-source = "git+https://github.com/newrelic/newrelic-opamp-rs.git?tag=0.2.1#a79d422d0a93abb2c7640fc58d54377ca2f33312"
+source = "git+https://github.com/newrelic/newrelic-opamp-rs.git?tag=0.3.0#8412985c84d63ae17f48fbd5a85edce510f38358"
 dependencies = [
  "prost",
  "prost-build",
