@@ -3138,8 +3138,8 @@ checksum = "61807f77802ff30975e01f4f071c8ba10c022052f98b3294119f3e615d13e5be"
 
 [[package]]
 name = "nr-auth"
-version = "0.6.1"
-source = "git+https://github.com/newrelic/newrelic-auth-rs.git?tag=0.6.1#9c82f4930beecbf1c420b84df769de01a53a04f7"
+version = "0.7.0"
+source = "git+https://github.com/newrelic/newrelic-auth-rs.git?tag=0.7.0#44f7041a0ef0265397f4bd3b86501d5a1071dbd4"
 dependencies = [
  "base64 0.23.1",
  "chrono",
