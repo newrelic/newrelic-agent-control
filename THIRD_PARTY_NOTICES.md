@@ -227,6 +227,12 @@ Distributed under the following license(s):
 * Apache-2.0
 * MIT
 
+## aws-credential-types <https://crates.io/crates/aws-credential-types>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+
 ## aws-lc-rs <https://crates.io/crates/aws-lc-rs>
 
 Distributed under the following license(s):
@@ -243,6 +249,42 @@ Distributed under the following license(s):
 * MIT
 * BSD-3-Clause
 * MIT-0
+
+## aws-sigv4 <https://crates.io/crates/aws-sigv4>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+
+## aws-smithy-async <https://crates.io/crates/aws-smithy-async>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+
+## aws-smithy-http <https://crates.io/crates/aws-smithy-http>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+
+## aws-smithy-runtime-api <https://crates.io/crates/aws-smithy-runtime-api>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+
+## aws-smithy-runtime-api-macros <https://crates.io/crates/aws-smithy-runtime-api-macros>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+
+## aws-smithy-types <https://crates.io/crates/aws-smithy-types>
+
+Distributed under the following license(s):
+
+* Apache-2.0
 
 ## axum <https://crates.io/crates/axum>
 
@@ -275,6 +317,12 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
+
+## base64-simd <https://crates.io/crates/base64-simd>
+
+Distributed under the following license(s):
+
+* MIT
 
 ## bitflags <https://crates.io/crates/bitflags>
 
@@ -314,6 +362,13 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 
+* MIT
+
+## bytes-utils <https://crates.io/crates/bytes-utils>
+
+Distributed under the following license(s):
+
+* Apache-2.0
 * MIT
 
 ## bytestring <https://crates.io/crates/bytestring>
@@ -1732,6 +1787,12 @@ Distributed under the following license(s):
 
 * MIT
 
+## outref <https://crates.io/crates/outref>
+
+Distributed under the following license(s):
+
+* MIT
+
 ## parking <https://crates.io/crates/parking>
 
 Distributed under the following license(s):
@@ -1941,6 +2002,13 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 
+* Apache-2.0
+
+## psm <https://crates.io/crates/psm>
+
+Distributed under the following license(s):
+
+* MIT
 * Apache-2.0
 
 ## quote <https://crates.io/crates/quote>
@@ -2383,6 +2451,13 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## stacker <https://crates.io/crates/stacker>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## strsim <https://crates.io/crates/strsim>
 
 Distributed under the following license(s):
@@ -2747,6 +2822,7 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
+* Unicode-3.0
 
 ## unicode-segmentation <https://crates.io/crates/unicode-segmentation>
 
@@ -2809,6 +2885,12 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
+
+## vsimd <https://crates.io/crates/vsimd>
+
+Distributed under the following license(s):
+
+* MIT
 
 ## walkdir <https://crates.io/crates/walkdir>
 
@@ -3209,7 +3291,7 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 
-* MIT
+* BSD-3-Clause
 
 ## zstd-safe <https://crates.io/crates/zstd-safe>
 
