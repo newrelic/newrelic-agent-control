@@ -1,0 +1,69 @@
+name: test-ohi-agent-action
+
+on:
+  push:
+    branches:
+      - renovate/**
+    paths:
+      - ".github/actions/test-ohi-agent/**"
+      - ".github/workflows/test_ohi_agent_action.yml"
+      - "test/e2e-runner/**"
+      - "test/crates/oci-test-utils/**"
+      - "agent-control/agent-type-registry/**"
+  pull_request:
+    paths:
+      - ".github/actions/test-ohi-agent/**"
+      - ".github/workflows/test_ohi_agent_action.yml"
+      - "test/e2e-runner/**"
+      - "test/crates/oci-test-utils/**"
+      - "agent-control/agent-type-registry/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  selftest:
+    name: Self-test (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - ubuntu-latest
+          - windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Download the latest nri-flex
+        id: flex
+        shell: bash
+        run: |
+          # The release asset names include the version, which `releases/latest` redirects to (`.../tag/vX.Y.Z`).
+          latest_url="$(curl -fsSL -o /dev/null -w '%{url_effective}' https://github.com/newrelic/nri-flex/releases/latest)"
+          version="${latest_url##*/v}"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            # Agent Control only ships Windows amd64 builds.
+            os=windows; arch=amd64; extension=zip
+          else
+            os=linux; extension=tar.gz
+            if [ "$RUNNER_ARCH" = "ARM64" ]; then arch=arm64; else arch=amd64; fi
+          fi
+          archive="nri-flex_${os}_${version}_${arch}.${extension}"
+          curl -fsSL -o "$RUNNER_TEMP/$archive" \
+            "https://github.com/newrelic/nri-flex/releases/download/v${version}/${archive}"
+          echo "os=$os" >> "$GITHUB_OUTPUT"
+          echo "package=$RUNNER_TEMP/$archive" >> "$GITHUB_OUTPUT"
+
+      - uses: ./.github/actions/test-ohi-agent
+        with:
+          agent-type-file: agent-control/agent-type-registry/newrelic/host-${{ steps.flex.outputs.os }}-com.newrelic.infrastructure.nri_flex-0.1.0.yaml
+          package-file: ${{ steps.flex.outputs.package }}
+          config-file: .github/actions/test-ohi-agent/selftest/config.yaml
+          nrql-assertion: "SELECT * FROM OhiActionSelfTestSample WHERE `test.id` = '{{test_id}}' LIMIT 1"
+          nr-license-key: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
+          nr-api-key: ${{ secrets.AC_PROD_E2E_API_KEY }}
+          nr-account-id: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}

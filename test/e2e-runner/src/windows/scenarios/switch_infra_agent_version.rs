@@ -24,8 +24,8 @@ const UPDATE_FROM_INFRA_AGENT_VERSION: &str = "1.71.4";
 pub fn switch_infra_agent_version(args: InstallationArgs) {
     let AgentMetadata {
         sub_agent_id: infra_sub_agent_id,
+        agent_type_id: infra_agent_type,
         package_version: update_to_infra_agent_version,
-        ..
     } = args.agent(AgentKind::InfraAgent);
     assert!(
         UPDATE_FROM_INFRA_AGENT_VERSION != update_to_infra_agent_version,
@@ -61,7 +61,7 @@ pub fn switch_infra_agent_version(args: InstallationArgs) {
 host_id: {test_id}
 agents:
   {infra_sub_agent_id}:
-    agent_type: newrelic/com.newrelic.infrastructure:0.1.0
+    agent_type: {infra_agent_type}
 "#
         ),
     );
