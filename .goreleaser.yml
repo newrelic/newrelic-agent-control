@@ -172,9 +172,15 @@ nfpms: # deb and rpm are only built for linux targets
       postremove: build/package/postremove.sh
       preremove: build/package/preremove.sh
 
+    # Versioned relations use deb syntax by default, rpm requires "name = version".
     provides:
       - newrelic-infra (= 3.0.0)
       - nr-otel-collector (= 2.0.0)
+    overrides:
+      rpm:
+        provides:
+          - newrelic-infra = 3.0.0
+          - nr-otel-collector = 2.0.0
     conflicts:
       - newrelic-infra
       - nr-otel-collector
