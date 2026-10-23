@@ -21,7 +21,18 @@ Releases are cut in three phases:
   - `### Security notices`
   - `### Dependencies` — auto-populated from `renovate` / `dependabot` commits by the toolkit; you don't normally write these by hand
 
-Every PR must add an entry under `## Unreleased` which is validated on the CI. The check is skipped when the PR has the `dependencies` or `skip-changelog` label, or when the head branch starts with `renovate/` — the toolkit will pick those changes up automatically at release time.
+Every PR must add an entry under `## Unreleased`, or a change file (see below), which is validated on the CI. The check is skipped when the PR has the `dependencies` or `skip-changelog` label, or when the head branch starts with `renovate/` — the toolkit will pick those changes up automatically at release time.
+
+### Change files — `.changelog/`
+
+Instead of editing `## Unreleased` (which makes PRs conflict with each other), a PR can add one small YAML file to `.changelog/`. Copy [`.changelog/TEMPLATE.yaml`](../.changelog/TEMPLATE.yaml) to `.changelog/<branch-or-pr>.yaml` and fill it in:
+
+```yaml
+type: bugfix   # breaking | security | enhancement | bugfix | dependency
+message: Description of the change in a single line.
+```
+
+Both ways can be used at the same time: the toolkit gathers the `## Unreleased` entries and the change files. The CI validates the files, and the release PR workflow moves them into `CHANGELOG.md` and deletes them, keeping the template.
 
 To preview the `CHANGELOG.md` that the release-toolkit would generate, run `make rt-update-changelog` locally — it invokes the same toolkit script used by the release workflow and rewrites the file in place so you can verify the output before opening a release PR.
 
@@ -30,7 +41,7 @@ To preview the `CHANGELOG.md` that the release-toolkit would generate, run `make
 To cut a release, run [`on_demand_generate_prerelease_pr.yml`](../.github/workflows/on_demand_generate_prerelease_pr.yml) manually (Actions → **Generate pre-release PR** → **Run workflow**, from the default branch). This will:
 
 1. Runs `release-toolkit` against `CHANGELOG.md`. If `## Unreleased` has no entries and no dependency commits, the workflow **fails loudly** — a manual dispatch with nothing to release is treated as a misconfiguration.
-2. Rewrites `CHANGELOG.md` moving the contents of `## Unreleased`, plus all detected dependency bumps from the commits since the last tag, into a new version.
+2. Rewrites `CHANGELOG.md` moving the contents of `## Unreleased` and of the change files in `.changelog/`, plus all detected dependency bumps from the commits since the last tag, into a new version. The released change files are deleted in the release commit.
 2. Computes the next version (see [Automatic version calculation](#automatic-version-calculation)).
 4. Bumps `[package].version` in `agent-control/Cargo.toml`.
 5. Creates a branch `generate-release/<version>` (fails if it already exists).

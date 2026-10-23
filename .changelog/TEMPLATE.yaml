@@ -1,0 +1,4 @@
+# Copy this file to .changelog/<branch-or-pr>.yaml and fill it in.
+# type: breaking | security | enhancement | bugfix | dependency
+type:
+message:
