@@ -20,6 +20,9 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ## Unreleased
 
+### bugfix
+- On-host: Startup failures that happen before logging is configured (e.g. an invalid `local_config.yaml`) are now written to the default Agent Control log file, so they are visible when running as a Windows service.
+
 ## v1.27.0 - 2026-10-22
 
 ### 🚀 Enhancements
