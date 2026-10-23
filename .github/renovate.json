@@ -30,6 +30,13 @@
         "**/test/**/eks_cluster/variables.tf"
       ],
       "enabled": true
+    },
+    // The packaging build is not a required check, so a GoReleaser bump needs a manual review.
+    {
+      "matchPackageNames": [
+        "goreleaser/goreleaser"
+      ],
+      "automerge": false
     }
   ],
   "customManagers": [
@@ -62,6 +69,15 @@
       ],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n\\s*runner: [a-z]+-(?<currentValue>\\S+)"
+      ]
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n\\s*version: (?<currentValue>v\\S+)"
       ]
     },
     {
