@@ -137,7 +137,8 @@ mod tests {
     use super::*;
     use crate::value_provider::{
         Registry, ValueProviders, aws_secrets_manager::tests::MockAwsSecretsManager,
-        azure_key_vault::tests::MockAzureKeyVault, vault::tests::MockVault,
+        azure_key_vault::tests::MockAzureKeyVault, gcp_secret_manager::tests::MockGcpSecretManager,
+        vault::tests::MockVault,
     };
     use mockall::predicate;
     use rstest::rstest;
@@ -274,6 +275,35 @@ eof"#;
             result,
             HashMap::from([(
                 VariableName::new(Namespace::AwsSecretsManager, "prod:my/secret"),
+                VariableValue::String("secret-value".to_string())
+            )])
+        );
+    }
+
+    #[test]
+    fn test_load_values_gcpsm() {
+        let variables = DynamicVariables {
+            variables: HashMap::from([(
+                "nr-gcpsm".to_string(),
+                HashSet::from(["prod:my-secret".to_string()]),
+            )]),
+        };
+
+        let mut mock_gsm = MockGcpSecretManager::new();
+        mock_gsm
+            .expect_get_value()
+            .with(predicate::eq("prod:my-secret"))
+            .returning(|_| Ok("secret-value".to_string()));
+
+        let registry = Registry::from(HashMap::from_iter(vec![(
+            Namespace::GcpSecretManager,
+            mock_gsm,
+        )]));
+        let result = variables.load_values(&registry).unwrap();
+        assert_eq!(
+            result,
+            HashMap::from([(
+                VariableName::new(Namespace::GcpSecretManager, "prod:my-secret"),
                 VariableValue::String("secret-value".to_string())
             )])
         );

@@ -276,6 +276,34 @@ value_providers:
 | `sources.<name>.auth.secret_access_key` | If `access_key` | AWS secret access key |
 | `client_timeout` | No | HTTP timeout for all sources (default `30s`) |
 
+#### gcp_secret_manager
+
+Reads secret values from one or more Google Cloud projects. Multiple named sources can be defined to target different projects or use different authentication methods.
+
+```yaml
+value_providers:
+  gcp_secret_manager:
+    sources:
+      <source-name>:
+        project: <project-id>              # required
+        endpoint: <url>                    # optional (default: https://secretmanager.googleapis.com/)
+        auth:                              # optional (default: metadata_server)
+          type: metadata_server
+          # or:
+          # type: service_account
+          # key_file: <path-to-service-account-json-key>
+    client_timeout: <duration>             # optional (default: 30s)
+```
+
+| Field | Required | Description |
+|---|---|---|
+| `sources` | Yes | Map of named Google Cloud Secret Manager sources |
+| `sources.<name>.project` | Yes | Id or number of the project holding the secrets |
+| `sources.<name>.endpoint` | No | Overrides the default endpoint, e.g. to use a regional endpoint |
+| `sources.<name>.auth.type` | No | Authentication method: `metadata_server` (default) or `service_account` |
+| `sources.<name>.auth.key_file` | If `service_account` | Path to the service account JSON key file, read once at startup. Only its `client_email` and `private_key` fields are used |
+| `client_timeout` | No | HTTP timeout for all sources (default `30s`) |
+
 ### self_update
 
 Configures the on-host self-update mechanism.
