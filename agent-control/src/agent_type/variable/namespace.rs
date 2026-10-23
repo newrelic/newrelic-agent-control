@@ -63,6 +63,8 @@ pub enum Namespace {
     AzureKeyVault,
     /// Secrets retrieved from AWS Secrets Manager.
     AwsSecretsManager,
+    /// Secrets retrieved from Google Cloud Secret Manager.
+    GcpSecretManager,
 }
 
 impl Namespace {
@@ -92,6 +94,8 @@ impl Namespace {
     const AZURE_KEY_VAULT: &'static str = "azurekv";
     /// Encapsulates secrets retrieved from AWS Secrets Manager
     const AWS_SECRETS_MANAGER: &'static str = "awssm";
+    /// Encapsulates secrets retrieved from Google Cloud Secret Manager
+    const GCP_SECRET_MANAGER: &'static str = "gcpsm";
 
     /// Returns whether the given namespaced name belongs to a dynamic namespace.
     pub fn is_dynamic_variable(s: &str) -> bool {
@@ -112,7 +116,8 @@ impl Namespace {
             | Namespace::K8sSecret
             | Namespace::K8sConfigMap
             | Namespace::AzureKeyVault
-            | Namespace::AwsSecretsManager => true,
+            | Namespace::AwsSecretsManager
+            | Namespace::GcpSecretManager => true,
         }
     }
 }
@@ -130,6 +135,7 @@ impl Display for Namespace {
             Self::K8sConfigMap => Self::K8S_CONFIGMAP,
             Self::AzureKeyVault => Self::AZURE_KEY_VAULT,
             Self::AwsSecretsManager => Self::AWS_SECRETS_MANAGER,
+            Self::GcpSecretManager => Self::GCP_SECRET_MANAGER,
         };
         write!(f, "{}{ns}", Self::PREFIX)
     }
@@ -175,6 +181,10 @@ mod tests {
         assert_eq!(
             "nr-awssm:test".to_string(),
             VariableName::new(Namespace::AwsSecretsManager, "test").to_string()
+        );
+        assert_eq!(
+            "nr-gcpsm:test".to_string(),
+            VariableName::new(Namespace::GcpSecretManager, "test").to_string()
         );
     }
 }
