@@ -309,15 +309,14 @@ fn delete_stale_paths(
     Ok(())
 }
 
-/// Deletes a file or a whole directory subtree at `path`. A missing path is not an error.
+/// Deletes a file, a symlink (never its target) or a whole directory subtree at `path`. A missing
+/// path is not an error.
 fn remove_path(path: &Path) -> io::Result<()> {
-    if !path.exists() {
-        return Ok(());
-    }
-    if path.is_dir() {
-        std::fs::remove_dir_all(path)
-    } else {
-        std::fs::remove_file(path)
+    match std::fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.is_dir() => std::fs::remove_dir_all(path),
+        Ok(_) => std::fs::remove_file(path),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(err) => Err(err),
     }
 }
 
@@ -328,7 +327,8 @@ fn remove_path(path: &Path) -> io::Result<()> {
 /// - in `dirs` (but not `exclusive`): kept, and recursed into to prune stray contents.
 /// - in neither (no configured agent declares it): removed wholesale, not descended into.
 ///
-/// A non-directory entry not in `exclusive` is removed.
+/// A non-directory entry not in `exclusive` is removed. Symlinks are never followed: one not in
+/// `exclusive` is removed as a link, even if it points to a directory.
 fn reconcile_shared_dir(
     dir: &Path,
     exclusive: &HashSet<PathBuf>,
@@ -341,8 +341,10 @@ fn reconcile_shared_dir(
     };
 
     for entry in entries {
-        let path = entry?.path();
-        if path.is_dir() {
+        let entry = entry?;
+        let path = entry.path();
+        // `DirEntry::file_type` does not follow symlinks.
+        if entry.file_type()?.is_dir() {
             if exclusive.contains(&path) {
                 continue;
             }
@@ -1100,6 +1102,106 @@ mod tests {
         assert!(
             !shared.join("stale-configs").exists(),
             "a directory no configured agent declares must be removed wholesale"
+        );
+    }
+
+    /// Creates a symlink at `link` pointing to the directory `target`. On Windows this needs
+    /// administrator rights or Developer Mode.
+    fn symlink_dir(target: &Path, link: &Path) -> std::io::Result<()> {
+        #[cfg(target_family = "unix")]
+        return std::os::unix::fs::symlink(target, link);
+        #[cfg(target_family = "windows")]
+        return std::os::windows::fs::symlink_dir(target, link);
+    }
+
+    /// Creates a symlink at `link` pointing to the file `target`. On Windows this needs
+    /// administrator rights or Developer Mode.
+    fn symlink_file(target: &Path, link: &Path) -> std::io::Result<()> {
+        #[cfg(target_family = "unix")]
+        return std::os::unix::fs::symlink(target, link);
+        #[cfg(target_family = "windows")]
+        return std::os::windows::fs::symlink_file(target, link);
+    }
+
+    /// A declared `dir` replaced by a symlink is not followed, so content outside the shared
+    /// filesystem is never pruned.
+    #[test]
+    fn reconcile_does_not_follow_symlink_at_declared_dir() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let shared = tmp.path().join("shared");
+        let outside = tmp.path().join("outside");
+        std::fs::create_dir_all(&shared).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        std::fs::write(outside.join("user-config.yaml"), "keep me").unwrap();
+        symlink_dir(&outside, &shared.join("ohi-configs")).unwrap();
+
+        let definition = host_type_with_shared(serde_json::json!({
+            "ohi-configs": {
+                "kind": "dir",
+                "entries": { "nri-redis.yaml": { "kind": "file", "text": "redis" } },
+            },
+        }));
+        let mut registry = MockAgentTypeRegistry::new();
+        registry.should_get(
+            AgentTypeID::try_from("test/redis:0.0.1").unwrap(),
+            &definition,
+        );
+
+        shared_cleaner(registry, shared.clone())
+            .reconcile_shared_filesystem(&configured(&[("redis-agent", "test/redis:0.0.1")]));
+
+        assert!(
+            outside.join("user-config.yaml").exists(),
+            "content outside the shared filesystem must never be deleted"
+        );
+    }
+
+    /// An undeclared symlink to a file is removed as a link, leaving its target untouched.
+    #[test]
+    fn reconcile_removes_undeclared_file_symlink_but_not_its_target() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let shared = tmp.path().join("shared");
+        let outside = tmp.path().join("outside");
+        std::fs::create_dir_all(&shared).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        std::fs::write(outside.join("user-config.yaml"), "keep me").unwrap();
+        symlink_file(
+            &outside.join("user-config.yaml"),
+            &shared.join("stray-link.yaml"),
+        )
+        .unwrap();
+
+        // No configured agent declares anything, so the registry is never consulted.
+        let registry = MockAgentTypeRegistry::new();
+
+        shared_cleaner(registry, shared.clone()).reconcile_shared_filesystem(&configured(&[]));
+
+        assert!(
+            outside.join("user-config.yaml").exists(),
+            "the target of a symlink must never be deleted"
+        );
+        assert!(
+            std::fs::symlink_metadata(shared.join("stray-link.yaml")).is_err(),
+            "an undeclared symlink must be removed"
+        );
+    }
+
+    /// An undeclared symlink whose target no longer exists is removed too.
+    #[test]
+    fn reconcile_removes_undeclared_dangling_symlink() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let shared = tmp.path().join("shared");
+        std::fs::create_dir_all(&shared).unwrap();
+        symlink_file(&tmp.path().join("missing"), &shared.join("dangling")).unwrap();
+
+        // No configured agent declares anything, so the registry is never consulted.
+        let registry = MockAgentTypeRegistry::new();
+
+        shared_cleaner(registry, shared.clone()).reconcile_shared_filesystem(&configured(&[]));
+
+        assert!(
+            std::fs::symlink_metadata(shared.join("dangling")).is_err(),
+            "an undeclared dangling symlink must be removed"
         );
     }
 

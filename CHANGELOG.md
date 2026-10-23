@@ -23,6 +23,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 ### bugfix
 
 - On-host: a sub-agent killed by a signal (e.g. by the OOM killer) is now reported as terminated by that signal instead of "process exited with code: 0".
+- On-host: shared filesystem cleanup no longer follows symlinks, so content outside the shared filesystem is never deleted, and dangling symlinks are removed.
 
 ## v1.27.0 - 2026-10-22
 
