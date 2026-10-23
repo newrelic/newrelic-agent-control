@@ -49,4 +49,4 @@ See [`Cargo.toml`](Cargo.toml) for the authoritative, current list. Two things a
 
 ## Changelog
 
-When a change is user-facing, add a short, concise entry under `## Unreleased` in [`CHANGELOG.md`](CHANGELOG.md); its header explains the category keywords and what counts as user-facing.
+When a change is user-facing, add a change file in `.changelog/` (copy `.changelog/TEMPLATE.yaml`). See [`docs/RELEASE.md`](docs/RELEASE.md) for the types and what counts as user-facing.

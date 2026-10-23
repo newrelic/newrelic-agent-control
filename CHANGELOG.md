@@ -4,27 +4,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Unreleased section should follow [Release Toolkit](https://github.com/newrelic/release-toolkit/blob/main/README.md).
-
-Remember that the keywords that you can use under Unreleased section are:
- - breaking    => Major
- - security    => Minor
- - enhancement => Minor
- - bugfix      => Patch
-
-Only add an entry if it changes what a user of Agent Control experiences: a new capability, a changed behavior, or a fixed bug. Skip:
- - Internal refactors with no behavior change
- - Documentation-only changes
- - Test-only changes
- - Pipeline/CI changes, unless they add support for something new (e.g. a new build target)
+New changes are added as change files in `.changelog/`, not here: the release moves them into this file. See [docs/RELEASE.md](docs/RELEASE.md).
 
 ## Unreleased
-
-### bugfix
-
-- On-host: a sub-agent killed by a signal (e.g. by the OOM killer) is now reported as terminated by that signal instead of "process exited with code: 0".
-- On-host: shared filesystem cleanup no longer follows symlinks, so content outside the shared filesystem is never deleted, and dangling symlinks are removed.
-- On-host: Startup failures that happen before logging is configured (e.g. an invalid `local_config.yaml`) are now written to the default Agent Control log file, so they are visible when running as a Windows service.
 
 ## v1.27.0 - 2026-10-22
 
