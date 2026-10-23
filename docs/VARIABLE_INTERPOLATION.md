@@ -28,6 +28,7 @@ Filters are optional post-processing steps applied to the resolved value (e.g. `
 | Vault secrets | `nr-vault` | HashiCorp Vault (KV1 or KV2) | On-host |
 | Azure Key Vault secrets | `nr-azurekv` | Azure Key Vault (Managed Identity or Service Principal) | On-host |
 | AWS Secrets Manager secrets | `nr-awssm` | AWS Secrets Manager (access key or EC2 instance profile) | On-host |
+| Google Cloud Secret Manager secrets | `nr-gcpsm` | Google Cloud Secret Manager (metadata server or service account key) | On-host |
 | File values | `nr-file` | Local filesystem file contents | On-host |
 | Kubernetes secrets | `nr-kubesec` | Kubernetes Secret objects | K8s |
 | Kubernetes ConfigMaps | `nr-kubecm` | Kubernetes ConfigMap objects | K8s |
@@ -138,7 +139,7 @@ env:
 
 ## Value Providers
 
-`nr-env`, `nr-vault`, `nr-azurekv`, `nr-awssm`, `nr-file`, `nr-kubesec`, and `nr-kubecm` are resolved by a
+`nr-env`, `nr-vault`, `nr-azurekv`, `nr-awssm`, `nr-gcpsm`, `nr-file`, `nr-kubesec`, and `nr-kubecm` are resolved by a
 value provider on every remote config update, not just at startup. This means their values are
 refreshed automatically when a new config is pushed from Fleet Control.
 
@@ -291,6 +292,62 @@ value_providers:
           secret_access_key: "your-secret-access-key"
 ```
 
+### `nr-gcpsm` — Google Cloud Secret Manager
+
+Reads a text secret from Google Cloud Secret Manager. Requires `value_providers.gcp_secret_manager`
+to be configured in the Agent Control configuration. Multiple named sources can be configured to target
+different projects.
+
+**Secret path format:** `<source-name>:<secret-name>:<version>`. The version is required and is a number
+or `latest`.
+
+```yaml
+# in agent type definition
+env:
+  LICENSE_KEY: "${nr-gcpsm:prod:newrelic-license-key:latest}"
+  #                        ^source ^secret name       ^version
+  PINNED_KEY: "${nr-gcpsm:prod:newrelic-license-key:3}"
+```
+
+Secret names and versions can only contain letters, digits, `-` and `_`. Binary secrets are not
+supported. The identity needs the `roles/secretmanager.secretAccessor` role on the secret.
+
+#### Metadata server
+
+Use this when Agent Control runs on Google Cloud with a service account attached (Compute Engine
+VM, GKE with Workload Identity, etc.). No credentials are stored in the config, access tokens are
+retrieved from the metadata server.
+
+```yaml
+# in AC config
+value_providers:
+  gcp_secret_manager:
+    sources:
+      prod:
+        project: my-project
+        auth:
+          type: metadata_server   # this is the default; the auth block can be omitted entirely
+```
+
+#### Service account key
+
+Use this when Agent Control runs outside Google Cloud or where no service account is attached.
+Point `key_file` to the JSON key file downloaded from Google Cloud. It is read once at startup,
+so restart Agent Control after rotating the key. Restrict the file permissions to the user running
+Agent Control.
+
+```yaml
+# in AC config
+value_providers:
+  gcp_secret_manager:
+    sources:
+      prod:
+        project: my-project
+        auth:
+          type: service_account
+          key_file: /etc/newrelic-agent-control/gcp-key.json
+```
+
 ### `nr-file` — File values
 
 Reads the contents of a local file. The file content is trimmed of leading/trailing whitespace.
@@ -338,7 +395,7 @@ env:
 
 ## Configuration reference for value providers
 
-Only `vault`, `azure_key_vault` and `aws_secrets_manager` require explicit configuration in the Agent Control configuration. The
+Only `vault`, `azure_key_vault`, `aws_secrets_manager` and `gcp_secret_manager` require explicit configuration in the Agent Control configuration. The
 other providers are always available.
 
 For the full field reference of each provider, see [`docs/CONFIG.md#value_providers`](CONFIG.md#value_providers).
