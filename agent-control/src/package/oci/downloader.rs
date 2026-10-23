@@ -7,6 +7,7 @@ use crate::package::manager::PackageData;
 use crate::utils::retry::BackoffPolicy;
 use oci_client::Reference;
 use oci_client::secrets::RegistryAuth;
+use std::ffi::OsStr;
 use std::path::Path;
 use tracing::{debug, warn};
 use url::Url;
@@ -117,7 +118,7 @@ impl OCIPackageArtifactDownloader {
             OciClientError::FetchArtifact(format!("validating package manifest: {err}"))
         })?;
 
-        let layer_path = package_dir.join(layer.digest.replace(':', "_"));
+        let layer_path = package_dir.join(layer_file_name(&layer.digest)?);
         client
             .pull_blob_to_file(reference, &layer, &layer_path)
             .map_err(|err| {
@@ -128,6 +129,19 @@ impl OCIPackageArtifactDownloader {
 
         Ok(LocalAgentPackage::new(media_type, layer_path))
     }
+}
+
+/// Builds the file name of a downloaded layer from its digest, rejecting digests that would
+/// escape the package directory.
+fn layer_file_name(digest: &str) -> Result<String, OciClientError> {
+    // ':' is not allowed in Windows file names
+    let file_name = digest.replace(':', "_");
+    if Path::new(&file_name).file_name() != Some(OsStr::new(&file_name)) {
+        return Err(OciClientError::FetchArtifact(format!(
+            "validating package manifest: layer digest '{digest}' is not a valid file name"
+        )));
+    }
+    Ok(file_name)
 }
 
 #[cfg(test)]
@@ -148,6 +162,7 @@ pub mod tests {
 
     use super::*;
     use mockall::mock;
+    use rstest::rstest;
 
     use oci_client::client::{ClientConfig, ClientProtocol};
 
@@ -294,6 +309,28 @@ pub mod tests {
             .download(&package_data, dest_dir.path())
             .unwrap_err();
         assert!(err.to_string().contains("validating package manifest"));
+    }
+
+    #[test]
+    fn test_layer_file_name_from_digest() {
+        assert_eq!(layer_file_name("sha256:ab12").unwrap(), "sha256_ab12");
+    }
+
+    #[rstest]
+    #[case::absolute_path("/etc/passwd")]
+    #[case::relative_path("../victim")]
+    #[case::traversal_after_algorithm("sha256:../victim")]
+    // '\' is only a separator on Windows, elsewhere these are plain file names
+    #[cfg_attr(windows, case::backslash_relative_path(r"..\victim"))]
+    #[cfg_attr(
+        windows,
+        case::backslash_traversal_after_algorithm(r"sha256:..\victim")
+    )]
+    #[cfg_attr(windows, case::backslash_root_path(r"\Windows\System32\victim"))]
+    #[cfg_attr(windows, case::drive_path(r"C:\Windows\victim"))]
+    #[cfg_attr(windows, case::unc_path(r"\\server\share\victim"))]
+    fn test_layer_file_name_rejects_paths(#[case] digest: &str) {
+        assert!(layer_file_name(digest).is_err());
     }
 
     fn create_downloader(
