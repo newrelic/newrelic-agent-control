@@ -1,7 +1,9 @@
-# This action requires that any PR should touch at least one CHANGELOG file.
-# 
-# The release notes generation process relies on the presence of a CHANGELOG file that the release-toolkit can parse.
-# Each PR that introduces a change worth to be included in the release notes should include an update to the CHANGELOG file.
+# This action requires that any PR should touch the CHANGELOG file or add a change file in `.changelog/`.
+#
+# The release notes generation process relies on the CHANGELOG file and on the change files (one YAML file per change)
+# that the release-toolkit can parse.
+# Each PR that introduces a change worth to be included in the release notes should include an update to the CHANGELOG
+# file or a change file.
 #
 # Skip conditions:
 #   - PR has the 'dependencies' label (changelog entries are automatically generated for dependency updates)
@@ -31,18 +33,26 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check for CHANGELOG file changes
+      - name: Check for CHANGELOG file or change file changes
         if: github.event_name == 'pull_request'
         run: |
           git diff --name-only "origin/${{ github.base_ref }}"
           if git diff --name-only "origin/${{ github.base_ref }}" | grep --ignore-case -q CHANGELOG.md
           then
             echo "The CHANGELOG file was modified."
+          elif git diff --name-only --diff-filter=AMR "origin/${{ github.base_ref }}" -- .changelog | grep -v -E '(^|/)TEMPLATE\.ya?ml$' | grep -q .
+          then
+            echo "A change file was added or modified."
           else
-            echo "The CHANGELOG file was not modified."
-            echo "Please add a CHANGELOG entry to the appropriate header under \"Unreleased\", or add the \"skip-changelog\" label if not required."
+            echo "Neither the CHANGELOG file nor a change file was modified."
+            echo "Please add a CHANGELOG entry to the appropriate header under \"Unreleased\", or a change file in .changelog/ (copy .changelog/TEMPLATE.yaml), or add the \"skip-changelog\" label if not required."
             false
           fi
+
+      # A directory that does not exist has no change files, so this passes if none is used.
+      - name: Check if the change files are valid
+        id: validate-changes
+        uses: newrelic/release-toolkit/validate-changes@c07dd843317d8229f6e00272a976926306c261e2 # v1.7.0
 
       - name: Get CHANGELOG from the latest release
         run: |
@@ -52,9 +62,19 @@ jobs:
 
       - name: Check if CHANGELOG is valid
         id: validate-changelog
-        uses: newrelic/release-toolkit/validate-markdown@ffb3113737a732a9aa4821f167747566204483bf # v1
+        uses: newrelic/release-toolkit/validate-markdown@c07dd843317d8229f6e00272a976926306c261e2 # v1.7.0
         with:
           previous-markdown: CHANGELOG.base.md
+
+      - name: Print expected change file format
+        if: failure() && steps.validate-changes.conclusion == 'failure'
+        run: |
+          echo "Expected format for each file in '.changelog/' (copy .changelog/TEMPLATE.yaml):
+
+            type: bugfix
+            message: Description of the change in a single line.
+
+          type is one of: breaking | security | enhancement | bugfix | dependency"
 
       - name: Print expected CHANGELOG format
         if: failure() && steps.validate-changelog.conclusion == 'failure'

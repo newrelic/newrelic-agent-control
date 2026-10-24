@@ -1,7 +1,7 @@
 # Reusable workflow that opens a pre-release PR:
-#   1. Calculates the next version from CHANGELOG.md unreleased entries (release-toolkit).
+#   1. Calculates the next version from CHANGELOG.md unreleased entries and the change files in `.changelog/` (release-toolkit).
 #   2. Bumps the version in the specified Cargo.toml.
-#   3. Commits CHANGELOG.md + Cargo.toml on a new branch `generate-release/<version>`.
+#   3. Commits CHANGELOG.md + Cargo.toml (and deletes the released change files) on a new branch `generate-release/<version>`.
 #   4. Opens a PR against the default branch with the `release` label.
 #
 name: 📞 Create pre-release PR
@@ -59,7 +59,7 @@ jobs:
         env:
           # Limits the calculated version from dependencies to be a patch bump (by default it propagates the bump type from the dependency).
           DEPENDENCY_CAP: patch
-        uses: newrelic/release-toolkit/contrib/ohi-release-notes@ffb3113737a732a9aa4821f167747566204483bf # v1
+        uses: newrelic/release-toolkit/contrib/ohi-release-notes@c07dd843317d8229f6e00272a976926306c261e2 # v1.7.0
         with:
           # overrides the default "v" prefix for the version.
           output-prefix: ""
@@ -69,6 +69,10 @@ jobs:
         run: |
           echo "No unreleased entries or dependencies updated found. Nothing to release."
           exit 1
+
+      # The change files have been read into CHANGELOG.md by the previous step. Templates are kept.
+      - name: Drop the released change files
+        uses: newrelic/release-toolkit/remove-changes@c07dd843317d8229f6e00272a976926306c261e2 # v1.7.0
 
       - name: Bump version in Cargo.toml and refresh Cargo.lock
         env:
@@ -111,6 +115,9 @@ jobs:
         run: |
           BASE_SHA=$(git rev-parse HEAD)
 
+          # Change files dropped from the working tree by the previous step.
+          DELETIONS=$(git ls-files --deleted -- .changelog | jq -R . | jq -s 'map({path: .})')
+
           # Create the branch ref at the base commit so the mutation has somewhere to land.
           # Fails with 422 "Reference already exists" if the branch is already present.
           gh api -X POST "repos/$REPO/git/refs" \
@@ -129,6 +136,7 @@ jobs:
             --arg msg "chore(release): prepare $VERSION" \
             --arg oid "$BASE_SHA" \
             --arg cargo_path "$CARGO_TOML_PATH" \
+            --argjson deletions "$DELETIONS" \
             '{
               query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid url } } }",
               variables: {
@@ -142,7 +150,8 @@ jobs:
                       {path: $cargo_path, contents: ($cargo | @base64)},
                       {path: "Cargo.lock", contents: ($lock | @base64)},
                       {path: "THIRD_PARTY_NOTICES.md", contents: ($notices | @base64)}
-                    ]
+                    ],
+                    deletions: $deletions
                   }
                 }
               }
