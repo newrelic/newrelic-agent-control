@@ -20,6 +20,10 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 ## Unreleased
 
+### Enhancement
+- Added Google Cloud Secret Manager value provider (`nr-gcpsm`), supporting the metadata server and service account key credentials.
+
+
 ### bugfix
 
 - On-host: a sub-agent killed by a signal (e.g. by the OOM killer) is now reported as terminated by that signal instead of "process exited with code: 0".

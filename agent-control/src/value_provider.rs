@@ -1,9 +1,10 @@
-//! Value providers: retrieve variable values from various sources (env vars, files, Kubernetes, Vault, Azure Key Vault, AWS Secrets Manager).
+//! Value providers: retrieve variable values from various sources (env vars, files, Kubernetes, Vault, Azure Key Vault, AWS Secrets Manager, Google Cloud Secret Manager).
 
 pub mod aws_secrets_manager;
 pub mod azure_key_vault;
 pub mod env;
 pub mod file;
+pub mod gcp_secret_manager;
 pub mod k8s_configmap;
 pub mod k8s_secret;
 pub mod vault;
@@ -15,6 +16,7 @@ use crate::value_provider::aws_secrets_manager::{AwsSecretsManager, AwsSecretsMa
 use crate::value_provider::azure_key_vault::{AzureKeyVault, AzureKeyVaultConfig};
 use crate::value_provider::env::Env;
 use crate::value_provider::file::FileProvider;
+use crate::value_provider::gcp_secret_manager::{GcpSecretManager, GcpSecretManagerConfig};
 use crate::value_provider::k8s_configmap::K8sConfigMapProvider;
 use crate::value_provider::k8s_secret::K8sSecretProvider;
 use crate::value_provider::vault::{Vault, VaultConfig};
@@ -52,6 +54,8 @@ pub struct ValueProvidersConfig {
     pub azure_key_vault: Option<AzureKeyVaultConfig>,
     /// Optional configuration for the AWS Secrets Manager provider.
     pub aws_secrets_manager: Option<AwsSecretsManagerConfig>,
+    /// Optional configuration for the Google Cloud Secret Manager provider.
+    pub gcp_secret_manager: Option<GcpSecretManagerConfig>,
 }
 
 /// Errors returned by the configured value providers.
@@ -82,6 +86,8 @@ pub enum ValueProviderType<C: K8sClient = SyncK8sClient> {
     AwsSecretsManager(AwsSecretsManager),
     /// Values retrieved from Azure Key Vault.
     AzureKeyVault(AzureKeyVault),
+    /// Values retrieved from Google Cloud Secret Manager.
+    GcpSecretManager(GcpSecretManager),
     /// Values retrieved from HashiCorp Vault.
     Vault(Vault),
     /// Values retrieved from Kubernetes secrets.
@@ -107,6 +113,11 @@ impl<C: K8sClient> ValueProvider for ValueProviderType<C> {
             ValueProviderType::AzureKeyVault(provider) => provider.get_value(path).map_err(|err| {
                 ValueProvidersError(format!("azure key vault provider failed: {err}"))
             }),
+            ValueProviderType::GcpSecretManager(provider) => {
+                provider.get_value(path).map_err(|err| {
+                    ValueProvidersError(format!("gcp secret manager provider failed: {err}"))
+                })
+            }
             ValueProviderType::Vault(provider) => provider
                 .get_value(path)
                 .map_err(|err| ValueProvidersError(format!("vault provider failed: {err}"))),
@@ -180,7 +191,7 @@ impl Registry<ValueProviderType> {
         self
     }
 
-    /// Registers providers derived from the given configuration (Vault, Azure Key Vault, AWS Secrets Manager).
+    /// Registers providers derived from the given configuration (Vault, Azure Key Vault, AWS Secrets Manager, Google Cloud Secret Manager).
     pub fn with_config(
         mut self,
         config: ValueProvidersConfig,
@@ -202,6 +213,16 @@ impl Registry<ValueProviderType> {
             self.0.insert(
                 Namespace::AzureKeyVault,
                 ValueProviderType::AzureKeyVault(akv),
+            );
+        }
+        if let Some(mut gsm_config) = config.gcp_secret_manager {
+            gsm_config.proxy_config = proxy_config.clone();
+            let gsm = GcpSecretManager::try_build(gsm_config).map_err(|err| {
+                ValueProvidersError(format!("couldn't build gcp secret manager provider: {err}"))
+            })?;
+            self.0.insert(
+                Namespace::GcpSecretManager,
+                ValueProviderType::GcpSecretManager(gsm),
             );
         }
         if let Some(mut asm_config) = config.aws_secrets_manager {
