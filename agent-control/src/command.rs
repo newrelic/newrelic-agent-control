@@ -25,6 +25,8 @@ use crate::values::ConfigRepo;
 use clap::{Parser, Subcommand};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
+#[cfg(target_family = "windows")]
+use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::Arc;
 use tracing::{error, info};
@@ -199,8 +201,8 @@ impl Command {
             as_windows_service,
         ) {
             Err(err) => {
-                // We are leveraging eprintln here instead of error! because if we fail to build the run context,
-                // it means we probably failed before initializing tracing, so we can't guarantee that the error will be logged.
+                // On Windows, `build_context` already logged the failure to the default log file. We are
+                // leveraging eprintln here for console runs, where stderr is still visible.
                 eprintln!("Failed building the run context {}", err);
                 ExitCode::FAILURE
             }
@@ -226,13 +228,19 @@ impl Command {
         }
     }
 
-    fn build_bootstrap_context(
+    fn resolve_base_paths(
         #[cfg_attr(not(debug_assertions), allow(unused_variables))] args: &Args,
-    ) -> Result<BootstrapContext, Box<dyn Error>> {
+    ) -> BasePaths {
         let base_paths = BasePaths::default();
 
         #[cfg(debug_assertions)]
         let base_paths = set_debug_dirs(base_paths, args);
+
+        base_paths
+    }
+
+    fn build_bootstrap_context(args: &Args) -> Result<BootstrapContext, Box<dyn Error>> {
+        let base_paths = Self::resolve_base_paths(args);
 
         let env_file_path = base_paths.local_dir.join(ENVIRONMENT_VARIABLES_FILE_NAME);
         if env_file_path.exists() {
@@ -251,6 +259,7 @@ impl Command {
     /// Builds the complete context required to execute the application.
     /// The tracer is returned separately from [Context] so the caller can keep it alive for as
     /// long as it needs to log, rather than tying its lifetime to `main_fn`'s argument.
+    /// On Windows, if the context cannot be built, the failure is logged to the default log file before returning.
     fn build_context(
         running_mode: Environment,
         args: &Args,
@@ -264,7 +273,11 @@ impl Command {
         let stop_handler = as_windows_service
             .then(|| windows::setup_windows_service(application_event_publisher.clone()))
             .transpose()
-            .map_err(|e| format!("Failed to setup Windows service: {e}"))?;
+            .map_err(|e| {
+                let err = format!("Failed to setup Windows service: {e}");
+                log_bootstrap_failure(args, &err);
+                Box::<dyn Error>::from(err)
+            })?;
 
         // Running as a Windows Service hands shutdown off to the SCM instead.
         #[cfg(target_family = "windows")]
@@ -272,6 +285,37 @@ impl Command {
         #[cfg(not(target_family = "windows"))]
         let needs_ctrlc_handler = true;
 
+        let runner_context = Self::build_runner_context(
+            running_mode,
+            args,
+            application_event_publisher,
+            application_event_consumer,
+            needs_ctrlc_handler,
+        );
+        #[cfg(target_family = "windows")]
+        let runner_context = runner_context.inspect_err(|err| log_bootstrap_failure(args, err));
+        let (tracer, ac_runner_context) = runner_context?;
+
+        Ok((
+            tracer,
+            Context {
+                ac_runner_context,
+                #[cfg(target_family = "windows")]
+                stop_handler,
+            },
+        ))
+    }
+
+    /// Builds the [RunnerContext] and initializes tracing: the fallible part of [Self::build_context].
+    /// It deliberately doesn't receive the Windows service stop handler, so an early return here
+    /// can't drop it (reporting the service as stopped) before the caller has logged the failure.
+    fn build_runner_context(
+        running_mode: Environment,
+        args: &Args,
+        application_event_publisher: EventPublisher<ApplicationEvent>,
+        application_event_consumer: EventConsumer<ApplicationEvent>,
+        needs_ctrlc_handler: bool,
+    ) -> Result<(Vec<TracingGuardBox>, RunnerContext), Box<dyn Error>> {
         if needs_ctrlc_handler {
             create_shutdown_signal_handler(application_event_publisher)
                 .map_err(|e| format!("Failed to create shutdown signal handler: {e}"))?;
@@ -324,17 +368,13 @@ impl Command {
 
         Ok((
             tracer,
-            Context {
-                ac_runner_context: RunnerContext {
-                    bootstrap_config,
-                    base_paths,
-                    running_mode,
-                    application_event_consumer,
-                    // None uses the current running executable.
-                    self_replace_target: None,
-                },
-                #[cfg(target_family = "windows")]
-                stop_handler,
+            RunnerContext {
+                bootstrap_config,
+                base_paths,
+                running_mode,
+                application_event_consumer,
+                // None uses the current running executable.
+                self_replace_target: None,
             },
         ))
     }
@@ -389,6 +429,34 @@ impl Command {
 
         Ok(())
     }
+}
+
+/// Logs a failure to build the run context to the default log file, flushing it before returning.
+/// Windows only: services have no visible stderr, so the log file is the only place the failure shows up.
+/// Tracing is initialized in the last fallible step of building the context, so it isn't set at this
+/// point, and stderr is lost when running as a service. Should a subscriber already be set,
+/// `try_init_tracing` returns an error that is ignored and the failure goes to that subscriber.
+#[cfg(target_family = "windows")]
+fn log_bootstrap_failure(args: &Args, err: &impl Display) {
+    let _tracer = try_init_tracing(bootstrap_failure_tracing_config(
+        Command::resolve_base_paths(args).log_dir,
+    ));
+    error!("Failed building the run context: {err}");
+}
+
+/// Tracing config used to record startup failures that happen before the configured tracing is
+/// initialized: file logging in the default log directory with default settings.
+#[cfg(target_family = "windows")]
+fn bootstrap_failure_tracing_config(log_dir: PathBuf) -> TracingConfig {
+    TracingConfig::from_logging_path(log_dir)
+        .with_logging_config(bootstrap_failure_logging_config())
+}
+
+#[cfg(target_family = "windows")]
+fn bootstrap_failure_logging_config() -> LoggingConfig {
+    let mut logging_config = LoggingConfig::default();
+    logging_config.file.enabled = true;
+    logging_config
 }
 
 /// Enables using the typical keypress (Ctrl-C) to stop the agent control process at any moment.
@@ -459,6 +527,26 @@ mod tests {
                 .contains("terminal message that never reaches the file"),
             "log line emitted after the tracer was dropped should not have reached the file"
         );
+    }
+
+    #[cfg(target_family = "windows")]
+    #[test]
+    fn bootstrap_failure_tracing_config_logs_to_the_default_log_dir() {
+        let log_dir = tempfile::tempdir().unwrap();
+        let (layer, guard) = file(
+            &bootstrap_failure_logging_config(),
+            log_dir.path().to_path_buf(),
+        )
+        .unwrap()
+        .expect("file logging should be enabled");
+        let subscriber = tracing_subscriber::registry().with(layer);
+
+        tracing::subscriber::with_default(subscriber, || {
+            error!("startup failure before tracing init");
+        });
+        drop(guard);
+
+        assert!(all_file_contents(log_dir.path()).contains("startup failure before tracing init"));
     }
 
     #[test]

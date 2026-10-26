@@ -24,6 +24,7 @@ Only add an entry if it changes what a user of Agent Control experiences: a new 
 
 - On-host: a sub-agent killed by a signal (e.g. by the OOM killer) is now reported as terminated by that signal instead of "process exited with code: 0".
 - On-host: shared filesystem cleanup no longer follows symlinks, so content outside the shared filesystem is never deleted, and dangling symlinks are removed.
+- On-host: Startup failures that happen before logging is configured (e.g. an invalid `local_config.yaml`) are now written to the default Agent Control log file, so they are visible when running as a Windows service.
 
 ## v1.27.0 - 2026-10-22
 
