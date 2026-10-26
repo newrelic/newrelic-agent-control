@@ -1,0 +1,2 @@
+type: bugfix
+message: "On-host: shared filesystem cleanup no longer follows symlinks, so content outside the shared filesystem is never deleted, and dangling symlinks are removed."

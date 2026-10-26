@@ -1,0 +1,2 @@
+type: bugfix
+message: "On-host: Startup failures that happen before logging is configured (e.g. an invalid `local_config.yaml`) are now written to the default Agent Control log file, so they are visible when running as a Windows service."
