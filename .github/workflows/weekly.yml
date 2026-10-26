@@ -171,8 +171,7 @@ jobs:
         run: cat /tmp/newrelic-cli-debug.log
 
   chef-install:
-    # The cookbook runs "sudo -E", which sudo-rs (ubuntu-26.04) ignores, dropping the credentials.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
@@ -200,6 +199,19 @@ jobs:
           fi
 
           echo "${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" > "$DEST_FILE"
+
+      # Keep New Relic environment variables across sudo sessions
+      # Ubuntu 26.04 and later replaced sudo with sudo-rs, which no longer respects the -E flag for preserving environment variables.
+      # This step ensures that New Relic environment variables are preserved even when using sudo with the new sudo-rs implementation.
+      #
+      # TODO: Remove this workaround once https://github.com/newrelic/chef-install/blob/11b82a096ad56b6246a0a5b7cdd4a5daac67aea8/resources/newrelic_install.rb#L32
+      # is updated to properly handle environment variables with sudo-rs.
+      - name: Keep New Relic env vars across sudo
+        run: |
+          # The cookbook runs "sudo -E", which sudo-rs ignores; keep the variables through sudoers instead.
+          echo 'Defaults env_keep += "NEW_RELIC_* NR_CLI_*"' | sudo tee /etc/sudoers.d/newrelic-env
+          sudo chmod 0440 /etc/sudoers.d/newrelic-env
+          sudo visudo -cf /etc/sudoers.d/newrelic-env
 
       - name: Edit and install Chef recipe
         run: |
