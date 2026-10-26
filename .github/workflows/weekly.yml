@@ -205,9 +205,9 @@ jobs:
           # Edit Chef newrelic-install default attributes file with required fields
           sed -i '/curl -Ls https:\/\/download.newrelic.com\/install\/newrelic-cli\/scripts\/install.sh/{s/newrelic install/newrelic install --debug/}' cookbooks/newrelic-install/resources/newrelic_install.rb
           cat <<EOF > cookbooks/newrelic-install/attributes/default.rb
-          default['newrelic_install']['env']['NEW_RELIC_API_KEY'] = '${{ secrets.AC_PROD_E2E_API_KEY }}'
-          default['newrelic_install']['env']['NEW_RELIC_ACCOUNT_ID'] = '${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}'
-          default['newrelic_install']['env']['NEW_RELIC_REGION'] = 'US'
+          default['newrelic_install']['NEW_RELIC_API_KEY'] = '${{ secrets.AC_PROD_E2E_API_KEY }}'
+          default['newrelic_install']['NEW_RELIC_ACCOUNT_ID'] = '${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}'
+          default['newrelic_install']['NEW_RELIC_REGION'] = 'US'
           default['newrelic_install']['targets'] = [
             'agent-control'
           ]
