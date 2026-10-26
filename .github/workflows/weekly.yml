@@ -171,7 +171,8 @@ jobs:
         run: cat /tmp/newrelic-cli-debug.log
 
   chef-install:
-    runs-on: ubuntu-latest
+    # The cookbook runs "sudo -E", which sudo-rs (ubuntu-26.04) ignores, dropping the credentials.
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
