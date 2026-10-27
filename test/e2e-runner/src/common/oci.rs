@@ -63,6 +63,8 @@ impl OciRegistry {
 impl Drop for OciRegistry {
     fn drop(&mut self) {
         let _ = self.run_process.kill();
+        // Killing the script leaves its zot child running and holding the port.
+        let _ = script_command().arg("killall").output();
     }
 }
 

@@ -47,6 +47,9 @@ pub fn run_linux_e2e() {
         LinuxScenarios::FleetControl(args) => {
             scenarios::fleet_control::test_fleet_control(args);
         }
+        LinuxScenarios::OhiAgent(args) => {
+            scenarios::ohi_agent::test_ohi_agent(args);
+        }
         LinuxScenarios::FleetControlApi(args) => {
             fleet_control_api::run_fleet_control_api(&args.fleet_control);
         }
