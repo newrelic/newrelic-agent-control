@@ -4,8 +4,8 @@
 set -euo pipefail
 
 MAX_AGE_HOURS=12
-# The snapshot is always read from this repository, so other repositories can call the action too
-repository=newrelic/newrelic-agent-control
+# Falls back to current repo in case is called locally.
+repository="${GITHUB_ACTION_REPOSITORY:-$GITHUB_REPOSITORY}"
 
 if [ -z "${PLATFORM:-}" ]; then
   case "$RUNNER_OS" in

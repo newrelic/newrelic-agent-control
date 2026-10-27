@@ -2,6 +2,7 @@ name: 'Test OHI agent'
 description: >
   Installs Agent Control and the infrastructure agent on the runner, deploys the provided agent via local config
   (agent type, package and config served from a local OCI registry) and asserts on the given NRQL.
+  The infrastructure agent is always the latest version resolved from Instrumentation Metadata; it is not configurable.
 inputs:
   agent-type-file:
     description: 'Agent type definition file path (YAML) for the runner OS.'

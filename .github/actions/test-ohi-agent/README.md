@@ -5,7 +5,7 @@ A composite action that lets the CI of an OHI prove that its **agent type** and 
 It runs on a Linux or Windows runner and, in one execution:
 
 1. Installs the latest New Relic CLI and uses it to install the latest released AC (local config only, no Fleet Control, no system identity) and the infrastructure agent.
-2. Starts a local HTTPS OCI registry and publishes your package, your agent type and a mirror of the infrastructure agent package (version resolved from Instrumentation Metadata) to it.
+2. Starts a local HTTPS OCI registry and publishes your package, your agent type and a mirror of the infrastructure agent package to it. The infrastructure agent version is always the latest one resolved from Instrumentation Metadata, and it is not configurable.
 3. Configures AC to run the infrastructure agent plus your agent, with signature verification off, pulling everything from that registry.
 4. Polls your NRQL until it returns a meaningful value, or fails after 10 minutes. On exit it dumps the AC logs and the `/status` output.
 
