@@ -1,0 +1,2 @@
+type: enhancement
+message: "On-host: removed the embedded 0.1.0 agentTypes of the OHIs (nri-apache, nri-flex, nri-memcached, nri-mysql, nri-nginx, nri-postgresql and nri-redis). OHI agentTypes are now only resolved from the remote agent-type registry."

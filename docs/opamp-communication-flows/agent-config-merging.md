@@ -129,7 +129,7 @@ agentConfig-infra: |
     agentInfra: newrelic/com.newrelic.infrastructure:0.1.0
 agentConfig-nri-redis: |
   agents:
-    agentNriRedis: newrelic/com.newrelic.infrastructure.nri_redis:0.1.0
+    agentNriRedis: newrelic/com.newrelic.infrastructure.nri_redis:1.0.0
 # agentConfig-infra-2: | # This would fail because `agentInfra` would be repeated
 #   agents:
 #     agentInfra: newrelic/com.newrelic.infrastructure:0.1.0
@@ -143,7 +143,7 @@ Will become a remote configuration for Agent Control:
 ```yaml
 agents:
   agentInfra: newrelic/com.newrelic.infrastructure:0.1.0
-  agentNriRedis: newrelic/com.newrelic.infrastructure.nri_redis:0.1.0
+  agentNriRedis: newrelic/com.newrelic.infrastructure.nri_redis:1.0.0
 ```
 
 ## See also
