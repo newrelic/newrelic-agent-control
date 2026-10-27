@@ -50,7 +50,8 @@ impl Region {
 /// Executes a single NRQL query against the New Relic GraphQL API.
 ///
 /// This function sends a GraphQL query to execute NRQL, check that
-/// results are not empty.
+/// results are not empty: at least one value must be meaningful (not null, zero, false or empty),
+/// so an aggregate over no data, e.g. `count(*)`, does not pass.
 ///
 /// # Arguments
 ///
@@ -62,15 +63,6 @@ impl Region {
 /// * `Ok(())` - The NRQL query results on success
 /// * `Err` - Error if the query fails, returns errors, or has no results
 pub fn check_query_results_are_not_empty(
-    install_args: &InstallationArgs,
-    nrql_query: &str,
-) -> TestResult<Vec<Value>> {
-    check_query_results(install_args, nrql_query, |r| !r.is_empty())
-}
-
-/// Same as [check_query_results_are_not_empty] but requires at least one meaningful value (not null,
-/// zero, false or empty), so an aggregate over no data, e.g. `count(*)`, does not pass.
-pub fn check_query_results_have_value(
     install_args: &InstallationArgs,
     nrql_query: &str,
 ) -> TestResult<Vec<Value>> {

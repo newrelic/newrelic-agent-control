@@ -2,7 +2,7 @@ use crate::common::RecipeData;
 use crate::common::agent_metadata::{AgentKind, AgentMetadata};
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
 use crate::common::health::dump_status;
-use crate::common::nrql::{Region, check_query_results_have_value};
+use crate::common::nrql::{Region, check_query_results_are_not_empty};
 use crate::common::oci::OciRegistry;
 use crate::common::ohi_agent::{
     AGENT_TYPE_REPOSITORY, NRQL_ASSERTION_RETRIES, OhiAgentArgs, POLL_INTERVAL, mirror_agent_type,
@@ -113,7 +113,7 @@ version: {infra_agent_version}
         NRQL_ASSERTION_RETRIES,
         POLL_INTERVAL,
         "NRQL assertion",
-        || check_query_results_have_value(&installation_args, &nrql_query),
+        || check_query_results_are_not_empty(&installation_args, &nrql_query),
     );
 
     info!("OHI agent scenario completed successfully");
