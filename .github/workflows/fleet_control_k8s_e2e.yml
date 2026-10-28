@@ -64,7 +64,6 @@ jobs:
         uses: medyagh/setup-minikube@e9e035a86bbc3caea26a450bd4dbf9d0c453682e # v0.0.21
         timeout-minutes: 15
         with:
-          minikube-version: 1.39.0
           kubernetes-version: "v1.35.10"
           driver: docker
           container-runtime: docker
