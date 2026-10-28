@@ -39,6 +39,17 @@
       "automerge": false
     }
   ],
+  // Resolves to the latest patch of the third newest Kubernetes minor, since we support the three
+  // latest minors (endoflife.date lists cycles newest first).
+  "customDatasources": {
+    "k8s-oldest-supported": {
+      "defaultRegistryUrlTemplate": "https://endoflife.date/api/kubernetes.json",
+      "format": "json",
+      "transformTemplates": [
+        "{ \"releases\": [ { \"version\": \"v\" & $[2].latest } ] }"
+      ]
+    }
+  },
   "customManagers": [
     {
       "customType": "regex",
@@ -91,6 +102,18 @@
       "datasourceTemplate": "endoflife-date",
       "depNameTemplate": "amazon-eks",
       "extractVersionTemplate": "^(?<version>.*)-eks.+$"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "kubernetes-version: \"(?<currentValue>v\\S+?)\""
+      ],
+      "datasourceTemplate": "custom.k8s-oldest-supported",
+      "depNameTemplate": "kubernetes",
+      "versioningTemplate": "semver"
     }
   ]
 }
