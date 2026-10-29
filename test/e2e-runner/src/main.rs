@@ -77,6 +77,9 @@ enum LinuxScenarios {
     /// config and asserts the service recovers and reports healthy, then stops the healthy
     /// service and asserts the stop completes as a clean exit (not a timeout/signal/kill).
     ServiceLifecycle(InstallationArgs),
+    /// Local installation of Agent Control with a custom preload agent type. Verifies that the
+    /// OCI artifact is downloaded and present in the environment.
+    PreloadAgent(InstallationArgs),
 }
 
 #[derive(Debug, clap::Subcommand)]
