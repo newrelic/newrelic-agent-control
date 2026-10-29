@@ -84,6 +84,14 @@ impl LocalRegistry {
     }
 }
 
+// load-test: lets the simulator shadow every embedded agent type with a no-op one.
+/// Returns the ids of the agent types embedded into the binary for the given [Environment].
+pub fn embedded_agent_type_ids(env: Environment) -> Vec<AgentTypeID> {
+    embedded_definitions(env)
+        .map(|definition| definition.agent_type_id().clone())
+        .collect()
+}
+
 #[cfg(test)]
 #[allow(missing_docs)]
 pub mod tests {

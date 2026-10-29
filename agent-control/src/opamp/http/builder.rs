@@ -1,6 +1,7 @@
 //! Builder for the OpAMP HTTP client, including authentication and protobuf headers.
 use http::header::CONTENT_TYPE;
 use http::{HeaderMap, HeaderValue};
+use std::sync::Arc;
 use std::time::Duration;
 use tracing::error;
 
@@ -39,6 +40,23 @@ pub struct OpAMPHttpClientBuilder<R> {
     opamp_config: OpAMPClientConfig,
     proxy_config: ProxyConfig,
     secret_retriever: R,
+    // load-test: when set, every built client reuses these instead of creating its own.
+    shared: Option<SharedOpAMPHttp>,
+}
+
+/// HTTP client and token retriever shared by every OpAMP client a builder produces.
+#[derive(Clone)]
+pub struct SharedOpAMPHttp {
+    /// HTTP client reused for every OpAMP request.
+    pub http_client: HttpClient,
+    /// Token retriever reused (with its cache) by every OpAMP client.
+    pub token_retriever: Arc<TokenRetrieverImpl>,
+}
+
+impl std::fmt::Debug for SharedOpAMPHttp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SharedOpAMPHttp").finish_non_exhaustive()
+    }
 }
 
 impl<R> OpAMPHttpClientBuilder<R>
@@ -55,6 +73,15 @@ where
             opamp_config,
             proxy_config,
             secret_retriever,
+            shared: None,
+        }
+    }
+
+    /// Makes every built client reuse the given HTTP client and token retriever.
+    pub fn with_shared(self, shared: SharedOpAMPHttp) -> Self {
+        Self {
+            shared: Some(shared),
+            ..self
         }
     }
 
@@ -81,13 +108,22 @@ where
     /// post requests a Token will be retrieved from Identity System Service
     /// and injected as authorization header.
     fn build(&self) -> Result<Self::Client, HttpClientBuilderError> {
+        let url = self.opamp_config.endpoint.clone();
+        let headers = self.headers();
+        if let Some(shared) = &self.shared {
+            return Ok(HttpOpAMPClient::new(
+                shared.http_client.clone(),
+                url,
+                headers,
+                TokenRetrieverImpl::Shared(shared.token_retriever.clone()),
+            ));
+        }
+
         let http_config = HttpConfig::new(
             DEFAULT_CLIENT_TIMEOUT,
             DEFAULT_CLIENT_TIMEOUT,
             self.proxy_config.clone(),
         );
-        let url = self.opamp_config.endpoint.clone();
-        let headers = self.headers();
         let client = HttpClient::new(http_config)?;
         let token_retriever = TokenRetrieverImpl::try_build(
             self.opamp_config.clone().auth_config,
@@ -146,6 +182,53 @@ pub(crate) mod tests {
             type Client = MockHttpClient;
             fn build(&self) -> Result<MockHttpClient, HttpClientBuilderError>;
         }
+    }
+
+    /// Secret retriever that fails the test if it is ever called.
+    struct PanickingSecretRetriever;
+    impl crate::opamp::secret_retriever::OpampSecretRetriever for PanickingSecretRetriever {
+        type Error = std::io::Error;
+        fn retrieve(&self) -> Result<String, Self::Error> {
+            panic!("secret retriever must not be called when a shared token retriever is set")
+        }
+    }
+
+    #[test]
+    fn build_with_shared_does_not_call_secret_retriever() {
+        use crate::agent_control::config::OpAMPClientConfig;
+        use crate::opamp::auth::config::AuthConfig;
+        use crate::opamp::auth::token_retriever::TokenRetrieverNoop;
+        use nr_auth::ClientID;
+        use std::str::FromStr;
+        use std::sync::Arc;
+
+        let opamp_config = OpAMPClientConfig {
+            auth_config: Some(AuthConfig {
+                token_url: http::Uri::from_str("http://localhost").unwrap(),
+                client_id: ClientID::from("test"),
+                provider: None,
+                retries: 0,
+            }),
+            ..Default::default()
+        };
+        let http_client = HttpClient::new(HttpConfig::new(
+            DEFAULT_CLIENT_TIMEOUT,
+            DEFAULT_CLIENT_TIMEOUT,
+            ProxyConfig::default(),
+        ))
+        .unwrap();
+
+        let builder = OpAMPHttpClientBuilder::new(
+            opamp_config,
+            ProxyConfig::default(),
+            PanickingSecretRetriever,
+        )
+        .with_shared(SharedOpAMPHttp {
+            http_client,
+            token_retriever: Arc::new(TokenRetrieverImpl::Noop(TokenRetrieverNoop)),
+        });
+
+        assert!(builder.build().is_ok());
     }
 
     #[test]

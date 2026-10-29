@@ -38,6 +38,18 @@ mod tests {
     const WINDOWS_AGENT_TYPE_AMOUNT: usize = 9;
 
     #[test]
+    fn embedded_ids_include_infrastructure() {
+        let ids = crate::agent_type::registry::embedded_agent_type_ids(Environment::Linux);
+
+        assert_eq!(ids.len(), LINUX_AGENT_TYPE_AMOUNT);
+        assert!(
+            ids.iter().any(
+                |id| id.namespace() == "newrelic" && id.name() == "com.newrelic.infrastructure"
+            )
+        );
+    }
+
+    #[test]
     fn embedded_definitions_count_per_environment() {
         // Parsing every embedded yaml panics on any invalid one, and the per-environment counts
         // flag in CI if any agent type has been added or removed for a given environment.

@@ -32,7 +32,8 @@ impl OnHostHealthCheckers {
     /// sub-agent. Returns `Err` only when a specific checker (e.g. `Http`) fails to initialize.
     pub(crate) fn try_new(
         exec_health_consumer: EventConsumer<(String, HealthWithStartTime)>,
-        http_client: HttpClient,
+        // load-test: optional so callers without Http checks avoid a client thread per sub-agent.
+        http_client: Option<HttpClient>,
         checks: &[OnHostHealthCheckDefinition],
         start_time: StartTime,
     ) -> Result<Option<Self>, HealthCheckerError> {
@@ -57,8 +58,13 @@ impl OnHostHealthCheckers {
                     }
                 }
                 OnHostHealthCheckDefinition::Http(http_config) => {
+                    let http_client = http_client.clone().ok_or_else(|| {
+                        HealthCheckerError::Generic(
+                            "http health check requires an http client".to_string(),
+                        )
+                    })?;
                     health_checkers.push(OnHostHealthChecker::Http(HttpHealthChecker::new(
-                        http_client.clone(),
+                        http_client,
                         http_config.clone(),
                         start_time,
                     )?));
@@ -351,8 +357,43 @@ status_time_unix_nano: 1725444001
         .unwrap();
 
         let result =
-            OnHostHealthCheckers::try_new(consumer, http_client, &[], StartTime::now()).unwrap();
+            OnHostHealthCheckers::try_new(consumer, Some(http_client), &[], StartTime::now())
+                .unwrap();
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn try_new_file_only_without_http_client() {
+        let (_publisher, consumer) = pub_sub();
+        let checks = vec![OnHostHealthCheckDefinition::File(FileHealth {
+            path: "/tmp/x".to_string(),
+        })];
+
+        let result = OnHostHealthCheckers::try_new(consumer, None, &checks, StartTime::now())
+            .unwrap()
+            .expect("should build");
+
+        assert_eq!(result.health_checkers.len(), 1);
+        assert!(matches!(
+            result.health_checkers[0],
+            OnHostHealthChecker::File(_)
+        ));
+    }
+
+    #[test]
+    fn try_new_http_without_http_client_errors() {
+        let (_publisher, consumer) = pub_sub();
+        let checks = vec![OnHostHealthCheckDefinition::Http(HttpHealth {
+            host: HttpHost::from("127.0.0.1".to_string()),
+            path: HttpPath::from("/healthz".to_string()),
+            port: HttpPort::from(8080u16),
+            headers: HashMap::new(),
+            healthy_status_codes: vec![],
+        })];
+
+        let result = OnHostHealthCheckers::try_new(consumer, None, &checks, StartTime::now());
+
+        assert!(result.is_err());
     }
 
     #[test]
@@ -382,7 +423,7 @@ status_time_unix_nano: 1725444001
         ];
 
         let result =
-            OnHostHealthCheckers::try_new(consumer, http_client, &checks, StartTime::now())
+            OnHostHealthCheckers::try_new(consumer, Some(http_client), &checks, StartTime::now())
                 .unwrap()
                 .expect("should build");
 

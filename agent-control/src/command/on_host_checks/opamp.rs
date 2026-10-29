@@ -29,6 +29,7 @@ pub fn check_connectivity(
         verified_config.maybe_opamp.clone().unwrap(),
         verified_config.proxy_config.clone(),
         verified_config.yaml_config_repository.clone(),
+        None,
     );
 
     // TL;DR

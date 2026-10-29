@@ -1,0 +1,29 @@
+# Fleet Control load-test simulator config. See src/bin/fc_load_test/README.md.
+count: 1000                 # number of simulated Agent Controls
+ramp_up_per_second: 20      # simulated Agent Controls started per second
+data_root: /tmp/fc-load-test
+run_prefix: lt-2026-10-29   # change it to get brand-new identities without deleting data
+fresh: false                # true: wipe the data of this process's indices before starting
+log_level: info             # global tracing filter for the whole process
+index_offset: 0             # first index; lets two processes split the load (0 and 500)
+health_interval: 60s        # fake file health check interval
+
+fake_agent_types: []        # extra ids to shadow on top of all embedded agent types
+#  - namespace: newrelic
+#    name: com.newrelic.loadtest
+#    version: 0.1.0
+
+agent_control:              # regular on-host AC config; host_id, self_update and oci are forced
+  fleet_control:
+    endpoint: https://opamp.service.newrelic.com/v1/opamp    # staging: https://opamp.staging-service.newrelic.com/v1/opamp
+    poll_interval: 30s
+    fleet_id: FLEET_ID
+    signature_validation:
+      enabled: true
+      # staging: public_key_server_url: https://staging-publickeys.newrelic.com/r/blob
+    auth_config:
+      token_url: https://system-identity-oauth.service.newrelic.com/oauth2/token    # staging: https://system-identity-oauth.staging-service.newrelic.com/oauth2/token
+      client_id: CLIENT_ID
+      provider: local
+      private_key_path: /path/to/key.pem
+  agents: {}                # sub-agents come from Fleet Control remote config
