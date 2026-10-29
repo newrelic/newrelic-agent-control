@@ -1,0 +1,46 @@
+[package]
+name = "poc-windows-crash-survival"
+description = "Standalone PoC: sub-agent crash survival and re-adoption on Windows without elevation"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+thiserror = { workspace = true }
+windows = { workspace = true, features = [
+  "Wdk_Foundation",
+  "Wdk_System_Threading",
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_System_Diagnostics_Debug",
+  "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_JobObjects",
+  "Win32_System_Kernel",
+  "Win32_System_RemoteDesktop",
+  "Win32_System_SystemServices",
+  "Win32_System_Threading",
+] }
+
+[[example]]
+name = "crash_survival"
+# Needs a real Windows host, it re-executes itself and kills one of the copies.
+test = false
+
+[[example]]
+name = "job_name_probe"
+test = false
+
+[[example]]
+name = "env_tag_probe"
+test = false
+
+[[example]]
+name = "permanent_job_probe"
+test = false
+
+[[example]]
+name = "list_jobs"
+test = false

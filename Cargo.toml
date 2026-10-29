@@ -10,6 +10,7 @@ members = [
   "self-replacer",
   "test/e2e-runner",
   "test/crates/oci-test-utils",
+  "poc-windows-crash-survival",
 ]
 
 [workspace.package]
