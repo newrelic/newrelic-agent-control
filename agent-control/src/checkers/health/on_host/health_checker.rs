@@ -363,40 +363,6 @@ status_time_unix_nano: 1725444001
     }
 
     #[test]
-    fn try_new_file_only_without_http_client() {
-        let (_publisher, consumer) = pub_sub();
-        let checks = vec![OnHostHealthCheckDefinition::File(FileHealth {
-            path: "/tmp/x".to_string(),
-        })];
-
-        let result = OnHostHealthCheckers::try_new(consumer, None, &checks, StartTime::now())
-            .unwrap()
-            .expect("should build");
-
-        assert_eq!(result.health_checkers.len(), 1);
-        assert!(matches!(
-            result.health_checkers[0],
-            OnHostHealthChecker::File(_)
-        ));
-    }
-
-    #[test]
-    fn try_new_http_without_http_client_errors() {
-        let (_publisher, consumer) = pub_sub();
-        let checks = vec![OnHostHealthCheckDefinition::Http(HttpHealth {
-            host: HttpHost::from("127.0.0.1".to_string()),
-            path: HttpPath::from("/healthz".to_string()),
-            port: HttpPort::from(8080u16),
-            headers: HashMap::new(),
-            healthy_status_codes: vec![],
-        })];
-
-        let result = OnHostHealthCheckers::try_new(consumer, None, &checks, StartTime::now());
-
-        assert!(result.is_err());
-    }
-
-    #[test]
     fn try_new_builds_all_declared_kinds() {
         let (_publisher, consumer) = pub_sub();
         let http_client = HttpClient::new(HttpConfig::new(

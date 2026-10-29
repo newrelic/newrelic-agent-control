@@ -3,7 +3,7 @@
 Runs many on-host Agent Controls in one process to load-test the Fleet Control (FC) server.
 Each simulated Agent Control is the real `AgentControl` (real OpAMP polls, real remote config
 handling) but looks like a separate host and never starts processes or downloads packages.
-Not shipped and not meant to be merged. Design: `docs/superpowers/specs/2026-10-29-fc-load-test-design.md`.
+Not shipped and not meant to be merged.
 
 Every change to existing library code is marked with a `load-test` comment:
 

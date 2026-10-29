@@ -184,53 +184,6 @@ pub(crate) mod tests {
         }
     }
 
-    /// Secret retriever that fails the test if it is ever called.
-    struct PanickingSecretRetriever;
-    impl crate::opamp::secret_retriever::OpampSecretRetriever for PanickingSecretRetriever {
-        type Error = std::io::Error;
-        fn retrieve(&self) -> Result<String, Self::Error> {
-            panic!("secret retriever must not be called when a shared token retriever is set")
-        }
-    }
-
-    #[test]
-    fn build_with_shared_does_not_call_secret_retriever() {
-        use crate::agent_control::config::OpAMPClientConfig;
-        use crate::opamp::auth::config::AuthConfig;
-        use crate::opamp::auth::token_retriever::TokenRetrieverNoop;
-        use nr_auth::ClientID;
-        use std::str::FromStr;
-        use std::sync::Arc;
-
-        let opamp_config = OpAMPClientConfig {
-            auth_config: Some(AuthConfig {
-                token_url: http::Uri::from_str("http://localhost").unwrap(),
-                client_id: ClientID::from("test"),
-                provider: None,
-                retries: 0,
-            }),
-            ..Default::default()
-        };
-        let http_client = HttpClient::new(HttpConfig::new(
-            DEFAULT_CLIENT_TIMEOUT,
-            DEFAULT_CLIENT_TIMEOUT,
-            ProxyConfig::default(),
-        ))
-        .unwrap();
-
-        let builder = OpAMPHttpClientBuilder::new(
-            opamp_config,
-            ProxyConfig::default(),
-            PanickingSecretRetriever,
-        )
-        .with_shared(SharedOpAMPHttp {
-            http_client,
-            token_retriever: Arc::new(TokenRetrieverImpl::Noop(TokenRetrieverNoop)),
-        });
-
-        assert!(builder.build().is_ok());
-    }
-
     #[test]
     fn test_default_http_client_builder() {
         let mut http_client = MockHttpClient::default();

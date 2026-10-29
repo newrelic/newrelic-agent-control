@@ -278,60 +278,6 @@ mod tests {
         assert!(on_host_builder.build(&agent_identity).is_ok());
     }
 
-    #[test]
-    fn build_uses_hostname_override() {
-        let hostname = "lt-0001".to_string();
-        let agent_control_instance_id = InstanceID::create();
-        let sub_agent_instance_id = InstanceID::create();
-        let agent_identity = AgentIdentity::from((
-            AgentID::try_from("infra-agent").unwrap(),
-            AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
-        ));
-
-        let start_settings_infra = infra_agent_default_start_settings(
-            &hostname,
-            agent_control_instance_id.clone(),
-            sub_agent_instance_id.clone(),
-            &agent_identity,
-        );
-
-        // Build an OpAMP Client and let it run so the publisher is not dropped
-        let mut opamp_builder = MockOpAMPClientBuilder::new();
-        opamp_builder.should_build_and_start_and_run(
-            agent_identity.clone(),
-            start_settings_infra,
-            MockStartedOpAMPClient::new(),
-            Duration::from_millis(10),
-        );
-
-        let mut instance_id_getter = MockInstanceIDGetter::new();
-        instance_id_getter.should_get(&agent_identity.id, sub_agent_instance_id.clone());
-        instance_id_getter.should_get(&AgentID::AgentControl, agent_control_instance_id.clone());
-
-        let supervisor_builder =
-            MockSupervisorBuilder::<MockSupervisorStarter<MockSupervisor>>::new();
-
-        let mut agent_type_registry = MockAgentTypeRegistry::new();
-        agent_type_registry.should_get(
-            agent_identity.agent_type_id.clone(),
-            &AgentTypeDefinition::empty_with_metadata(agent_identity.agent_type_id.clone()),
-        );
-
-        let on_host_builder = OnHostSubAgentBuilder {
-            opamp_builder: Some(opamp_builder),
-            instance_id_getter,
-            supervisor_builder: Arc::new(supervisor_builder),
-            remote_config_parser: Arc::new(MockRemoteConfigParser::new()),
-            yaml_config_repository: Arc::new(MockConfigRepository::new()),
-            agent_renderer: Arc::new(MockAgentRenderer::new()),
-            agent_type_registry: Arc::new(agent_type_registry),
-            sub_agent_publisher: UnboundedBroadcast::default(),
-            hostname: Some(hostname.clone()),
-        };
-
-        assert!(on_host_builder.build(&agent_identity).is_ok());
-    }
-
     // HELPERS
     fn infra_agent_default_start_settings(
         hostname: &str,

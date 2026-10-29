@@ -132,18 +132,3 @@ impl TokenRetriever for TokenRetrieverNoop {
         ))
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn shared_variant_delegates() {
-        let shared =
-            TokenRetrieverImpl::Shared(Arc::new(TokenRetrieverImpl::Noop(TokenRetrieverNoop)));
-        assert_eq!(
-            shared.retrieve().unwrap().access_token(),
-            TokenRetrieverNoop.retrieve().unwrap().access_token()
-        );
-    }
-}

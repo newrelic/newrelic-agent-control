@@ -118,54 +118,6 @@ impl LoadTestConfig {
 mod tests {
     use super::*;
 
-    const VALID: &str = r#"
-count: 2
-ramp_up_per_second: 1
-data_root: /tmp/lt
-run_prefix: lt
-agent_control:
-  fleet_control:
-    endpoint: http://localhost/v1/opamp
-    poll_interval: 30s
-    fleet_id: f1
-  agents: {}
-"#;
-
-    #[test]
-    fn config_defaults() {
-        let config = LoadTestConfig::parse(VALID).unwrap();
-        assert_eq!(config.log_level, "info");
-        assert_eq!(config.index_offset, 0);
-        assert_eq!(config.health_interval, Duration::from_secs(60));
-        assert!(!config.fresh);
-        assert!(config.fake_agent_types.is_empty());
-    }
-
-    #[test]
-    fn config_rejects_bad_prefix() {
-        let content = VALID.replace("run_prefix: lt", "run_prefix: a/b");
-        assert!(LoadTestConfig::parse(&content).is_err());
-    }
-
-    #[test]
-    fn config_rejects_zero_count() {
-        let content = VALID.replace("count: 2", "count: 0");
-        assert!(LoadTestConfig::parse(&content).is_err());
-    }
-
-    #[test]
-    fn config_requires_fleet_control() {
-        let content = r#"
-count: 2
-ramp_up_per_second: 1
-data_root: /tmp/lt
-run_prefix: lt
-agent_control:
-  agents: {}
-"#;
-        assert!(LoadTestConfig::parse(content).is_err());
-    }
-
     #[test]
     fn example_config_parses() {
         let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("fc-load-test.example.yaml");

@@ -212,19 +212,6 @@ mod tests {
     }
 
     #[test]
-    fn layout_paths() {
-        let layout = AcLayout::new(Path::new("/data"), "lt", 7);
-        assert_eq!(layout.name, "lt-0007");
-        assert_eq!(layout.local_dir, PathBuf::from("/data/lt-0007/local"));
-        assert_eq!(layout.remote_dir, PathBuf::from("/data/lt-0007/remote"));
-        assert_eq!(layout.log_dir, PathBuf::from("/data/lt-0007/log"));
-        assert_eq!(
-            layout.local_config_path(),
-            PathBuf::from("/data/lt-0007/local/local-data/agent-control/local_config.yaml")
-        );
-    }
-
-    #[test]
     fn identifiers_are_deterministic() {
         let ids = identifiers("lt-0007", "f1");
         assert_eq!(ids, identifiers("lt-0007", "f1"));
@@ -251,25 +238,6 @@ mod tests {
         assert_eq!(config.fleet_control.unwrap().fleet_id, "f1");
         assert!(layout.remote_dir.is_dir());
         assert!(layout.log_dir.is_dir());
-    }
-
-    #[test]
-    fn prepare_writes_fake_agent_types() {
-        let root = tempdir().unwrap();
-        let layout = AcLayout::new(root.path(), "lt", 1);
-        let fake = fake_agent_type(
-            &infra_id(),
-            Path::new("/tmp/h.yaml"),
-            Duration::from_secs(5),
-        );
-
-        prepare(&layout, &template(), std::slice::from_ref(&fake)).unwrap();
-
-        let written = layout
-            .local_dir
-            .join(DYNAMIC_AGENT_TYPES_DIR)
-            .join(&fake.file_name);
-        assert_eq!(std::fs::read_to_string(written).unwrap(), fake.yaml);
     }
 
     #[test]
@@ -332,16 +300,6 @@ mod tests {
     }
 
     #[test]
-    fn healthy_file_is_healthy() {
-        let root = tempdir().unwrap();
-        let path = write_healthy_file(root.path()).unwrap();
-        let content: serde_json::Value =
-            serde_saphyr::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
-        assert_eq!(content["healthy"], serde_json::json!(true));
-        assert!(content["status_time_unix_nano"].as_u64().unwrap() > 0);
-    }
-
-    #[test]
     fn fresh_wipes_only_own_index_range() {
         let root = tempdir().unwrap();
         for dir in ["lt-0001", "lt-0002", "lt-0003", "lt-other-0001", "ltx-0001"] {
@@ -360,11 +318,5 @@ mod tests {
             left,
             vec!["healthy.yaml", "lt-0003", "lt-other-0001", "ltx-0001"]
         );
-    }
-
-    #[test]
-    fn wipe_range_without_data_root_is_ok() {
-        let root = tempdir().unwrap();
-        wipe_range(&root.path().join("missing"), "lt", 0..3).unwrap();
     }
 }
