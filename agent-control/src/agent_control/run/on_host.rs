@@ -33,7 +33,7 @@ use crate::opamp::callbacks::AgentCallbacks;
 use crate::opamp::client_builder::OpAMPClientBuilder;
 use crate::opamp::client_builder::{BuildOpAMPClient, COMPRESSION_ENABLED};
 use crate::opamp::effective_config::loader::{EffectiveConfigLoader, EffectiveConfigLoaderBuilder};
-use crate::opamp::http::builder::OpAMPHttpClientBuilder;
+use crate::opamp::http::builder::{OpAMPHttpClientBuilder, SharedOpAMPHttp};
 use crate::opamp::http::client::HttpOpAMPClient;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::on_host::identifiers::{Identifiers, IdentifiersProvider};
@@ -118,7 +118,19 @@ impl AgentControlRunner {
             .load()
             .map_err(|err| RunError(format!("failed to load Agent Control config: {err}")))?;
 
-        let identifiers = ac_identifiers(&agent_control_config)?;
+        // load-test: simulated hosts use the provided identifiers instead of detecting them.
+        let identifiers = match &self.load_test {
+            Some(overrides) => overrides.identifiers.clone(),
+            None => ac_identifiers(&agent_control_config)?,
+        };
+        let shared_http = self
+            .load_test
+            .as_ref()
+            .and_then(|overrides| overrides.shared_http.clone());
+        let sub_agent_hostname = self
+            .load_test
+            .as_ref()
+            .map(|_| identifiers.hostname.clone());
 
         let agent_control_variables = VariableValues::from([(
             VariableName::new(Namespace::AgentControl, HOST_ID_VARIABLE_NAME),
@@ -167,6 +179,7 @@ impl AgentControlRunner {
                 config,
                 self.bootstrap_config.proxy.clone(),
                 yaml_config_repository.clone(),
+                shared_http.clone(),
             )
         });
 
@@ -234,6 +247,7 @@ impl AgentControlRunner {
             agent_renderer,
             agent_type_registry: self.agent_type_registry.clone(),
             sub_agent_publisher: self.sub_agent_publisher,
+            hostname: sub_agent_hostname,
         };
 
         // Shared-filesystem conflict detection (on-host only). Resolving each agent type here also
@@ -330,12 +344,18 @@ pub fn opamp_client_builder(
     opamp_config: OpAMPClientConfig,
     proxy_config: ProxyConfig,
     yaml_config_repository: Arc<ConfigRepo<FileStore<LocalFile, DirectoryManagerFs>>>,
+    // load-test: `None` for regular Agent Control.
+    shared_http: Option<SharedOpAMPHttp>,
 ) -> OnHostOpAMPClientBuilder {
     let secret_retriever =
         OnHostSecretRetriever::new(Some(opamp_config.clone()), local_dir.clone(), FileProvider);
 
     let poll_interval = opamp_config.poll_interval;
-    let http_builder = OpAMPHttpClientBuilder::new(opamp_config, proxy_config, secret_retriever);
+    let mut http_builder =
+        OpAMPHttpClientBuilder::new(opamp_config, proxy_config, secret_retriever);
+    if let Some(shared_http) = shared_http {
+        http_builder = http_builder.with_shared(shared_http);
+    }
     let loader = EffectiveConfigLoaderBuilder::new(yaml_config_repository.clone());
 
     OpAMPClientBuilder::new(poll_interval, http_builder, loader)

@@ -1,6 +1,7 @@
 //! Builder for the OpAMP HTTP client, including authentication and protobuf headers.
 use http::header::CONTENT_TYPE;
 use http::{HeaderMap, HeaderValue};
+use std::sync::Arc;
 use std::time::Duration;
 use tracing::error;
 
@@ -39,6 +40,23 @@ pub struct OpAMPHttpClientBuilder<R> {
     opamp_config: OpAMPClientConfig,
     proxy_config: ProxyConfig,
     secret_retriever: R,
+    // load-test: when set, every built client reuses these instead of creating its own.
+    shared: Option<SharedOpAMPHttp>,
+}
+
+/// HTTP client and token retriever shared by every OpAMP client a builder produces.
+#[derive(Clone)]
+pub struct SharedOpAMPHttp {
+    /// HTTP client reused for every OpAMP request.
+    pub http_client: HttpClient,
+    /// Token retriever reused (with its cache) by every OpAMP client.
+    pub token_retriever: Arc<TokenRetrieverImpl>,
+}
+
+impl std::fmt::Debug for SharedOpAMPHttp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SharedOpAMPHttp").finish_non_exhaustive()
+    }
 }
 
 impl<R> OpAMPHttpClientBuilder<R>
@@ -55,6 +73,15 @@ where
             opamp_config,
             proxy_config,
             secret_retriever,
+            shared: None,
+        }
+    }
+
+    /// Makes every built client reuse the given HTTP client and token retriever.
+    pub fn with_shared(self, shared: SharedOpAMPHttp) -> Self {
+        Self {
+            shared: Some(shared),
+            ..self
         }
     }
 
@@ -81,13 +108,22 @@ where
     /// post requests a Token will be retrieved from Identity System Service
     /// and injected as authorization header.
     fn build(&self) -> Result<Self::Client, HttpClientBuilderError> {
+        let url = self.opamp_config.endpoint.clone();
+        let headers = self.headers();
+        if let Some(shared) = &self.shared {
+            return Ok(HttpOpAMPClient::new(
+                shared.http_client.clone(),
+                url,
+                headers,
+                TokenRetrieverImpl::Shared(shared.token_retriever.clone()),
+            ));
+        }
+
         let http_config = HttpConfig::new(
             DEFAULT_CLIENT_TIMEOUT,
             DEFAULT_CLIENT_TIMEOUT,
             self.proxy_config.clone(),
         );
-        let url = self.opamp_config.endpoint.clone();
-        let headers = self.headers();
         let client = HttpClient::new(http_config)?;
         let token_retriever = TokenRetrieverImpl::try_build(
             self.opamp_config.clone().auth_config,

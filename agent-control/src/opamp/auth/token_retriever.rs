@@ -13,6 +13,7 @@ use nr_auth::{
     token::{AccessToken, Token, TokenType},
     token_retriever::{TokenRetrieverWithCache, credential::JwtSignerAuthBuilder},
 };
+use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
 
@@ -45,6 +46,9 @@ pub enum TokenRetrieverImpl {
     HttpTR(TokenRetrieverHttp),
     /// No-op token retriever that returns a default (empty) token.
     Noop(TokenRetrieverNoop),
+    // load-test: lets many simulated clients share one cached token.
+    /// Retriever shared across several OpAMP clients.
+    Shared(Arc<TokenRetrieverImpl>),
 }
 
 impl TokenRetriever for TokenRetrieverImpl {
@@ -54,6 +58,7 @@ impl TokenRetriever for TokenRetrieverImpl {
                 token_retriever_with_cache.retrieve()
             }
             TokenRetrieverImpl::Noop(noop_token_retriever) => noop_token_retriever.retrieve(),
+            TokenRetrieverImpl::Shared(shared) => shared.retrieve(),
         }
     }
 }

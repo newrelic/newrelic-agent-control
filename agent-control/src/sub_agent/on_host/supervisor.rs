@@ -5,7 +5,9 @@ use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{
     OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_PACKAGE_VERSION_ATTRIBUTE_KEY_PREFIX,
 };
-use crate::agent_type::runtime_config::health_config::rendered::OnHostHealthConfig;
+use crate::agent_type::runtime_config::health_config::rendered::{
+    OnHostHealthCheckDefinition, OnHostHealthConfig,
+};
 use crate::agent_type::runtime_config::on_host::filesystem::rendered::{
     FileSystem, FileSystemEntriesError, SharedFileSystem,
 };
@@ -267,10 +269,20 @@ where
 
         let start_time = StartTime::now();
         let client_timeout = Duration::from(health_config.timeout);
-        let http_config = HttpConfig::new(client_timeout, client_timeout, ProxyConfig::default());
-        let http_client = HttpClient::new(http_config).map_err(|err| {
-            HealthCheckerError::Generic(format!("could not build the http client: {err}"))
-        })?;
+        // load-test: build the http client only when an Http check needs it.
+        let needs_http_client = health_config
+            .checks
+            .iter()
+            .any(|check| matches!(check, OnHostHealthCheckDefinition::Http(_)));
+        let http_client = needs_http_client
+            .then(|| {
+                let http_config =
+                    HttpConfig::new(client_timeout, client_timeout, ProxyConfig::default());
+                HttpClient::new(http_config).map_err(|err| {
+                    HealthCheckerError::Generic(format!("could not build the http client: {err}"))
+                })
+            })
+            .transpose()?;
 
         let (health_publisher, health_consumer) = pub_sub();
         let Some(health_checker) = OnHostHealthCheckers::try_new(

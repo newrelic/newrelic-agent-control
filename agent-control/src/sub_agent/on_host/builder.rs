@@ -49,6 +49,8 @@ where
     pub(crate) agent_renderer: Arc<A>,
     pub(crate) agent_type_registry: Arc<TR>,
     pub(crate) sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
+    // load-test: simulated hosts report their own hostname instead of the real one.
+    pub(crate) hostname: Option<String>,
 }
 
 impl<O, I, B, R, Y, A, TR> SubAgentBuilder for OnHostSubAgentBuilder<O, I, B, R, Y, A, TR>
@@ -74,9 +76,12 @@ where
             .agent_type_registry
             .get(&agent_identity.agent_type_id)?;
 
-        let hostname = get_hostname()
-            .map_err(|e| SubAgentBuilderError::OpampClientBuilderError(e.to_string()))?
-            .into();
+        let hostname = match &self.hostname {
+            Some(hostname) => hostname.clone(),
+            None => get_hostname()
+                .map_err(|e| SubAgentBuilderError::OpampClientBuilderError(e.to_string()))?,
+        }
+        .into();
 
         let mut non_identifying_attributes = HashMap::from([
             (HOST_NAME_ATTRIBUTE_KEY.to_string(), hostname),
@@ -267,6 +272,7 @@ mod tests {
             agent_renderer: Arc::new(MockAgentRenderer::new()),
             agent_type_registry: Arc::new(agent_type_registry),
             sub_agent_publisher: UnboundedBroadcast::default(),
+            hostname: None,
         };
 
         assert!(on_host_builder.build(&agent_identity).is_ok());

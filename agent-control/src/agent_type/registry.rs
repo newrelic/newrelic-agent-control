@@ -11,6 +11,7 @@ use tracing::{debug, warn};
 
 use self::caching::CachingRegistry;
 use self::local::LocalRegistry;
+pub use self::local::embedded_agent_type_ids;
 use self::remote::RemoteRegistry;
 use super::agent_type_id::AgentTypeID;
 use super::definition::AgentTypeDefinition;

@@ -18,7 +18,9 @@ use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::{AgentControlEvent, ApplicationEvent, SubAgentEvent, channel::EventConsumer};
 use crate::oci;
 use crate::opamp::capabilities::CustomCapability;
+use crate::opamp::http::builder::SharedOpAMPHttp;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
+use crate::opamp::instance_id::on_host::identifiers::Identifiers;
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidator;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::values::ConfigRepo;
@@ -100,6 +102,8 @@ pub struct AgentControlRunner {
     runtime: Arc<Runtime>,
     http_server_runner: Option<Runner>,
     self_replace_target: Option<PathBuf>,
+    // load-test: `None` for regular Agent Control.
+    load_test: Option<LoadTestOverrides>,
 }
 
 impl AgentControlRunner {
@@ -111,20 +115,6 @@ impl AgentControlRunner {
                 .enable_all()
                 .build()?,
         );
-
-        let mut agent_control_publisher = UnboundedBroadcast::default();
-        let mut sub_agent_publisher = UnboundedBroadcast::default();
-        let http_server_runner = context.bootstrap_config.server.enabled.then(|| {
-            let agent_control_consumer = EventConsumer::from(agent_control_publisher.subscribe());
-            let sub_agent_consumer = EventConsumer::from(sub_agent_publisher.subscribe());
-            Runner::new(
-                context.bootstrap_config.server.clone(),
-                runtime.clone(),
-                agent_control_consumer,
-                sub_agent_consumer,
-                context.bootstrap_config.fleet_control.clone(),
-            )
-        });
 
         // We are setting client http in debug_assertions mode for tests
         let oci_client_config = ClientConfig {
@@ -140,6 +130,56 @@ impl AgentControlRunner {
             runtime.clone(),
         )?;
 
+        let dynamic_custom_capabilities =
+            probe_dynamic_custom_capabilities(&oci_client, &context.bootstrap_config);
+
+        Self::build(
+            context,
+            SharedRunnerResources {
+                runtime,
+                oci_client,
+                dynamic_custom_capabilities,
+            },
+            None,
+        )
+    }
+
+    // load-test: builds a runner reusing resources shared by many simulated Agent Controls.
+    /// Builds the runner reusing an existing runtime, OCI client and probed custom capabilities,
+    /// and replacing the detected host identity with the given overrides.
+    pub fn try_new_with_shared(
+        context: RunnerContext,
+        shared: SharedRunnerResources,
+        overrides: LoadTestOverrides,
+    ) -> Result<Self, Box<dyn Error>> {
+        Self::build(context, shared, Some(overrides))
+    }
+
+    fn build(
+        context: RunnerContext,
+        shared: SharedRunnerResources,
+        load_test: Option<LoadTestOverrides>,
+    ) -> Result<Self, Box<dyn Error>> {
+        let SharedRunnerResources {
+            runtime,
+            oci_client,
+            dynamic_custom_capabilities,
+        } = shared;
+
+        let mut agent_control_publisher = UnboundedBroadcast::default();
+        let mut sub_agent_publisher = UnboundedBroadcast::default();
+        let http_server_runner = context.bootstrap_config.server.enabled.then(|| {
+            let agent_control_consumer = EventConsumer::from(agent_control_publisher.subscribe());
+            let sub_agent_consumer = EventConsumer::from(sub_agent_publisher.subscribe());
+            Runner::new(
+                context.bootstrap_config.server.clone(),
+                runtime.clone(),
+                agent_control_consumer,
+                sub_agent_consumer,
+                context.bootstrap_config.fleet_control.clone(),
+            )
+        });
+
         let agent_type_registry = Arc::new(build_agent_type_registry(
             &context.bootstrap_config.agent_types,
             &context.bootstrap_config.oci,
@@ -147,33 +187,6 @@ impl AgentControlRunner {
             &context.base_paths.local_dir,
             oci_client.clone(),
         )?);
-
-        let mut dynamic_custom_capabilities = Vec::new();
-        // Performs a reachability probe against the configured Agent Type repository
-        // so FC can limit the use of remote agent types for existing customers.
-        if oci_client
-            .reachability_probe(
-                &context.bootstrap_config.oci.registry,
-                &context
-                    .bootstrap_config
-                    .agent_types
-                    .default_remote
-                    .repository,
-                context
-                    .bootstrap_config
-                    .oci
-                    .auth
-                    .as_ref()
-                    .map(RegistryAuth::from)
-                    .unwrap_or(RegistryAuth::Anonymous),
-            )
-            // TODO switch this log to warn/error whenever remote agent types are supported by FC
-            .inspect_err(|err| debug!("Agent type registry is unreachable: {err}"))
-            .is_ok()
-        {
-            info!("Agent type registry reachability probe succeeded");
-            dynamic_custom_capabilities.push(CustomCapability::RemoteAgentTypeRepoReachable);
-        }
 
         let signature_validator = context
             .bootstrap_config
@@ -201,8 +214,59 @@ impl AgentControlRunner {
             base_paths: context.base_paths,
             signature_validator,
             self_replace_target: context.self_replace_target,
+            load_test,
         })
     }
+}
+
+/// Resources that can be shared by several [`AgentControlRunner`]s in the same process.
+#[derive(Clone)]
+pub struct SharedRunnerResources {
+    /// Async runtime used by the OCI client and the status HTTP server.
+    pub runtime: Arc<Runtime>,
+    /// OCI client used to fetch agent types and packages.
+    pub oci_client: oci::Client,
+    /// Custom capabilities computed from startup probes.
+    pub dynamic_custom_capabilities: Vec<CustomCapability>,
+}
+
+// load-test: replaces host detection and per-client HTTP resources for simulated Agent Controls.
+/// Overrides applied to a runner that simulates a separate host.
+#[derive(Debug, Clone)]
+pub struct LoadTestOverrides {
+    /// Identifiers reported instead of the detected ones.
+    pub identifiers: Identifiers,
+    /// HTTP client and token retriever shared by every OpAMP client, if authentication is used.
+    pub shared_http: Option<SharedOpAMPHttp>,
+}
+
+/// Probes the configured agent type repository and returns the custom capabilities to report.
+pub fn probe_dynamic_custom_capabilities(
+    oci_client: &oci::Client,
+    config: &AgentControlConfig,
+) -> Vec<CustomCapability> {
+    let mut dynamic_custom_capabilities = Vec::new();
+    // Performs a reachability probe against the configured Agent Type repository
+    // so FC can limit the use of remote agent types for existing customers.
+    if oci_client
+        .reachability_probe(
+            &config.oci.registry,
+            &config.agent_types.default_remote.repository,
+            config
+                .oci
+                .auth
+                .as_ref()
+                .map(RegistryAuth::from)
+                .unwrap_or(RegistryAuth::Anonymous),
+        )
+        // TODO switch this log to warn/error whenever remote agent types are supported by FC
+        .inspect_err(|err| debug!("Agent type registry is unreachable: {err}"))
+        .is_ok()
+    {
+        info!("Agent type registry reachability probe succeeded");
+        dynamic_custom_capabilities.push(CustomCapability::RemoteAgentTypeRepoReachable);
+    }
+    dynamic_custom_capabilities
 }
 
 /// Builds the production agent type registry (local + remote, with caching).
