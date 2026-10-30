@@ -30,14 +30,16 @@ discovery mechanism.
 | `crash_survival` | Does the child survive an AC crash, can it be adopted from `(pid, start_time)` and killed, all without elevation? Does a wrong `start_time` get rejected? Does the orphan keep the dead supervisor as parent pid? |
 | `job_name_probe` | Can a **named** job be used to find the sub-agent after a crash? What is still observable once the last handle is closed? |
 | `permanent_job_probe` | Can a named job be made to **survive the loss of its handles** with `OBJ_PERMANENT`, and who is allowed to do that (non-elevated user vs `SYSTEM`)? |
+| `job_dacl_probe` | What DACL does a permanent job get by default, does it persist after the last handle closes, and how is a restrictive one created atomically with the job? |
 | `list_jobs` | How can a restarted AC **list and filter** the named jobs, find permanent ones that nobody holds a handle to, and what can a non-admin see? |
 | `env_tag_probe` | Can the sub-agent be found by an environment variable tag (`NR_AC_TAG`) read from the process environment block, with no bookkeeping? What does the scan cost and how many processes are unreadable? |
 
 Library pieces (`src/lib.rs`): `Job` (create/assign/query), `AdoptedProcess` (open, adopt with start time check, wait,
 kill), `process_env_var` / `find_processes_by_env_tag` (remote PEB read), `find_processes_by_parent` (snapshot only)
 `is_elevated`, `set_privilege`, and the native job helpers `Job::create_native`, `list_named_jobs` and
-`make_temporary`. Three unit tests cover adoption after the job handle is dropped, the start time mismatch and listing
-a named job.
+`make_temporary`. For DACLs: `Job::create_native_with_sddl`, `Job::open_native`, `Job::security` (owner, SDDL and ACEs),
+`ObjectSecurity::unexpected_grants` (audit), `restrictive_sddl` and `current_user_sid`. Four unit tests cover adoption
+after the job handle is dropped, the start time mismatch, listing a named job and a restrictive DACL on a job.
 
 ## How to run
 
@@ -375,8 +377,135 @@ What it would buy and cost for AC (`LocalSystem`, or a non-admin account that wa
 | | Name squatting: a regular user can create a temporary job under the same name first (shown above for `\BaseNamedObjects`), so a name must be unguessable or the creator must be verified (`STATUS_OBJECT_NAME_EXISTS` handling and DACL checks) |
 | | A permanent job with no members stays around until cleaned, so restarts need an "open or create" path that tolerates leftovers |
 
-Name squatting, the leftover behavior and the DACL of a permanent job are not exercised by the probe, see
-[Future work](#future-work).
+The DACL of a permanent job is covered in [DACL of a permanent job](#dacl-of-a-permanent-job). Name squatting and the
+leftover behavior are not exercised by the probes, see [Future work](#future-work).
+
+### DACL of a permanent job
+
+A permanent job outlives its creator, so whoever can open it by name matters. `job_dacl_probe` creates one permanent
+job with the default security descriptor and one with an explicit SDDL, reads owner and DACL from the handle
+(`GetSecurityInfo` with `SE_KERNEL_OBJECT`, ACEs walked with `GetAce`, SDDL from
+`ConvertSecurityDescriptorToStringSecurityDescriptorW`), closes the handle, reopens the job by name with `READ_CONTROL`
+and reads it again. It finishes with `make_temporary`.
+
+The default DACL comes from the creator's token. It is not a fixed value, and it differs per identity:
+
+| Creator | Owner | Default DACL (SDDL) |
+|---|---|---|
+| `SYSTEM` | `BUILTIN\Administrators` | `O:BAD:(A;;0x1f003f;;;SY)(A;;0x120004;;;BA)` |
+| Non-elevated `calvarez`, `\BaseNamedObjects` | `calvarez` | `...(A;;0x1f003f;;;<user>)(A;;0x1f003f;;;SY)(A;;0x120004;;;S-1-5-5-0-<logon session>)` |
+| Non-elevated `calvarez`, `\Sessions\1\BaseNamedObjects` | `calvarez` | `...(A;;0x1f003f;;;SY)(A;;0x1f003f;;;<user>)(A;;0x1f003f;;;S-1-5-5-0-<logon session>)` |
+
+So the default is not "open to everyone", but it is not minimal either:
+
+- Under `SYSTEM`, **`Administrators` get `0x120004`**: `READ_CONTROL | SYNCHRONIZE | JOB_OBJECT_QUERY`. That lets any
+  administrator open the job, list its members and read the DACL, but not terminate it or change its limits.
+  `JOB_OBJECT_QUERY` is the right `Job::open` needs, so an admin AC can reopen the job.
+- Under a non-elevated user, the **logon session SID** (`S-1-5-5-0-*`) is also granted access. In the session namespace
+  it is a full `0x1f003f` grant to every process in the same logon session, which includes processes of that user that
+  AC may not trust (and, if the account is shared, other users of that session).
+- `0x1f003f` is `JOB_OBJECT_ALL_ACCESS` (`GA` expands to it). Nothing here comes from the object directory: no ACE is
+  inherited, all of it is the token default DACL.
+- The DACL is stored in the object. The reopened job showed exactly the same SDDL after the last handle was closed.
+
+The permanent create still fails with `0xC0000061` for a user without the privilege, so for that identity the probe
+repeats the same steps on a temporary job. Creation with a security descriptor behaves the same in both cases.
+
+#### Creating the job with a restrictive security descriptor
+
+Pass the descriptor in `OBJECT_ATTRIBUTES.SecurityDescriptor` to `NtCreateJobObject`, so the job never exists with the
+default DACL (a `SetSecurityInfo` afterwards would leave a window). The PoC builds it from an SDDL string with
+`ConvertStringSecurityDescriptorToSecurityDescriptorW` (`Job::create_native_with_sddl`):
+
+```
+D:P(A;;GA;;;SY)(A;;GA;;;<AC user SID>)
+```
+
+| Part | Meaning |
+|---|---|
+| `D:` | DACL only. Owner and group are left to the token default |
+| `P` | Protected: the DACL does not take inherited ACEs |
+| `(A;;GA;;;SY)` | Allow `GENERIC_ALL` to `SYSTEM`. The object manager maps `GA` to the job's `0x1f003f` |
+| `(A;;GA;;;<user SID>)` | Allow `GENERIC_ALL` to the identity AC runs as (`current_user_sid`, read from the token). Omitted when AC is `SYSTEM`, where it would be a duplicate |
+
+Output as `SYSTEM` (permanent, handle closed, reopened by name):
+
+```
+  [restrictive DACL]
+    requested SDDL: D:P(A;;GA;;;SY)
+    after creation (permanent: true), read from the handle:
+      owner: S-1-5-32-544 (BUILTIN\Administrators)
+      SDDL:  O:BAD:P(A;;0x1f003f;;;SY)
+      ACE:   Allow 0x001F003F S-1-5-18 (NT AUTHORITY\SYSTEM)
+      audit: only the current user and SYSTEM are granted access
+    last handle closed, reopened by name with READ_CONTROL:
+      SDDL:  O:BAD:P(A;;0x1f003f;;;SY)
+    cleanup: Ok(())
+```
+
+And as the non-elevated user (temporary job, permanent is refused), the logon session ACE is gone:
+
+```
+      SDDL:  O:S-1-5-21-...-1000D:P(A;;0x1f003f;;;SY)(A;;0x1f003f;;;S-1-5-21-...-1000)
+      audit: only the current user and SYSTEM are granted access
+```
+
+Notes for using it:
+
+- **Check after creation.** Two checks, both printed by `job_dacl_probe` as `audit:` lines:
+  - `ObjectSecurity::unexpected_grants` returns every allow ACE (or a NULL DACL) whose trustee is not in an expected
+    list.
+  - `ObjectSecurity::unexpected_owner` returns the owner when it is not an expected SID. The owner is the identity-based
+    check: only the creator can set it, so a squatter's job shows its own account. Expect the AC user for a non-admin
+    AC, and `BUILTIN\Administrators` (`S-1-5-32-544`) when the creator is `SYSTEM` or an elevated token, as seen in
+    the `SYSTEM` run.
+
+  AC can run them right after creating the job, or on reopening one, and refuse to adopt a job that fails either. The
+  owner check passed in all runs (`audit: owner is the current user or Administrators`). A unit test also checks that
+  an unrelated SID is rejected.
+- **Keep `DELETE` for the cleaner.** `make_temporary` needs `DELETE` on the handle, so the identity that removes the
+  job must be granted it. `GA` covers it. A read-only ACE (for example `(A;;0x120004;;;BA)` to let administrators
+  inspect the job) can be added without allowing termination.
+- **Administrators are not locked out for real.** Without an ACE they cannot open the job, but a holder of
+  `SeTakeOwnershipPrivilege` can take ownership and rewrite the DACL. The DACL protects against other accounts and
+  processes, not against a local administrator.
+- **Different identity.** Per the object security model, an identity without a matching allow ACE gets
+  `ERROR_ACCESS_DENIED` on open. This was not tried with a second account, as the DACL is documented behavior.
+- **An upgrade changing the AC account** (for example `SYSTEM` to a dedicated user) would find old jobs it cannot open.
+  The restrictive SDDL above would need the old SID too during the transition.
+
+#### Is a restrictive DACL worth it for AC?
+
+**Short answer: it is cheap hardening, not a security boundary. Set it explicitly, but do not rely on it, and put the
+effort in verifying owner and DACL when adopting a job.**
+
+What a wider DACL would allow, and who could abuse it:
+
+| AC runs as | Default DACL already grants | Extra exposure vs the restrictive SDDL | Worth it? |
+|---|---|---|---|
+| `SYSTEM` | `SYSTEM` full, `Administrators` `0x120004` (query, read DACL) | Administrators can inspect the job. They can already kill any process and take ownership of the job, so there is nothing to protect them from | **Marginal.** The default is already what we would write by hand (`D:P(A;;GA;;;SY)(A;;0x120004;;;BA)` is equivalent). Setting it explicitly only pins the result, so it no longer depends on the token default DACL |
+| Non-admin user | User and `SYSTEM` full, plus the **logon session SID** full | Every process in the user's logon session can terminate the job, set limits or make it temporary. That includes the sub-agents themselves, which are children of AC | **Modest.** Same-user processes can already `TerminateProcess` each other, so the job is not the weak point. What it removes is the job-level controls (limits, `NtMakeTemporaryObject`) from a compromised sub-agent, which is a real but small gain |
+
+Why it is not worth more:
+
+- **Same user is already inside the trust boundary.** This PoC is scoped to same-user adoption, and a same-user process
+  can already open and kill the sub-agent. The DACL does not change that.
+- **Local administrators can bypass it** (take ownership, rewrite the DACL), see the notes above.
+- **It does not stop name squatting.** A squatter creates its own job under the same name with its own DACL. The check
+  that matters is on the *existing* job: its **owner** must be the expected SID (`ObjectSecurity::owner`) and
+  `unexpected_grants` must be empty. A DACL on AC's job is only meaningful if AC verifies it on reopen.
+- **It adds failure modes.** An admin cannot inspect the job when `BA` is not granted. Changing the AC account (for
+  example `SYSTEM` to a dedicated user, or the reverse) leaves jobs the new identity cannot open, and the cleanup
+  (`NtMakeTemporaryObject` needs `DELETE`) would fail too.
+
+Recommendation:
+
+1. Create the job with an explicit SDDL in both modes (the code path is the same, `create_native_with_sddl`). Use
+   `SYSTEM` plus the AC identity, and add `(A;;0x120004;;;BA)` for the `SYSTEM` case to keep it supportable.
+2. Always run the audit and the owner check when reopening a job after a restart, and treat a mismatch as "not our
+   job" (do not adopt, do not kill).
+3. Do not count the DACL as protection against the sub-agent or other same-user processes. If that matters, it needs a
+   different identity for the sub-agents, not a tighter job ACL.
 
 ### Listing and filtering named jobs
 
@@ -520,17 +649,32 @@ non-admin user running AC.
 
 Summary:
 
-- **Bookkeeping** behaves the same for both users, and it is the cheaper and safer choice. Its only weakness is the
-  spawn-to-write window, which can be reduced by persisting before the child can do anything else, or covered by the
-  parent pid lookup.
+- **Bookkeeping** behaves the same for both users and needs the fewest privileges and no native APIs, but it is not
+  the more robust option. The record can be lost or corrupted. A corrupted record fails safe (a wrong `(pid,
+  start_time)` is rejected, nothing unrelated is killed), but a lost one fails **open and silently**: the orphan keeps
+  running and the restarted AC starts a second copy of the sub-agent. Mitigations are an atomic write (temp file and
+  rename), persisting before the child can do anything else, and the fallbacks below.
 - **Env tag** is attractive for being stateless, but it depends on undocumented structure offsets and on reading other
   processes' memory. Under `LocalSystem` it widens the trust boundary (scan scope and spoofing), while for a non-admin
   user it is naturally scoped to the user's own processes.
-- A reasonable combination is bookkeeping as the recommended default, with the parent pid (and optionally the tag
-  with an image filter) as a fallback to find orphans that were never recorded.
-- A **permanent named job** is a serious alternative: it needs no state store and gives authoritative membership, at
-  the cost of a one-time `SeCreatePermanentPrivilege` grant, manual cleanup, native APIs and name squatting
-  concerns (see the Pros/Cons table above).
+- A **permanent named job** is the only option where the OS holds the record. With the owner and DACL checks
+  ([DACL of a permanent job](#dacl-of-a-permanent-job)) the membership is authoritative and verifiable, there is no
+  store to lose or corrupt, and a failure is loud (`ERROR_ACCESS_DENIED`, owner mismatch) instead of a silent duplicate.
+  Its costs are a one-time `SeCreatePermanentPrivilege` grant for a non-admin AC (free under `SYSTEM`), manual cleanup
+  and leftover handling, native APIs, and an owner check that cannot tell `SYSTEM` from another administrator.
+- The trade-off is therefore **robustness against lost state (permanent job) versus privilege and simplicity
+  (bookkeeping)**, and it depends on who AC runs as:
+  - `SYSTEM`: the privilege is already there, so the permanent job costs little and removes the lost-state failure.
+  - Non-admin: it needs an administrator to grant the right at install time. Where that is not acceptable, bookkeeping
+    with the parent pid (and optionally the tag with an image filter) as fallbacks is the practical choice.
+  - Supporting both (permanent job when the privilege is held, bookkeeping otherwise) covers each case, at the price of
+    two code paths to test.
+- Either way, spawn the child **suspended**, record it (persist, or assign it to the job), and only then resume it.
+  That closes the spawn-to-record window for both approaches. The PoC does not do this yet: it assigns the child right
+  after `spawn`.
+
+Not verified: cleanup and restart behavior of permanent jobs (see [Future work](#future-work)), so the permanent job
+path is less proven than bookkeeping, which `crash_survival` exercises end to end.
 
 ## Limitations
 
@@ -552,16 +696,11 @@ Summary:
 
 Open points for the permanent named job approach. None of them is covered by the current examples:
 
-- **DACL of a permanent job.** The probe passes no security descriptor, so the job gets the default DACL of the
-  creator's token. Next steps:
-  - Print the DACL as SDDL right after creation (`GetSecurityInfo` with `SE_KERNEL_OBJECT`, then
-    `ConvertSecurityDescriptorToStringSecurityDescriptorW`), as `SYSTEM` and as `nrpoc`.
-  - Add `keep` and `cleanup` modes to the probe so the permanent job outlives the creating process, then try to open
-    it by name from another identity (`calvarez`, `SYSTEM`) and record which rights are granted or denied.
-  - If the default is too open, create the job with an explicit restrictive security descriptor (creator and `SYSTEM`
-    only).
+- **Cross-identity access to a permanent job.** The DACL is documented and checked after creation (see
+  [DACL of a permanent job](#dacl-of-a-permanent-job)), but nobody tried to open a job created by `SYSTEM` as
+  `calvarez` or `nrpoc`, or the reverse. `job_dacl_probe` was not run as `nrpoc` with the privilege granted either.
 - **Name squatting.** A regular user can create a temporary job in `\BaseNamedObjects` under any name, so it could
-  take the name before AC does. A DACL does not prevent that. Things to evaluate:
+  take the name before AC does. A DACL on AC's own job does not prevent that. Things to evaluate:
   - How `NtCreateJobObject` reports an existing name (`STATUS_OBJECT_NAME_EXISTS`) and whether AC can detect that it
     did not create the job.
   - Verifying the owner or DACL of an existing job before trusting it.

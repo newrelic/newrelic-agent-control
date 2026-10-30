@@ -20,8 +20,8 @@ use windows::Win32::Foundation::{
 };
 use windows::Win32::Security::{
     AdjustTokenPrivileges, GetTokenInformation, LUID_AND_ATTRIBUTES, LookupPrivilegeValueW,
-    SE_PRIVILEGE_ENABLED, TOKEN_ADJUST_PRIVILEGES, TOKEN_ELEVATION, TOKEN_PRIVILEGES,
-    TOKEN_PRIVILEGES_ATTRIBUTES, TOKEN_QUERY, TokenElevation,
+    SE_PRIVILEGE_ENABLED, SECURITY_DESCRIPTOR, TOKEN_ADJUST_PRIVILEGES, TOKEN_ELEVATION,
+    TOKEN_PRIVILEGES, TOKEN_PRIVILEGES_ATTRIBUTES, TOKEN_QUERY, TokenElevation,
 };
 use windows::Win32::System::Diagnostics::Debug::ReadProcessMemory;
 use windows::Win32::System::Diagnostics::ToolHelp::{
@@ -525,6 +525,16 @@ fn with_attributes(
     attributes: u32,
     call: impl FnOnce(*const OBJECT_ATTRIBUTES) -> i32,
 ) -> i32 {
+    with_security(path, attributes, std::ptr::null(), call)
+}
+
+/// Same as [`with_attributes`] with an explicit security descriptor (null for the default one).
+fn with_security(
+    path: &str,
+    attributes: u32,
+    security_descriptor: *const SECURITY_DESCRIPTOR,
+    call: impl FnOnce(*const OBJECT_ATTRIBUTES) -> i32,
+) -> i32 {
     let mut wide: Vec<u16> = path.encode_utf16().collect();
     let len = (wide.len() * 2) as u16;
     let name = UNICODE_STRING {
@@ -536,6 +546,7 @@ fn with_attributes(
         Length: size_of::<OBJECT_ATTRIBUTES>() as u32,
         ObjectName: &name,
         Attributes: OBJECT_ATTRIBUTE_FLAGS(OBJ_CASE_INSENSITIVE.0 | attributes),
+        SecurityDescriptor: security_descriptor,
         ..Default::default()
     };
     call(&attrs)
@@ -769,6 +780,343 @@ pub fn set_privilege(name: &str, enabled: bool) -> Result<bool, PocError> {
     Ok(unsafe { GetLastError() } != ERROR_NOT_ALL_ASSIGNED)
 }
 
+/// Security descriptor inspection and creation for named jobs.
+mod security {
+    use super::*;
+    use std::ffi::c_void;
+    use windows::Win32::Foundation::{ERROR_SUCCESS, HLOCAL, LocalFree};
+    use windows::Win32::Security::Authorization::{
+        ConvertSecurityDescriptorToStringSecurityDescriptorW, ConvertSidToStringSidW,
+        ConvertStringSecurityDescriptorToSecurityDescriptorW, GetSecurityInfo, SE_KERNEL_OBJECT,
+    };
+    use windows::Win32::Security::{
+        ACCESS_ALLOWED_ACE, ACCESS_DENIED_ACE, ACE_HEADER, ACL, ACL_SIZE_INFORMATION,
+        AclSizeInformation, DACL_SECURITY_INFORMATION, GetAce, GetAclInformation,
+        LookupAccountSidW, OWNER_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, PSID, SID_NAME_USE,
+        TOKEN_USER, TokenUser,
+    };
+
+    const SDDL_REVISION_1: u32 = 1;
+    const ACCESS_ALLOWED_ACE_TYPE: u8 = 0;
+    const ACCESS_DENIED_ACE_TYPE: u8 = 1;
+
+    /// Memory allocated by the system that must be released with `LocalFree`.
+    struct LocalMem(*mut c_void);
+
+    impl Drop for LocalMem {
+        fn drop(&mut self) {
+            if !self.0.is_null() {
+                // Safety: the pointer was allocated by the system with `LocalAlloc`.
+                unsafe { LocalFree(Some(HLOCAL(self.0))) };
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum AceKind {
+        Allow,
+        Deny,
+        /// Audit, label, object ACEs... not expected in a job DACL.
+        Other(u8),
+    }
+
+    /// One entry of a DACL.
+    #[derive(Debug, Clone)]
+    pub struct Ace {
+        pub kind: AceKind,
+        pub sid: String,
+        /// `DOMAIN\name` when the SID can be resolved.
+        pub account: Option<String>,
+        pub mask: u32,
+    }
+
+    /// Owner and DACL of a kernel object.
+    #[derive(Debug)]
+    pub struct ObjectSecurity {
+        pub owner: String,
+        pub owner_account: Option<String>,
+        pub sddl: String,
+        /// `None` is a NULL DACL: everybody has every access.
+        pub aces: Option<Vec<Ace>>,
+    }
+
+    impl ObjectSecurity {
+        /// The owner when it is not in `allowed_owners`. Only the creator (or a holder of
+        /// `SeTakeOwnershipPrivilege`) can set the owner, so a job created by another account under
+        /// the same name is reported here.
+        pub fn unexpected_owner(&self, allowed_owners: &[&str]) -> Option<String> {
+            (!allowed_owners.contains(&self.owner.as_str())).then(|| {
+                self.owner_account
+                    .clone()
+                    .unwrap_or_else(|| self.owner.clone())
+            })
+        }
+
+        /// Allow ACEs whose trustee is not in `allowed_sids`, plus every NULL DACL.
+        /// An empty result means the DACL grants nothing to anybody else.
+        pub fn unexpected_grants(&self, allowed_sids: &[&str]) -> Vec<String> {
+            match &self.aces {
+                None => vec!["NULL DACL (everyone, full access)".to_string()],
+                Some(aces) => aces
+                    .iter()
+                    .filter(|a| a.kind == AceKind::Allow && !allowed_sids.contains(&a.sid.as_str()))
+                    .map(|a| {
+                        format!(
+                            "{} mask {:#010X}",
+                            a.account.as_deref().unwrap_or(&a.sid),
+                            a.mask
+                        )
+                    })
+                    .collect(),
+            }
+        }
+    }
+
+    fn sid_to_string(sid: PSID) -> Result<String, PocError> {
+        let mut out = PWSTR::null();
+        unsafe { ConvertSidToStringSidW(sid, &mut out) }.map_err(|e| err("converting SID", e))?;
+        let _guard = LocalMem(out.0 as *mut c_void);
+        unsafe { out.to_string() }.map_err(|e| err("decoding SID", e))
+    }
+
+    fn account_name(sid: PSID) -> Option<String> {
+        let (mut name_len, mut domain_len) = (0u32, 0u32);
+        let mut kind = SID_NAME_USE::default();
+        // The first call only reports the required buffer sizes.
+        let _ = unsafe {
+            LookupAccountSidW(
+                PCWSTR::null(),
+                sid,
+                None,
+                &mut name_len,
+                None,
+                &mut domain_len,
+                &mut kind,
+            )
+        };
+        if name_len == 0 {
+            return None;
+        }
+        let mut name = vec![0u16; name_len as usize];
+        let mut domain = vec![0u16; domain_len.max(1) as usize];
+        unsafe {
+            LookupAccountSidW(
+                PCWSTR::null(),
+                sid,
+                Some(PWSTR(name.as_mut_ptr())),
+                &mut name_len,
+                Some(PWSTR(domain.as_mut_ptr())),
+                &mut domain_len,
+                &mut kind,
+            )
+        }
+        .ok()?;
+        let name = String::from_utf16_lossy(&name[..name_len as usize]);
+        let domain = String::from_utf16_lossy(&domain[..domain_len as usize]);
+        Some(if domain.is_empty() {
+            name
+        } else {
+            format!("{domain}\\{name}")
+        })
+    }
+
+    fn read_aces(acl: *const ACL) -> Result<Vec<Ace>, PocError> {
+        let mut info = ACL_SIZE_INFORMATION::default();
+        unsafe {
+            GetAclInformation(
+                acl,
+                &mut info as *mut _ as *mut c_void,
+                size_of::<ACL_SIZE_INFORMATION>() as u32,
+                AclSizeInformation,
+            )
+        }
+        .map_err(|e| err("reading ACL size", e))?;
+
+        (0..info.AceCount)
+            .map(|index| {
+                let mut raw = std::ptr::null_mut::<c_void>();
+                unsafe { GetAce(acl, index, &mut raw) }.map_err(|e| err("reading ACE", e))?;
+                // Allowed and denied ACEs share the layout: header, mask, SID.
+                let header = unsafe { *(raw as *const ACE_HEADER) };
+                let (mask, sid) = match header.AceType {
+                    ACCESS_ALLOWED_ACE_TYPE => {
+                        let ace = raw as *const ACCESS_ALLOWED_ACE;
+                        (unsafe { (*ace).Mask }, unsafe {
+                            &raw const (*ace).SidStart
+                        })
+                    }
+                    ACCESS_DENIED_ACE_TYPE => {
+                        let ace = raw as *const ACCESS_DENIED_ACE;
+                        (unsafe { (*ace).Mask }, unsafe {
+                            &raw const (*ace).SidStart
+                        })
+                    }
+                    other => {
+                        return Ok(Ace {
+                            kind: AceKind::Other(other),
+                            sid: String::new(),
+                            account: None,
+                            mask: 0,
+                        });
+                    }
+                };
+                let sid = PSID(sid as *mut c_void);
+                Ok(Ace {
+                    kind: if header.AceType == ACCESS_ALLOWED_ACE_TYPE {
+                        AceKind::Allow
+                    } else {
+                        AceKind::Deny
+                    },
+                    sid: sid_to_string(sid)?,
+                    account: account_name(sid),
+                    mask,
+                })
+            })
+            .collect()
+    }
+
+    /// Reads owner and DACL of `handle`, which needs `READ_CONTROL`.
+    pub fn read(handle: HANDLE) -> Result<ObjectSecurity, PocError> {
+        let info = OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION;
+        let (mut owner, mut dacl) = (PSID::default(), std::ptr::null_mut::<ACL>());
+        let mut descriptor = PSECURITY_DESCRIPTOR::default();
+        let status = unsafe {
+            GetSecurityInfo(
+                handle,
+                SE_KERNEL_OBJECT,
+                info,
+                Some(&mut owner),
+                None,
+                Some(&mut dacl),
+                None,
+                Some(&mut descriptor),
+            )
+        };
+        if status != ERROR_SUCCESS {
+            return Err(err("GetSecurityInfo", format!("error {}", status.0)));
+        }
+        // `owner` and `dacl` point inside `descriptor`.
+        let _guard = LocalMem(descriptor.0);
+
+        let mut sddl = PWSTR::null();
+        unsafe {
+            ConvertSecurityDescriptorToStringSecurityDescriptorW(
+                descriptor,
+                SDDL_REVISION_1,
+                info,
+                &mut sddl,
+                None,
+            )
+        }
+        .map_err(|e| err("converting descriptor to SDDL", e))?;
+        let sddl_guard = LocalMem(sddl.0 as *mut c_void);
+        let sddl = unsafe { sddl.to_string() }.map_err(|e| err("decoding SDDL", e))?;
+        drop(sddl_guard);
+
+        Ok(ObjectSecurity {
+            owner: sid_to_string(owner)?,
+            owner_account: account_name(owner),
+            sddl,
+            aces: if dacl.is_null() {
+                None
+            } else {
+                Some(read_aces(dacl)?)
+            },
+        })
+    }
+
+    /// SID string of the user in the current process token.
+    pub fn current_user_sid() -> Result<String, PocError> {
+        let mut token = HANDLE::default();
+        unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) }
+            .map_err(|e| err("opening process token", e))?;
+        let token = Handle(token);
+        // `u64` elements keep the buffer aligned for `TOKEN_USER`.
+        let mut buffer = vec![0u64; 64];
+        let mut returned = 0u32;
+        unsafe {
+            GetTokenInformation(
+                token.0,
+                TokenUser,
+                Some(buffer.as_mut_ptr() as *mut c_void),
+                (buffer.len() * size_of::<u64>()) as u32,
+                &mut returned,
+            )
+        }
+        .map_err(|e| err("reading token user", e))?;
+        let user = unsafe { &*(buffer.as_ptr() as *const TOKEN_USER) };
+        sid_to_string(user.User.Sid)
+    }
+
+    /// SDDL that grants full access only to `SYSTEM` and to the user `sid`, and blocks
+    /// inheritance (`P`). Everybody else, administrators included, gets no ACE.
+    pub fn restrictive_sddl(user_sid: &str) -> String {
+        const SYSTEM_SID: &str = "S-1-5-18";
+        if user_sid == SYSTEM_SID {
+            "D:P(A;;GA;;;SY)".to_string()
+        } else {
+            format!("D:P(A;;GA;;;SY)(A;;GA;;;{user_sid})")
+        }
+    }
+
+    /// Parses `sddl` into a self-relative descriptor and passes it to `call`.
+    pub fn with_sddl<T>(
+        sddl: &str,
+        call: impl FnOnce(*const SECURITY_DESCRIPTOR) -> Result<T, PocError>,
+    ) -> Result<T, PocError> {
+        let mut descriptor = PSECURITY_DESCRIPTOR::default();
+        unsafe {
+            ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                &HSTRING::from(sddl),
+                SDDL_REVISION_1,
+                &mut descriptor,
+                None,
+            )
+        }
+        .map_err(|e| err(&format!("parsing SDDL {sddl}"), e))?;
+        let _guard = LocalMem(descriptor.0);
+        call(descriptor.0 as *const SECURITY_DESCRIPTOR)
+    }
+}
+
+pub use security::{Ace, AceKind, ObjectSecurity, current_user_sid, restrictive_sddl};
+
+impl Job {
+    /// Same as [`Job::create_native`] with an explicit DACL given as SDDL, applied atomically at
+    /// creation so there is no window with the default DACL.
+    pub fn create_native_with_sddl(
+        nt_path: &str,
+        permanent: bool,
+        sddl: &str,
+    ) -> Result<Self, PocError> {
+        security::with_sddl(sddl, |descriptor| {
+            let mut handle = HANDLE::default();
+            let attributes = if permanent { OBJ_PERMANENT.0 } else { 0 };
+            let status = with_security(nt_path, attributes, descriptor, |attrs| unsafe {
+                nt::NtCreateJobObject(&mut handle, JOB_OBJECT_ALL_ACCESS, attrs)
+            });
+            if status < 0 {
+                return Err(status_err(&format!("creating job {nt_path}"), status));
+            }
+            Ok(Self(Handle(handle)))
+        })
+    }
+
+    /// Opens an existing named job through the native API with the requested access mask.
+    pub fn open_native(nt_path: &str, access: u32) -> Result<Self, PocError> {
+        open_native_job(nt_path, access).map(Self)
+    }
+
+    /// Owner and DACL of the job. The handle needs `READ_CONTROL`, which a job created by this
+    /// process always has.
+    pub fn security(&self) -> Result<ObjectSecurity, PocError> {
+        security::read(self.0.0)
+    }
+}
+
+/// `READ_CONTROL` standard access right: read the security descriptor.
+pub const READ_CONTROL: u32 = 0x0002_0000;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -834,5 +1182,21 @@ mod tests {
         assert!(!found.permanent);
         assert_eq!(found.other_handles, 1);
         assert_eq!(found.path, path);
+    }
+
+    /// Needs no privilege: a temporary job gets the same DACL treatment as a permanent one.
+    #[test]
+    fn restrictive_sddl_leaves_only_user_and_system() {
+        let user = current_user_sid().unwrap();
+        let name = format!("nr-ac-dacl-test-{}", std::process::id());
+        let path = format!(r"\BaseNamedObjects\{name}");
+
+        let job = Job::create_native_with_sddl(&path, false, &restrictive_sddl(&user)).unwrap();
+        let security = job.security().unwrap();
+
+        assert_eq!(security.unexpected_owner(&[&user, "S-1-5-32-544"]), None);
+        assert!(security.unexpected_owner(&["S-1-1-0"]).is_some());
+        assert!(security.unexpected_grants(&[&user, "S-1-5-18"]).is_empty());
+        assert!(security.aces.as_ref().unwrap().len() <= 2);
     }
 }
