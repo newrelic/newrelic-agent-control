@@ -26,8 +26,12 @@ windows = { workspace = true, features = [
 ] }
 
 [[example]]
-name = "crash_survival"
+name = "crash_survival_bookkeeping"
 # Needs a real Windows host, it re-executes itself and kills one of the copies.
+test = false
+
+[[example]]
+name = "crash_survival_permanent_job"
 test = false
 
 [[example]]

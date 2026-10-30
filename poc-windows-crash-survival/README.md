@@ -27,7 +27,8 @@ discovery mechanism.
 
 | Example | Question it answers |
 |---|---|
-| `crash_survival` | Does the child survive an AC crash, can it be adopted from `(pid, start_time)` and killed, all without elevation? Does a wrong `start_time` get rejected? Does the orphan keep the dead supervisor as parent pid? |
+| `crash_survival_bookkeeping` | Does the child survive an AC crash, can it be adopted from `(pid, start_time)` and killed, all without elevation? Does a wrong `start_time` get rejected? Does the orphan keep the dead supervisor as parent pid? |
+| `crash_survival_permanent_job` | End to end with a **permanent named job** as the only record: after the crash, can the restarted AC find the orphaned job by name, verify owner and DACL, adopt the members from the job (no `start_time`), kill them and clean the name up? |
 | `job_name_probe` | Can a **named** job be used to find the sub-agent after a crash? What is still observable once the last handle is closed? |
 | `permanent_job_probe` | Can a named job be made to **survive the loss of its handles** with `OBJ_PERMANENT`, and who is allowed to do that (non-elevated user vs `SYSTEM`)? |
 | `job_dacl_probe` | What DACL does a permanent job get by default, does it persist after the last handle closes, and how is a restrictive one created atomically with the job? |
@@ -78,7 +79,7 @@ Mandatory Label\System Mandatory Level   S-1-16-16384
 
 ## Results
 
-### `crash_survival`: the child survives and is re-adopted
+### `crash_survival_bookkeeping`: the child survives and is re-adopted
 
 ```
 elevated: false
@@ -96,6 +97,56 @@ What happened:
 3. The dead supervisor shows up as the parent pid of the orphan in a process snapshot, no process needs to be opened
    for that.
 4. `TerminateProcess` on the adopted handle works and the process exits.
+
+### `crash_survival_permanent_job`: the job is the record
+
+Same crash scenario, but nothing is bookkept. The supervisor enables `SeCreatePermanentPrivilege`, creates
+`\BaseNamedObjects\nr-ac-crash-survival-<pid>` as a permanent job with `D:P(A;;GA;;;SY)(A;;GA;;;<user>)`, assigns
+`ping -n 300` to it and calls `std::process::abort()`. The orchestrator only knows the name. As `SYSTEM`:
+
+```
+elevated: true
+SeCreatePermanentPrivilege held: true
+supervisor 7732: child 1056 in \BaseNamedObjects\nr-ac-crash-survival-2920
+NamedJob { path: "\\BaseNamedObjects\\nr-ac-crash-survival-2920", name: "nr-ac-crash-survival-2920", permanent: true, other_handles: 0, active_processes: 1, pids: [1056] }
+owner: "S-1-5-32-544", sddl: O:BAD:P(A;;0x1f003f;;;SY)
+members: [1056]
+cleanup: Ok(())
+PASS
+```
+
+What happened:
+
+1. After the crash the job is still listed (`list_named_jobs`): `permanent: true`, `other_handles: 0` and one active
+   member. That combination is the signature of an orphan left by a crash.
+2. The job is reopened by name (`Job::open_native`) and checked before trusting it: the owner is
+   `BUILTIN\Administrators` (expected when the creator is `SYSTEM`) and `unexpected_grants` is empty.
+3. The member comes from the job's process id list and is opened with `AdoptedProcess::open`. No `start_time` is
+   involved, the job membership is the identity.
+4. `TerminateProcess` works, the job reports 0 active processes and `make_temporary` removes the name. A `list_jobs
+   --no-demo --prefix nr-ac` run afterwards finds nothing, and no `ping.exe` is left.
+
+As the non-elevated user the example stops at the first step, as `permanent_job_probe` predicts:
+
+```
+elevated: false
+SeCreatePermanentPrivilege held: false
+FAIL: SeCreatePermanentPrivilege is required, run as SYSTEM or grant the right
+```
+
+As the standard user `nrpoc` with the right granted (`runas` logon, `Users` group only), it passes without elevation.
+The owner is the user itself and the DACL contains only `SYSTEM` and that user:
+
+```
+elevated: false
+SeCreatePermanentPrivilege held: true
+supervisor 392: child 8156 in \BaseNamedObjects\nr-ac-crash-survival-8328
+NamedJob { path: "\\BaseNamedObjects\\nr-ac-crash-survival-8328", name: "nr-ac-crash-survival-8328", permanent: true, other_handles: 0, active_processes: 1, pids: [8156] }
+owner: "S-1-5-21-...-1002", sddl: O:S-1-5-21-...-1002D:P(A;;0x1f003f;;;SY)(A;;0x1f003f;;;S-1-5-21-...-1002)
+members: [8156]
+cleanup: Ok(())
+PASS
+```
 
 ### `job_name_probe`: a named job does not outlive its last handle
 
@@ -127,11 +178,11 @@ NR_AC_TAG env: Ok(Some("demo-tag"))
 
 ### Same examples as `LocalSystem`
 
-`crash_survival` (`elevated: true`):
+`crash_survival_bookkeeping` (`elevated: true`):
 
 ```
 elevated: true
-children of dead supervisor 9348: [924] (child: 924)
+children of dead supervisor 6408: [7752] (child: 7752)
 PASS
 ```
 
@@ -601,7 +652,7 @@ Once the job is out of the picture, the restarted AC needs some way to know *whi
 
 ### Bookkeeping: persist `(pid, start_time)` at spawn
 
-`crash_survival` uses this. `adopt` opens the pid, checks it is alive and that its creation time equals the
+`crash_survival_bookkeeping` uses this. `adopt` opens the pid, checks it is alive and that its creation time equals the
 persisted one.
 
 | Pros | Cons |
@@ -641,7 +692,7 @@ non-admin user running AC.
 | | **`LocalSystem` (current `install.ps1`)** | **Non-admin user** |
 |---|---|---|
 | Job + no kill-on-close | Works (verified) | Works (verified) |
-| Bookkeeping | Works (verified, `crash_survival` PASS). State lives under the admin-only `ProgramData`/`Program Files` dirs, which is a good home for it. SYSTEM can open any process, so adoption does not depend on who spawned it | Works (verified). Only same-user processes can be adopted. The store must be in a location that user can write, so it cannot reuse the admin-only ACLs |
+| Bookkeeping | Works (verified, `crash_survival_bookkeeping` PASS). State lives under the admin-only `ProgramData`/`Program Files` dirs, which is a good home for it. SYSTEM can open any process, so adoption does not depend on who spawned it | Works (verified). Only same-user processes can be adopted. The store must be in a location that user can write, so it cannot reuse the admin-only ACLs |
 | Env tag scan | Works (verified). SYSTEM could read 149 of 168 other processes versus 54 of 170 for the non-admin user, so the scan reaches **more** processes, and the no-filter case is slower (23.8 ms vs 13.5 ms). The image filter keeps it at 1 opened process (3.9 ms). Protected processes (PPL) stay unreadable | Works for own processes (verified). Everything else is skipped (116 of 170 in our run), which keeps the match set naturally scoped to this user |
 | Spoofing of the tag | A user process that copies the tag can make SYSTEM adopt (and later kill) a process that is not a sub-agent. The impact is bounded by the image name/path/start time checks, but the trust boundary is crossed | Only same-user processes are scanned, so a spoofer already has the same rights as AC |
 | Blast radius of a wrong adoption | SYSTEM can terminate nearly anything | Limited to the user's own processes |
@@ -673,14 +724,15 @@ Summary:
   That closes the spawn-to-record window for both approaches. The PoC does not do this yet: it assigns the child right
   after `spawn`.
 
-Not verified: cleanup and restart behavior of permanent jobs (see [Future work](#future-work)), so the permanent job
-path is less proven than bookkeeping, which `crash_survival` exercises end to end.
+`crash_survival_permanent_job` exercises the permanent job end to end, including the cleanup, as `SYSTEM` and as a
+standard user with the right granted. Not verified: repeated restarts and leftovers across sub-agent removal (see
+[Future work](#future-work)), so the permanent job path is still less proven than bookkeeping.
 
 ## Limitations
 
 - **Most runs use a filtered admin account, not a standard user.** `calvarez` is in the Administrators group, but the
-  session runs with a filtered, non-elevated token. This proves no *elevation* is needed. Only `permanent_job_probe`
-  was also run under a dedicated standard user (`nrpoc`); `crash_survival` and `env_tag_probe` were not, so UAC
+  session runs with a filtered, non-elevated token. This proves no *elevation* is needed. Only `permanent_job_probe`,
+  `list_jobs` and `crash_survival_permanent_job` were also run under a dedicated standard user (`nrpoc`); `crash_survival_bookkeeping` and `env_tag_probe` were not, so UAC
   virtualization or different default ACLs on the data directories are not exercised.
 - **The `LocalSystem` runs are not an actual service.** They execute as SYSTEM through Parallels Tools, in session 0,
   which matches the identity and session of the AC service but not its service control manager lifecycle. The

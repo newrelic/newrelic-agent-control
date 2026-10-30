@@ -1,8 +1,8 @@
-//! End-to-end crash survival check, without named jobs.
+//! End-to-end crash survival check using bookkeeping (`(pid, start_time)`), without named jobs.
 //!
 //! Run it from a NON-elevated shell on Windows:
 //!
-//!   cargo run -p poc-windows-crash-survival --example crash_survival
+//!   cargo run -p poc-windows-crash-survival --example crash_survival_bookkeeping
 //!
 //! The example re-executes itself as a "supervisor" that assigns a long-running child to an
 //! anonymous job (no kill-on-close) and then aborts (simulating an AC crash). The parent plays
