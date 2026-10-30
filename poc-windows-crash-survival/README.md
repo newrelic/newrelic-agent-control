@@ -77,6 +77,80 @@ nt authority\system
 Mandatory Label\System Mandatory Level   S-1-16-16384
 ```
 
+#### Setting up the `nrpoc` user
+
+The runs under the standard user `nrpoc` (`permanent_job_probe`, `list_jobs`, `crash_survival_permanent_job`) need a
+local account that is **not** an administrator. Everything below is done manually from an elevated PowerShell or
+`cmd`.
+
+1. **Create the user** (standard, `Users` group only):
+
+   ```powershell
+   net user nrpoc <password> /add
+   net localgroup Users          # nrpoc should be listed (net user adds it by default)
+   net localgroup Administrators # nrpoc must NOT be listed
+   ```
+
+2. **Make the binaries reachable.** `nrpoc` cannot read `C:\Users\calvarez`, so copy the already built examples to a
+   shared folder and grant it read and execute:
+
+   ```powershell
+   mkdir C:\poc
+   copy C:\Users\calvarez\poc-target\debug\examples\*.exe C:\poc\
+   icacls C:\poc /grant "nrpoc:(OI)(CI)RX"
+   ```
+
+   Only `crash_survival_permanent_job` needs the helper `ping.exe`, which is already on the `PATH` for every user.
+
+3. **Check the baseline** (the right is not granted yet). Open a new logon as `nrpoc` and list its privileges:
+
+   ```
+   runas /user:nrpoc cmd
+   > whoami /priv
+   ```
+
+   `SeCreatePermanentPrivilege` must not be in the list. Running `permanent_job_probe.exe` here fails with
+   `0xC0000061`, as in the baseline results below.
+
+4. **Grant "Create permanent shared objects"** (`SeCreatePermanentPrivilege`) to `nrpoc`. With the GUI:
+
+   - Run `secpol.msc`.
+   - Go to *Local Policies > User Rights Assignment > Create permanent shared objects*.
+   - *Add User or Group...*, type `nrpoc`, *OK*, *Apply*.
+
+   Or from the command line with `secedit`:
+
+   ```powershell
+   $sid = (New-Object System.Security.Principal.NTAccount("nrpoc")).Translate([System.Security.Principal.SecurityIdentifier]).Value
+   secedit /export /cfg C:\poc\sec.inf /areas USER_RIGHTS
+   ```
+
+   Edit `C:\poc\sec.inf`: under `[Privilege Rights]`, append `*<sid>` to the `SeCreatePermanentPrivilege` line (add the
+   line if it is missing, entries are comma separated). Keep the `[Unicode]`, `[Version]` sections as exported. Then
+   apply it:
+
+   ```powershell
+   secedit /configure /db C:\poc\sec.sdb /cfg C:\poc\sec.inf /areas USER_RIGHTS
+   ```
+
+5. **Open a new logon.** The token is built at logon, so a session that was already open does not see the change.
+   Close the previous `runas` window and start a fresh one:
+
+   ```
+   runas /user:nrpoc cmd
+   > whoami /priv
+   SeCreatePermanentPrivilege    Create permanent shared objects      Disabled
+   > C:\poc\crash_survival_permanent_job.exe
+   ```
+
+   The privilege shows as **Disabled**, which is expected: the examples enable it themselves with `set_privilege`
+   (`AdjustTokenPrivileges`). The `Enabled` state in the output of the later sections is after that call.
+
+6. **Cleanup** when done: remove `nrpoc` from the policy (same dialog, or drop its SID from the
+   `SeCreatePermanentPrivilege` line and re-run `secedit /configure`), then `net user nrpoc /delete` and
+   `rmdir /s /q C:\poc`. A leftover permanent job from a failed run can be removed by re-running the example (it calls
+   `make_temporary`) or `list_jobs --no-demo --prefix nr-ac` to check that nothing remains. A reboot also clears them.
+
 ## Results
 
 ### `crash_survival_bookkeeping`: the child survives and is re-adopted
