@@ -14,9 +14,10 @@ use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{STDERR_LOG_FILE_NAME_SUFFIX, STDOUT_LOG_FILE_NAME_SUFFIX};
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
 use crate::sub_agent::on_host::command::logging::file_logger::SubAgentFileLoggingConfig;
+use crate::sub_agent::on_host::command::managed_process::ManagedProcess;
 #[cfg(target_family = "windows")]
 use crate::utils::job_object::JobObject;
-use std::process::{Child, Command, ExitStatus, Stdio};
+use std::process::{Command, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
 const POLL_INTERVAL: Duration = Duration::from_millis(100);
@@ -34,7 +35,7 @@ pub struct CommandOSNotStarted {
 /// A spawned OS command process with its loggers and (on Windows) job object.
 pub struct CommandOSStarted {
     agent_id: AgentID,
-    process: Child,
+    process: ManagedProcess,
     loggers: Option<FileSystemLoggers>,
     shutdown_timeout: Duration,
 
@@ -90,7 +91,7 @@ impl CommandOSNotStarted {
         {
             Ok(CommandOSStarted {
                 agent_id: self.agent_id,
-                process: child,
+                process: ManagedProcess::Spawned(child),
                 loggers,
                 shutdown_timeout: self.shutdown_timeout,
             })
@@ -103,7 +104,7 @@ impl CommandOSNotStarted {
             job_object.assign_process(&child)?;
             Ok(CommandOSStarted {
                 agent_id: self.agent_id,
-                process: child,
+                process: ManagedProcess::Spawned(child),
                 job_object: Some(job_object),
                 loggers,
                 shutdown_timeout: self.shutdown_timeout,
@@ -124,24 +125,22 @@ impl CommandOSStarted {
 
     /// Returns whether the process is still running.
     pub fn is_running(&mut self) -> bool {
-        self.process.try_wait().is_ok_and(|v| v.is_none())
+        self.process.is_alive()
     }
 
     pub(crate) fn wait(mut self) -> Result<ExitStatus, CommandError> {
-        self.process.wait().map_err(CommandError::from)
+        self.process.wait_for_exit().map_err(CommandError::from)
     }
 
     pub(crate) fn stream(mut self) -> Result<Self, CommandError> {
         let stdout = self
             .process
-            .stdout
-            .take()
+            .take_stdout()
             .ok_or(CommandError::StreamPipeError("stdout".to_string()))?;
 
         let stderr = self
             .process
-            .stderr
-            .take()
+            .take_stderr()
             .ok_or(CommandError::StreamPipeError("stderr".to_string()))?;
 
         let mut stdout_loggers = vec![Logger::Stdout(self.agent_id.clone())];

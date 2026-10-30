@@ -4,4 +4,5 @@ pub mod command_os;
 pub mod error;
 pub mod executable_data;
 pub mod logging;
+pub mod managed_process;
 pub mod restart_policy;
