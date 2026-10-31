@@ -196,12 +196,17 @@ mod tests {
     }
 
     #[test]
-    fn spawned_wait_after_shutdown_reports_unsuccessful_status() {
+    fn spawned_wait_after_shutdown_returns_the_exit_status() {
         let (mut process, _) = spawn(&long_running());
 
         process.shutdown().unwrap();
 
-        assert!(!process.wait().unwrap().success());
+        let status = process.wait().unwrap();
+        // The Windows job object terminates its processes with exit code 0.
+        #[cfg(target_family = "unix")]
+        assert!(!status.success());
+        #[cfg(target_family = "windows")]
+        let _ = status;
     }
 
     #[test]
