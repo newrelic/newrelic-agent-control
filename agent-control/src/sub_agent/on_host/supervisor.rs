@@ -24,10 +24,11 @@ use crate::opamp::attributes::publish_update_attributes_event;
 use crate::package::manager::{PackageData, PackageManager};
 use crate::sub_agent::agent_renderer::{AgentRendererError, RenderedAgent};
 use crate::sub_agent::identity::AgentIdentity;
-use crate::sub_agent::on_host::command::command_os::{CommandOSNotStarted, CommandOSStarted};
+use crate::sub_agent::on_host::command::command_os::CommandOSNotStarted;
 use crate::sub_agent::on_host::command::error::CommandError;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
 use crate::sub_agent::on_host::command::logging::file_logger::SubAgentFileLoggingConfig;
+use crate::sub_agent::on_host::command::managed_process::ManagedProcess;
 use crate::sub_agent::on_host::command::restart_policy::RestartPolicy;
 use crate::sub_agent::supervisor::{Supervisor, SupervisorStarter};
 use crate::utils::thread_context::{
@@ -437,7 +438,10 @@ where
                 let command =
                     CommandOSNotStarted::new(agent_id.clone(), &exec_data, logging_config.clone());
 
-                let started = command.start().and_then(|cmd| cmd.stream());
+                let started = command
+                    .start()
+                    .and_then(|cmd| cmd.stream())
+                    .map(ManagedProcess::Spawned);
 
                 let executable_result = started.and_then(|cmd| {
                     wait_exit(
@@ -550,7 +554,7 @@ fn stop_supervisor_threads(
 
 /// Waits for the command to complete or be cancelled
 fn wait_exit(
-    mut command: CommandOSStarted,
+    mut command: ManagedProcess,
     stop_consumer: &EventConsumer<CancellationMessage>,
     healthy_publish_delay: Duration,
     health_handler: Option<&HealthHandler>,
@@ -1406,6 +1410,7 @@ declared-dir:
             SubAgentFileLoggingConfig::default(),
         )
         .start()
+        .map(ManagedProcess::Spawned)
         .unwrap();
 
         let (health_publisher, health_consumer) = pub_sub();
@@ -1535,6 +1540,7 @@ declared-dir:
             SubAgentFileLoggingConfig::default(),
         )
         .start()
+        .map(ManagedProcess::Spawned)
         .unwrap();
 
         let (health_publisher, health_consumer) = pub_sub();

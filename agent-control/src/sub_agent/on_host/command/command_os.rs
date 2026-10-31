@@ -1,7 +1,5 @@
 //! OS-level command wrapper with not-started/started states, output streaming, and shutdown handling.
 
-use tracing::warn;
-
 use super::{
     error::CommandError,
     logging::{
@@ -17,9 +15,7 @@ use crate::sub_agent::on_host::command::logging::file_logger::SubAgentFileLoggin
 #[cfg(target_family = "windows")]
 use crate::utils::job_object::JobObject;
 use std::process::{Child, Command, ExitStatus, Stdio};
-use std::time::{Duration, Instant};
-
-const POLL_INTERVAL: Duration = Duration::from_millis(100);
+use std::time::Duration;
 
 ////////////////////////////////////////////////////////////////////////////////////
 // States for Started/Not Started/Sync Command
@@ -162,37 +158,23 @@ impl CommandOSStarted {
         Ok(self)
     }
 
-    fn is_running_after_timeout(&mut self, timeout: Duration) -> bool {
-        let deadline = Instant::now() + timeout;
-
-        while Instant::now() < deadline {
-            if !self.is_running() {
-                return false;
-            }
-            std::thread::sleep(POLL_INTERVAL);
-        }
-        true
+    /// Returns the agent this process belongs to.
+    pub(crate) fn agent_id(&self) -> &AgentID {
+        &self.agent_id
     }
 
-    /// Stops the process, attempting a graceful shutdown and forcing a kill after the timeout.
-    pub fn shutdown(&mut self) -> Result<(), CommandError> {
-        // Attempt a graceful shutdown (platform-dependent).
-        let graceful_shutdown_result = self.graceful_shutdown();
+    /// Returns how long to wait after a graceful shutdown before forcing a kill.
+    pub(crate) fn shutdown_timeout(&self) -> Duration {
+        self.shutdown_timeout
+    }
 
-        if let Err(e) = &graceful_shutdown_result {
-            warn!(agent_id = %self.agent_id, "Graceful shutdown failed for process {}: {e}",self.get_pid());
-        }
-
-        if graceful_shutdown_result.is_err() || self.is_running_after_timeout(self.shutdown_timeout)
-        {
-            self.process.kill().map_err(CommandError::from)?;
-        }
-
-        Ok(())
+    /// Forcefully kills the process.
+    pub(crate) fn kill(&mut self) -> Result<(), CommandError> {
+        self.process.kill().map_err(CommandError::from)
     }
 
     #[cfg(target_family = "unix")]
-    fn graceful_shutdown(&self) -> Result<(), CommandError> {
+    pub(crate) fn graceful_shutdown(&mut self) -> Result<(), CommandError> {
         use nix::{sys::signal, unistd::Pid};
         let pid = self.get_pid();
 
@@ -206,7 +188,7 @@ impl CommandOSStarted {
     /// can handle Ctrl-C or Ctrl-Break events via attached consoles.
     /// The current implementation uses Job Objects to manage process groups, and there is no graceful
     /// shutdown signal sent to the processes. The Job Object will terminate all associated processes.
-    fn graceful_shutdown(&mut self) -> Result<(), CommandError> {
+    pub(crate) fn graceful_shutdown(&mut self) -> Result<(), CommandError> {
         if let Some(job_object) = self.job_object.take() {
             job_object.kill()?;
         }
