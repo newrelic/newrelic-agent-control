@@ -1,16 +1,18 @@
-//! Abstraction over an OS process supervised by Agent Control, either spawned by it or adopted
-//! from a previous instance.
-//!
-//! `std::process::Child` can only be built through `Command::spawn`, so it cannot represent a
-//! process that was already running when Agent Control started.
+//! A process supervised by Agent Control, either spawned by it or adopted from a previous
+//! instance, exposing the operations the supervisor needs regardless of its origin.
 
-use std::io;
-use std::process::{Child, ChildStderr, ChildStdout, ExitStatus};
+use super::{command_os::CommandOSStarted, error::CommandError};
+use crate::agent_control::agent_id::AgentID;
+use std::process::ExitStatus;
+use std::time::{Duration, Instant};
+use tracing::warn;
+
+const POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 /// A process supervised by Agent Control.
 pub enum ManagedProcess {
     /// Spawned by this Agent Control instance, which is therefore its real parent.
-    Spawned(Child),
+    Spawned(Box<CommandOSStarted>),
     /// Already running when this instance started. Agent Control is not its parent.
     // Nothing constructs it until process adoption is implemented.
     #[allow(dead_code)]
@@ -21,149 +23,196 @@ pub enum ManagedProcess {
 // Placeholder: the behavior is pending the adoption design.
 #[allow(dead_code)]
 pub struct AdoptedProcess {
+    agent_id: AgentID,
     pid: u32,
     /// Platform-dependent data to recognize the exact process instance.
     additional_data: u64,
+    shutdown_timeout: Duration,
 }
 
 impl ManagedProcess {
-    /// OS process id.
-    pub fn id(&self) -> u32 {
+    /// Returns the process id.
+    pub fn get_pid(&self) -> u32 {
         match self {
-            Self::Spawned(child) => child.id(),
+            Self::Spawned(started) => started.get_pid(),
             Self::Adopted(adopted) => adopted.pid,
         }
     }
 
     /// Returns whether the process is still running.
-    pub fn is_alive(&mut self) -> bool {
+    pub fn is_running(&mut self) -> bool {
         match self {
-            Self::Spawned(child) => child.try_wait().is_ok_and(|status| status.is_none()),
+            Self::Spawned(started) => started.is_running(),
             Self::Adopted(_) => unimplemented!("adopted processes are not supported yet"),
         }
     }
 
-    /// Forcefully terminates the process.
-    pub fn kill(&mut self) -> io::Result<()> {
+    /// Waits for the process to exit and releases its resources.
+    pub(crate) fn wait(self) -> Result<ExitStatus, CommandError> {
         match self {
-            Self::Spawned(child) => child.kill(),
+            Self::Spawned(started) => started.wait(),
             Self::Adopted(_) => unimplemented!("adopted processes are not supported yet"),
         }
     }
 
-    /// Blocks until the process exits.
-    pub fn wait_for_exit(&mut self) -> io::Result<ExitStatus> {
+    /// Stops the process, attempting a graceful shutdown and forcing a kill after the timeout.
+    pub fn shutdown(&mut self) -> Result<(), CommandError> {
+        // Attempt a graceful shutdown (platform-dependent).
+        let graceful_shutdown_result = self.graceful_shutdown();
+
+        if let Err(e) = &graceful_shutdown_result {
+            warn!(agent_id = %self.agent_id(), "Graceful shutdown failed for process {}: {e}", self.get_pid());
+        }
+
+        if graceful_shutdown_result.is_err()
+            || self.is_running_after_timeout(self.shutdown_timeout())
+        {
+            self.kill()?;
+        }
+
+        Ok(())
+    }
+
+    fn agent_id(&self) -> &AgentID {
         match self {
-            Self::Spawned(child) => child.wait(),
+            Self::Spawned(started) => started.agent_id(),
+            Self::Adopted(adopted) => &adopted.agent_id,
+        }
+    }
+
+    fn shutdown_timeout(&self) -> Duration {
+        match self {
+            Self::Spawned(started) => started.shutdown_timeout(),
+            Self::Adopted(adopted) => adopted.shutdown_timeout,
+        }
+    }
+
+    fn graceful_shutdown(&mut self) -> Result<(), CommandError> {
+        match self {
+            Self::Spawned(started) => started.graceful_shutdown(),
             Self::Adopted(_) => unimplemented!("adopted processes are not supported yet"),
         }
     }
 
-    /// Takes the piped stdout, if any.
-    pub fn take_stdout(&mut self) -> Option<ChildStdout> {
+    fn kill(&mut self) -> Result<(), CommandError> {
         match self {
-            Self::Spawned(child) => child.stdout.take(),
+            Self::Spawned(started) => started.kill(),
             Self::Adopted(_) => unimplemented!("adopted processes are not supported yet"),
         }
     }
 
-    /// Takes the piped stderr, if any.
-    pub fn take_stderr(&mut self) -> Option<ChildStderr> {
-        match self {
-            Self::Spawned(child) => child.stderr.take(),
-            Self::Adopted(_) => unimplemented!("adopted processes are not supported yet"),
+    fn is_running_after_timeout(&mut self, timeout: Duration) -> bool {
+        let deadline = Instant::now() + timeout;
+
+        while Instant::now() < deadline {
+            if !self.is_running() {
+                return false;
+            }
+            std::thread::sleep(POLL_INTERVAL);
         }
+        true
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::process::{Command, Stdio};
+    use crate::sub_agent::on_host::command::command_os::CommandOSNotStarted;
+    use crate::sub_agent::on_host::command::executable_data::ExecutableData;
+    use crate::sub_agent::on_host::command::logging::file_logger::SubAgentFileLoggingConfig;
 
     #[cfg(target_family = "unix")]
-    fn long_running_command() -> Command {
-        let mut cmd = Command::new("sleep");
-        cmd.arg("30");
-        cmd
+    fn long_running() -> ExecutableData {
+        ExecutableData::new("test".to_owned(), "sleep".to_owned()).with_args(vec!["30".to_owned()])
     }
 
     #[cfg(target_family = "windows")]
-    fn long_running_command() -> Command {
-        let mut cmd = Command::new("ping");
-        cmd.args(["-n", "30", "127.0.0.1"]);
-        cmd
+    fn long_running() -> ExecutableData {
+        ExecutableData::new("test".to_owned(), "ping".to_owned()).with_args(vec![
+            "-n".to_owned(),
+            "30".to_owned(),
+            "127.0.0.1".to_owned(),
+        ])
     }
 
     #[cfg(target_family = "unix")]
-    fn short_lived_command() -> Command {
-        Command::new("true")
+    fn short_lived() -> ExecutableData {
+        ExecutableData::new("test".to_owned(), "true".to_owned())
     }
 
     #[cfg(target_family = "windows")]
-    fn short_lived_command() -> Command {
-        let mut cmd = Command::new("cmd");
-        cmd.args(["/C", "exit", "0"]);
-        cmd
+    fn short_lived() -> ExecutableData {
+        ExecutableData::new("test".to_owned(), "cmd".to_owned()).with_args(vec![
+            "/C".to_owned(),
+            "exit".to_owned(),
+            "0".to_owned(),
+        ])
+    }
+
+    fn spawn(executable_data: &ExecutableData) -> (ManagedProcess, u32) {
+        let started = CommandOSNotStarted::new(
+            AgentID::AgentControl,
+            executable_data,
+            SubAgentFileLoggingConfig::default(),
+        )
+        .start()
+        .unwrap();
+        let pid = started.get_pid();
+        (ManagedProcess::Spawned(Box::new(started)), pid)
     }
 
     #[test]
-    fn spawned_reports_child_pid() {
-        let child = long_running_command().spawn().unwrap();
-        let pid = child.id();
-        let mut process = ManagedProcess::Spawned(child);
+    fn spawned_reports_the_pid_of_the_started_command() {
+        let (mut process, pid) = spawn(&long_running());
 
-        assert_eq!(process.id(), pid);
+        assert_eq!(process.get_pid(), pid);
 
-        process.kill().unwrap();
-        process.wait_for_exit().unwrap();
+        process.shutdown().unwrap();
     }
 
     #[test]
-    fn spawned_is_alive_until_killed() {
-        let mut process = ManagedProcess::Spawned(long_running_command().spawn().unwrap());
-        assert!(process.is_alive());
+    fn spawned_is_running_until_shutdown() {
+        let (mut process, _) = spawn(&long_running());
+        assert!(process.is_running());
 
-        process.kill().unwrap();
-        process.wait_for_exit().unwrap();
+        process.shutdown().unwrap();
 
-        assert!(!process.is_alive());
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while process.is_running() {
+            assert!(Instant::now() < deadline, "process did not stop in time");
+            std::thread::sleep(POLL_INTERVAL);
+        }
     }
 
     #[test]
-    fn spawned_wait_for_exit_returns_exit_status() {
-        let mut process = ManagedProcess::Spawned(short_lived_command().spawn().unwrap());
+    fn spawned_wait_returns_the_exit_status() {
+        let (process, _) = spawn(&short_lived());
 
-        let status = process.wait_for_exit().unwrap();
+        let status = process.wait().unwrap();
 
         assert!(status.success());
-        assert!(!process.is_alive());
     }
 
     #[test]
-    fn spawned_killed_process_reports_unsuccessful_status() {
-        let mut process = ManagedProcess::Spawned(long_running_command().spawn().unwrap());
+    fn spawned_wait_after_shutdown_reports_unsuccessful_status() {
+        let (mut process, _) = spawn(&long_running());
 
-        process.kill().unwrap();
+        process.shutdown().unwrap();
 
-        assert!(!process.wait_for_exit().unwrap().success());
+        assert!(!process.wait().unwrap().success());
     }
 
     #[test]
-    fn spawned_exposes_piped_output_once() {
-        let mut process = ManagedProcess::Spawned(
-            short_lived_command()
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .spawn()
-                .unwrap(),
-        );
+    fn spawned_shutdown_of_an_exited_process_is_not_an_error() {
+        let (mut process, _) = spawn(&short_lived());
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while process.is_running() {
+            assert!(Instant::now() < deadline, "process did not exit in time");
+            std::thread::sleep(POLL_INTERVAL);
+        }
 
-        assert!(process.take_stdout().is_some());
-        assert!(process.take_stdout().is_none());
-        assert!(process.take_stderr().is_some());
-        assert!(process.take_stderr().is_none());
-
-        process.wait_for_exit().unwrap();
+        // On Unix the graceful signal reaches a reaped-pending zombie or fails and falls back
+        // to `kill`, which is harmless on an exited child.
+        assert!(process.shutdown().is_ok());
     }
 }
