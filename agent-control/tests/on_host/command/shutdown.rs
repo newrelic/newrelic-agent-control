@@ -36,7 +36,7 @@ fn non_blocking_runner() {
         SubAgentFileLoggingConfig::default(),
     );
 
-    let mut started_cmd = ManagedProcess::Spawned(Box::new(cmd.start().unwrap()));
+    let mut started_cmd = ManagedProcess::Spawned(cmd.start().unwrap());
     sleep(Duration::from_millis(500)); // Give the process some room to start
 
     let terminated = started_cmd.shutdown();
@@ -60,7 +60,7 @@ fn command_shutdown_when_sigterm_is_ignored() {
         SubAgentFileLoggingConfig::default(),
     )
     .start()
-    .map(|cmd| ManagedProcess::Spawned(Box::new(cmd)))
+    .map(ManagedProcess::Spawned)
     .unwrap();
 
     // Wait for the process to start
@@ -111,7 +111,7 @@ fn command_shutdown_kill_orphan_process() {
         SubAgentFileLoggingConfig::default(),
     )
     .start()
-    .map(|cmd| ManagedProcess::Spawned(Box::new(cmd)))
+    .map(ManagedProcess::Spawned)
     .unwrap();
 
     // Check that we have a leaked process

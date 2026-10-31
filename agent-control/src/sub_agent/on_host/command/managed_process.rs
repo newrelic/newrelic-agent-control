@@ -10,9 +10,11 @@ use tracing::warn;
 const POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 /// A process supervised by Agent Control.
+// Only one value exists per running executable, so the size difference between variants is irrelevant.
+#[allow(clippy::large_enum_variant)]
 pub enum ManagedProcess {
     /// Spawned by this Agent Control instance, which is therefore its real parent.
-    Spawned(Box<CommandOSStarted>),
+    Spawned(CommandOSStarted),
     /// Already running when this instance started. Agent Control is not its parent.
     // Nothing constructs it until process adoption is implemented.
     #[allow(dead_code)]
@@ -158,7 +160,7 @@ mod tests {
         .start()
         .unwrap();
         let pid = started.get_pid();
-        (ManagedProcess::Spawned(Box::new(started)), pid)
+        (ManagedProcess::Spawned(started), pid)
     }
 
     #[test]

@@ -441,7 +441,7 @@ where
                 let started = command
                     .start()
                     .and_then(|cmd| cmd.stream())
-                    .map(|cmd| ManagedProcess::Spawned(Box::new(cmd)));
+                    .map(ManagedProcess::Spawned);
 
                 let executable_result = started.and_then(|cmd| {
                     wait_exit(
@@ -1410,7 +1410,7 @@ declared-dir:
             SubAgentFileLoggingConfig::default(),
         )
         .start()
-        .map(|cmd| ManagedProcess::Spawned(Box::new(cmd)))
+        .map(ManagedProcess::Spawned)
         .unwrap();
 
         let (health_publisher, health_consumer) = pub_sub();
@@ -1540,7 +1540,7 @@ declared-dir:
             SubAgentFileLoggingConfig::default(),
         )
         .start()
-        .map(|cmd| ManagedProcess::Spawned(Box::new(cmd)))
+        .map(ManagedProcess::Spawned)
         .unwrap();
 
         let (health_publisher, health_consumer) = pub_sub();
