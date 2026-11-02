@@ -59,7 +59,7 @@ jobs:
         env:
           # Limits the calculated version from dependencies to be a patch bump (by default it propagates the bump type from the dependency).
           DEPENDENCY_CAP: patch
-        uses: newrelic/release-toolkit/contrib/ohi-release-notes@c07dd843317d8229f6e00272a976926306c261e2 # v1.7.0
+        uses: newrelic/release-toolkit/contrib/ohi-release-notes@979761e8622366d1283c6f1d40d62b60b92ace09 # v1.7.2
         with:
           # overrides the default "v" prefix for the version.
           output-prefix: ""
@@ -72,7 +72,7 @@ jobs:
 
       # The change files have been read into CHANGELOG.md by the previous step. Templates are kept.
       - name: Drop the released change files
-        uses: newrelic/release-toolkit/remove-changes@c07dd843317d8229f6e00272a976926306c261e2 # v1.7.0
+        uses: newrelic/release-toolkit/remove-changes@979761e8622366d1283c6f1d40d62b60b92ace09 # v1.7.2
 
       - name: Bump version in Cargo.toml and refresh Cargo.lock
         env:
