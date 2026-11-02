@@ -1,0 +1,29 @@
+[package]
+name = "poc-linux-crash-survival"
+description = "Standalone PoC: sub-agent crash survival and re-adoption on Linux without elevation"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+nix = { workspace = true, features = ["fs", "process", "signal", "user"] }
+
+[[example]]
+name = "crash_survival_bookkeeping"
+# Needs a real Linux host, it re-executes itself and kills one of the copies.
+test = false
+
+[[example]]
+name = "crash_survival_env_tag"
+test = false
+
+[[example]]
+name = "crash_survival_cgroup"
+test = false
+
+[[example]]
+name = "crash_survival_shim"
+test = false
