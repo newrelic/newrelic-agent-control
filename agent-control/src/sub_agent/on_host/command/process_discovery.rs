@@ -4,7 +4,7 @@
 //! Every spawned executable is tagged with [`ENV_AGENT_ID`] and [`ENV_EXEC_ID`]. After a crash
 //! (`KillMode=process` leaves the sub-agents running in the unit's cgroup), the restarted
 //! instance scans its own cgroup for processes carrying both markers and the expected command
-//! line, and adopts the top-level one.
+//! line, and adopts the one that leads its own process group (see [`select_root`]).
 
 use std::collections::HashSet;
 use std::ffi::{OsStr, OsString};
@@ -25,21 +25,33 @@ const CGROUP_MOUNT: &str = "/sys/fs/cgroup";
 pub struct Candidate {
     pub pid: u32,
     pub ppid: u32,
+    /// Process group id; Agent Control spawns every executable as its own group leader, so the
+    /// top-level process has `pgid == pid`.
+    pub pgid: u32,
     /// `starttime` from `/proc/<pid>/stat`, used to detect pid reuse after discovery.
     pub start_time_marker: u64,
 }
 
-/// Looks for a process in Agent Control's own cgroup that was spawned for `(agent_id, exec_id)`
-/// with exactly the `expected_cmdline` (program followed by args) and is owned by the same user.
+/// Result of scanning for survivors of a previous Agent Control instance.
+#[derive(Debug, Default, PartialEq)]
+pub struct Discovery {
+    /// The top-level process to adopt, if its group leader survived.
+    pub root: Option<Candidate>,
+    /// Matching processes left over without their group leader (a crashed master's workers).
+    /// Empty whenever `root` is set. They must be killed before respawning, or they would run
+    /// unsupervised next to the new copy.
+    pub orphans: Vec<Candidate>,
+}
+
+/// Looks for processes in Agent Control's own cgroup that were spawned for `(agent_id, exec_id)`
+/// with exactly the `expected_cmdline` (program followed by args) and are owned by the same user.
 ///
-/// Returns `None` when nothing matches, or when the cgroup can't be determined (cgroup v1
-/// hosts, no `/sys/fs/cgroup`), in which case Agent Control just spawns as usual.
-pub fn discover(
-    agent_id: &str,
-    exec_id: &str,
-    expected_cmdline: &[OsString],
-) -> Option<Candidate> {
-    let pids = own_cgroup_pids()?;
+/// Returns an empty [`Discovery`] when nothing matches, or when the cgroup can't be determined
+/// (cgroup v1 hosts, no `/sys/fs/cgroup`), in which case Agent Control just spawns as usual.
+pub fn discover(agent_id: &str, exec_id: &str, expected_cmdline: &[OsString]) -> Discovery {
+    let Some(pids) = own_cgroup_pids() else {
+        return Discovery::default();
+    };
     discover_in(
         Path::new(PROC_ROOT),
         &pids,
@@ -55,7 +67,12 @@ pub fn own_cgroup_pids() -> Option<Vec<u32>> {
     let self_cgroup = std::fs::read_to_string(format!("{PROC_ROOT}/self/cgroup")).ok()?;
     let procs_path = cgroup_procs_path(&self_cgroup, Path::new(CGROUP_MOUNT))?;
     let procs = std::fs::read_to_string(procs_path).ok()?;
-    Some(procs.lines().filter_map(|l| l.trim().parse().ok()).collect())
+    Some(
+        procs
+            .lines()
+            .filter_map(|l| l.trim().parse().ok())
+            .collect(),
+    )
 }
 
 /// Resolves the `cgroup.procs` file from the contents of `/proc/self/cgroup`. Only the
@@ -80,24 +97,82 @@ fn discover_in(
     agent_id: &str,
     exec_id: &str,
     expected_cmdline: &[OsString],
-) -> Option<Candidate> {
+) -> Discovery {
     let candidates: Vec<Candidate> = pids
         .iter()
-        .filter_map(|&pid| {
-            read_candidate(proc_root, pid, uid, agent_id, exec_id, expected_cmdline)
-        })
+        .filter_map(|&pid| read_candidate(proc_root, pid, uid, agent_id, exec_id, expected_cmdline))
         .collect();
-    select_root(&candidates).cloned()
+    match select_root(&candidates).cloned() {
+        Some(root) => Discovery {
+            root: Some(root),
+            orphans: Vec::new(),
+        },
+        None => Discovery {
+            root: None,
+            orphans: candidates,
+        },
+    }
 }
 
-/// Picks the top-level process among `candidates`: the one whose parent is not itself a
-/// candidate, so a forked worker carrying the same markers and command line isn't adopted in
-/// place of its parent. If several remain, the oldest wins.
+/// How an orphan is killed.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum KillTarget {
+    /// The whole process group, which also takes down any descendant that no longer matches.
+    Group(u32),
+    /// A single process.
+    Pid(u32),
+}
+
+/// Decides what to signal for `orphans`. A group is only killed when it is not Agent Control's
+/// own (processes spawned before groups were used share it), and is a real group (`> 1`);
+/// otherwise just the matched pids are killed.
+fn kill_targets(orphans: &[Candidate], own_pgid: u32) -> Vec<KillTarget> {
+    let mut targets = Vec::new();
+    for orphan in orphans {
+        let target = if orphan.pgid > 1 && orphan.pgid != own_pgid {
+            KillTarget::Group(orphan.pgid)
+        } else {
+            KillTarget::Pid(orphan.pid)
+        };
+        if !targets.contains(&target) {
+            targets.push(target);
+        }
+    }
+    targets
+}
+
+/// SIGKILLs the survivors in [`Discovery::orphans`]. Returns one error per target that could
+/// not be signaled; a target that already exited (`ESRCH`) is not an error.
+pub fn kill_orphans(orphans: &[Candidate]) -> Vec<std::io::Error> {
+    use nix::errno::Errno;
+    use nix::sys::signal::{Signal, kill, killpg};
+    use nix::unistd::{Pid, getpgrp};
+
+    kill_targets(orphans, getpgrp().as_raw() as u32)
+        .into_iter()
+        .filter_map(|target| {
+            let result = match target {
+                KillTarget::Group(pgid) => killpg(Pid::from_raw(pgid as i32), Signal::SIGKILL),
+                KillTarget::Pid(pid) => kill(Pid::from_raw(pid as i32), Signal::SIGKILL),
+            };
+            match result {
+                Ok(()) | Err(Errno::ESRCH) => None,
+                Err(err) => Some(std::io::Error::from(err)),
+            }
+        })
+        .collect()
+}
+
+/// Picks the top-level process among `candidates`: the one leading its own process group
+/// (`pgid == pid`), which is how Agent Control spawns every executable. Forked workers share the
+/// leader's group but not its pid, so they are never picked, and if the leader is gone no
+/// survivor is adopted (they are reported as orphans to kill before respawning). Among leaders, one whose parent is itself a
+/// candidate is skipped (a worker that called `setsid`); if several remain, the oldest wins.
 fn select_root(candidates: &[Candidate]) -> Option<&Candidate> {
     let pids: HashSet<u32> = candidates.iter().map(|c| c.pid).collect();
     candidates
         .iter()
-        .filter(|c| !pids.contains(&c.ppid))
+        .filter(|c| c.pgid == c.pid && !pids.contains(&c.ppid))
         .min_by_key(|c| c.start_time_marker)
 }
 
@@ -120,10 +195,12 @@ fn read_candidate(
     if !cmdline_matches(&std::fs::read(dir.join("cmdline")).ok()?, expected_cmdline) {
         return None;
     }
-    let (ppid, start_time_marker) = parse_stat(&std::fs::read_to_string(dir.join("stat")).ok()?)?;
+    let (ppid, pgid, start_time_marker) =
+        parse_stat(&std::fs::read_to_string(dir.join("stat")).ok()?)?;
     Some(Candidate {
         pid,
         ppid,
+        pgid,
         start_time_marker,
     })
 }
@@ -151,14 +228,18 @@ fn cmdline_matches(cmdline: &[u8], expected: &[OsString]) -> bool {
             .all(|(arg, want)| OsStr::from_bytes(arg) == want.as_os_str())
 }
 
-/// Extracts `(ppid, starttime)` from the contents of `/proc/<pid>/stat`.
-fn parse_stat(stat: &str) -> Option<(u32, u64)> {
+/// Extracts `(ppid, pgrp, starttime)` from the contents of `/proc/<pid>/stat`.
+fn parse_stat(stat: &str) -> Option<(u32, u32, u64)> {
     // `comm` (field 2) is parenthesized and may itself contain spaces or parens, so split on
     // the *last* ')' rather than whitespace to find where the numeric fields resume.
     let fields: Vec<&str> = stat.rsplit_once(')')?.1.split_whitespace().collect();
-    // `state` (field 3) is index 0, so `ppid` (field 4) is index 1 and `starttime` (field 22)
-    // is index 19.
-    Some((fields.get(1)?.parse().ok()?, fields.get(19)?.parse().ok()?))
+    // `state` (field 3) is index 0, so `ppid` (field 4) is index 1, `pgrp` (field 5) is index 2
+    // and `starttime` (field 22) is index 19.
+    Some((
+        fields.get(1)?.parse().ok()?,
+        fields.get(2)?.parse().ok()?,
+        fields.get(19)?.parse().ok()?,
+    ))
 }
 
 #[cfg(test)]
@@ -173,10 +254,14 @@ mod tests {
         args.iter().map(OsString::from).collect()
     }
 
-    fn stat_line(comm: &str, ppid: u32, starttime: u64) -> String {
-        // pid (comm) state ppid + 16 fields up to starttime (field 22).
-        let mid = vec!["0"; 16].join(" ");
-        format!("1 ({comm}) S {ppid} {mid} {starttime} 0 0")
+    fn stat_line(comm: &str, ppid: u32, pgid: u32, starttime: u64) -> String {
+        // Fields after `comm`: state(3) ppid(4) pgrp(5) ... starttime(22).
+        let mut fields = vec!["0".to_string(); 30];
+        fields[0] = "S".to_string();
+        fields[1] = ppid.to_string();
+        fields[2] = pgid.to_string();
+        fields[19] = starttime.to_string();
+        format!("1 ({comm}) {}", fields.join(" "))
     }
 
     struct FakeProc {
@@ -190,16 +275,33 @@ mod tests {
             }
         }
 
+        /// Adds a process leading its own group, as Agent Control spawns them.
         fn add(&self, pid: u32, env: &[&str], argv: &[&str], ppid: u32, starttime: u64) {
+            self.add_in_group(pid, pid, env, argv, ppid, starttime);
+        }
+
+        fn add_in_group(
+            &self,
+            pid: u32,
+            pgid: u32,
+            env: &[&str],
+            argv: &[&str],
+            ppid: u32,
+            starttime: u64,
+        ) {
             let dir = self.dir.path().join(pid.to_string());
             std::fs::create_dir_all(&dir).unwrap();
             std::fs::write(dir.join("environ"), nul_joined(env)).unwrap();
             std::fs::write(dir.join("cmdline"), nul_joined(argv)).unwrap();
-            std::fs::write(dir.join("stat"), stat_line("sleep", ppid, starttime)).unwrap();
+            std::fs::write(dir.join("stat"), stat_line("sleep", ppid, pgid, starttime)).unwrap();
+        }
+
+        fn scan(&self, pids: &[u32], uid: u32, expected: &[&str]) -> Discovery {
+            discover_in(self.dir.path(), pids, uid, AGENT, EXEC, &cmdline(expected))
         }
 
         fn discover(&self, pids: &[u32], uid: u32, expected: &[&str]) -> Option<Candidate> {
-            discover_in(self.dir.path(), pids, uid, AGENT, EXEC, &cmdline(expected))
+            self.scan(pids, uid, expected).root
         }
     }
 
@@ -217,8 +319,8 @@ mod tests {
 
     #[test]
     fn parse_stat_handles_parens_and_spaces_in_comm() {
-        let stat = stat_line("we) (ird name", 42, 987);
-        assert_eq!(parse_stat(&stat), Some((42, 987)));
+        let stat = stat_line("we) (ird name", 42, 41, 987);
+        assert_eq!(parse_stat(&stat), Some((42, 41, 987)));
     }
 
     #[test]
@@ -256,6 +358,7 @@ mod tests {
             Some(Candidate {
                 pid: 10,
                 ppid: 1,
+                pgid: 10,
                 start_time_marker: 500
             })
         );
@@ -291,10 +394,7 @@ mod tests {
         let proc = FakeProc::new();
         proc.add(10, &markers(), &["/bin/fluent-bit"], 1, 500);
 
-        assert_eq!(
-            proc.discover(&[10], own_uid(), &["/bin/sleep", "30"]),
-            None
-        );
+        assert_eq!(proc.discover(&[10], own_uid(), &["/bin/sleep", "30"]), None);
     }
 
     #[test]
@@ -316,11 +416,97 @@ mod tests {
     }
 
     #[test]
-    fn prefers_the_parent_over_a_forked_worker_with_the_same_markers() {
+    fn prefers_the_group_leader_over_a_forked_worker_with_the_same_markers() {
         let proc = FakeProc::new();
-        // The worker is older by start time, to prove the parent/child relation decides, not age.
-        proc.add(20, &markers(), &["/bin/sleep", "30"], 10, 100);
+        // The worker is older by start time, to prove leadership decides, not age.
+        proc.add_in_group(20, 10, &markers(), &["/bin/sleep", "30"], 10, 100);
         proc.add(10, &markers(), &["/bin/sleep", "30"], 1, 500);
+
+        let found = proc.discover(&[20, 10], own_uid(), &["/bin/sleep", "30"]);
+
+        assert_eq!(found.map(|c| c.pid), Some(10));
+    }
+
+    #[test]
+    fn reports_orphaned_workers_when_their_leader_is_gone() {
+        let proc = FakeProc::new();
+        // The leader (pid 10) is gone; its workers were reparented to init.
+        proc.add_in_group(20, 10, &markers(), &["/bin/sleep", "30"], 1, 100);
+        proc.add_in_group(21, 10, &markers(), &["/bin/sleep", "30"], 1, 101);
+
+        let scan = proc.scan(&[20, 21], own_uid(), &["/bin/sleep", "30"]);
+
+        assert_eq!(scan.root, None);
+        assert_eq!(
+            scan.orphans.iter().map(|c| c.pid).collect::<Vec<_>>(),
+            vec![20, 21]
+        );
+    }
+
+    #[test]
+    fn reports_no_orphans_when_the_leader_survived() {
+        let proc = FakeProc::new();
+        proc.add(10, &markers(), &["/bin/sleep", "30"], 1, 500);
+        proc.add_in_group(20, 10, &markers(), &["/bin/sleep", "30"], 10, 501);
+
+        let scan = proc.scan(&[10, 20], own_uid(), &["/bin/sleep", "30"]);
+
+        assert_eq!(scan.root.map(|c| c.pid), Some(10));
+        assert!(scan.orphans.is_empty());
+    }
+
+    fn orphan(pid: u32, pgid: u32) -> Candidate {
+        Candidate {
+            pid,
+            ppid: 1,
+            pgid,
+            start_time_marker: 0,
+        }
+    }
+
+    #[test]
+    fn kills_each_orphaned_group_once() {
+        let orphans = [orphan(20, 10), orphan(21, 10), orphan(31, 30)];
+
+        assert_eq!(
+            kill_targets(&orphans, 999),
+            vec![KillTarget::Group(10), KillTarget::Group(30)]
+        );
+    }
+
+    #[test]
+    fn never_kills_agent_controls_own_group_or_init() {
+        // Processes started before groups were used share AC's own group; pgid 1 is init's.
+        let orphans = [orphan(20, 999), orphan(21, 1)];
+
+        assert_eq!(
+            kill_targets(&orphans, 999),
+            vec![KillTarget::Pid(20), KillTarget::Pid(21)]
+        );
+    }
+
+    #[test]
+    fn kill_orphans_kills_a_real_orphaned_group_and_ignores_gone_ones() {
+        use std::os::unix::process::CommandExt;
+        let mut child = Command::new("sleep")
+            .arg("30")
+            .process_group(0)
+            .spawn()
+            .unwrap();
+        let pid = child.id();
+
+        let errors = kill_orphans(&[orphan(pid, pid), orphan(4_194_000, 4_194_000)]);
+
+        assert!(errors.is_empty(), "{errors:?}");
+        assert!(!child.wait().unwrap().success());
+    }
+
+    #[test]
+    fn skips_a_leader_whose_parent_is_also_a_match() {
+        let proc = FakeProc::new();
+        // A worker that called `setsid` leads its own group but is still the master's child.
+        proc.add(10, &markers(), &["/bin/sleep", "30"], 1, 500);
+        proc.add(20, &markers(), &["/bin/sleep", "30"], 10, 100);
 
         let found = proc.discover(&[20, 10], own_uid(), &["/bin/sleep", "30"]);
 
@@ -350,8 +536,10 @@ mod tests {
 
     #[test]
     fn discovers_a_real_tagged_process_through_the_real_proc() {
+        use std::os::unix::process::CommandExt;
         let mut child = Command::new("sleep")
             .arg("30")
+            .process_group(0)
             .env(ENV_AGENT_ID, "real-agent")
             .env(ENV_EXEC_ID, "real-exec")
             .spawn()
@@ -368,6 +556,6 @@ mod tests {
 
         child.kill().unwrap();
         child.wait().unwrap();
-        assert_eq!(found.map(|c| c.pid), Some(child.id()));
+        assert_eq!(found.root.map(|c| c.pid), Some(child.id()));
     }
 }

@@ -22,9 +22,9 @@ use crate::sub_agent::on_host::command::executable_data::ExecutableData;
 use crate::sub_agent::on_host::command::logging::file_logger::SubAgentFileLoggingConfig;
 #[cfg(target_family = "windows")]
 use crate::utils::job_object::JobObject;
-use std::io;
 #[cfg(target_os = "linux")]
 use std::ffi::OsString;
+use std::io;
 use std::process::{Child, Command, ExitStatus, Stdio};
 #[cfg(target_os = "windows")]
 use std::sync::Arc;
@@ -201,6 +201,8 @@ fn unknown_exit_status() -> ExitStatus {
 
 /// PoC, Linux only: looks in Agent Control's own cgroup for a still-running process tagged for
 /// `(agent_id, exec_id)` whose command line is exactly `cmd`'s, and returns it as adoptable.
+/// Leftover workers whose group leader is gone are killed first, so the caller's respawn
+/// doesn't run next to them.
 #[cfg(target_os = "linux")]
 fn discover_adoptable_process(
     agent_id: &AgentID,
@@ -211,10 +213,17 @@ fn discover_adoptable_process(
         .chain(cmd.get_args())
         .map(OsString::from)
         .collect();
-    let found = process_discovery::discover(&agent_id.to_string(), exec_id, &expected_cmdline)?;
+    let found = process_discovery::discover(&agent_id.to_string(), exec_id, &expected_cmdline);
+    if !found.orphans.is_empty() {
+        warn!(%agent_id, exec_id, orphans = found.orphans.len(), "Killing orphaned processes left by a previous Agent Control instance");
+        for err in process_discovery::kill_orphans(&found.orphans) {
+            warn!(%agent_id, exec_id, "Could not kill an orphaned process: {err}");
+        }
+    }
+    let root = found.root?;
     Some(AdoptedProcess {
-        pid: found.pid,
-        start_time_marker: found.start_time_marker,
+        pid: root.pid,
+        start_time_marker: root.start_time_marker,
     })
 }
 
@@ -289,9 +298,11 @@ impl CommandOSNotStarted {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
-        // Set after the executable's own env so it can't override the markers.
+        // Set after the executable's own env so it can't override the markers. The executable
+        // leads its own process group so discovery can tell it from its forked workers.
         #[cfg(target_os = "linux")]
-        cmd.env(process_discovery::ENV_AGENT_ID, agent_id.to_string())
+        std::os::unix::process::CommandExt::process_group(&mut cmd, 0)
+            .env(process_discovery::ENV_AGENT_ID, agent_id.to_string())
             .env(process_discovery::ENV_EXEC_ID, &executable_data.id);
 
         #[cfg(not(target_os = "windows"))]
