@@ -1,24 +1,28 @@
 //! PoC, Linux only: finds a still-running process a previous Agent Control instance spawned for
 //! an `(agent_id, exec_id)` pair, without any persisted bookkeeping.
 //!
-//! Every spawned executable is tagged with [`ENV_AGENT_ID`] and [`ENV_EXEC_ID`]. After a crash
-//! (`KillMode=process` leaves the sub-agents running in the unit's cgroup), the restarted
-//! instance scans its own cgroup for processes carrying both markers and the expected command
-//! line, and adopts the one that leads its own process group (see [`select_root`]).
+//! Every spawned executable is tagged with [`ENV_AGENT_ID`], [`ENV_EXEC_ID`] and
+//! [`ENV_INSTANCE`]. After a crash (`KillMode=process` leaves the sub-agents running), the
+//! restarted instance scans every process on the host for the ones carrying all three markers
+//! and the expected command line, and adopts the one that leads its own process group (see
+//! [`select_root`]). The instance marker is what keeps one Agent Control from adopting, or
+//! killing, another one's processes.
 
 use std::collections::HashSet;
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Env var carrying the owning agent id; set on every executable Agent Control spawns.
 pub const ENV_AGENT_ID: &str = "NR_AC_AGENT_ID";
 /// Env var carrying the owning executable id; set on every executable Agent Control spawns.
 pub const ENV_EXEC_ID: &str = "NR_AC_EXEC_ID";
+/// Env var identifying the Agent Control instance that spawned the executable (its data
+/// directory); set on every executable Agent Control spawns.
+pub const ENV_INSTANCE: &str = "NR_AC_INSTANCE";
 
 const PROC_ROOT: &str = "/proc";
-const CGROUP_MOUNT: &str = "/sys/fs/cgroup";
 
 /// A live process that looks like the executable Agent Control spawned for an `(agent, exec)`.
 #[derive(Debug, Clone, PartialEq)]
@@ -32,6 +36,16 @@ pub struct Candidate {
     pub start_time_marker: u64,
 }
 
+/// What a surviving process must carry to be considered ours.
+#[derive(Debug, Clone, Copy)]
+pub struct Identity<'a> {
+    pub agent_id: &'a str,
+    pub exec_id: &'a str,
+    pub instance: &'a str,
+    /// Program followed by args, exactly as spawned.
+    pub cmdline: &'a [OsString],
+}
+
 /// Result of scanning for survivors of a previous Agent Control instance.
 #[derive(Debug, Default, PartialEq)]
 pub struct Discovery {
@@ -43,73 +57,42 @@ pub struct Discovery {
     pub orphans: Vec<Candidate>,
 }
 
-/// Looks for processes in Agent Control's own cgroup that were spawned for `(agent_id, exec_id)`
-/// with exactly the `expected_cmdline` (program followed by args) and are owned by the same user.
-///
-/// Returns an empty [`Discovery`] when nothing matches, or when the cgroup can't be determined
-/// (cgroup v1 hosts, no `/sys/fs/cgroup`), in which case Agent Control just spawns as usual.
-pub fn discover(agent_id: &str, exec_id: &str, expected_cmdline: &[OsString]) -> Discovery {
-    let Some(pids) = own_cgroup_pids() else {
-        return Discovery::default();
-    };
+/// Looks for processes spawned for `identity` among every process on the host owned by the same
+/// user.
+pub fn discover(identity: &Identity) -> Discovery {
+    let pids = all_pids(Path::new(PROC_ROOT));
     discover_in(
         Path::new(PROC_ROOT),
         &pids,
         nix::unistd::geteuid().as_raw(),
-        agent_id,
-        exec_id,
-        expected_cmdline,
+        identity,
     )
 }
 
-/// Pids of every process currently in Agent Control's own cgroup (cgroup v2 only).
-pub fn own_cgroup_pids() -> Option<Vec<u32>> {
-    let self_cgroup = std::fs::read_to_string(format!("{PROC_ROOT}/self/cgroup")).ok()?;
-    let procs_path = cgroup_procs_path(&self_cgroup, Path::new(CGROUP_MOUNT))?;
-    let procs = std::fs::read_to_string(procs_path).ok()?;
-    Some(
-        procs
-            .lines()
-            .filter_map(|l| l.trim().parse().ok())
-            .collect(),
-    )
-}
-
-/// Resolves the `cgroup.procs` file from the contents of `/proc/self/cgroup`. Only the
-/// unified-hierarchy entry (`0::<path>`) is considered.
-fn cgroup_procs_path(self_cgroup: &str, mount: &Path) -> Option<PathBuf> {
-    let relative = self_cgroup
-        .lines()
-        .find_map(|line| line.strip_prefix("0::"))?;
-    Some(
-        mount
-            .join(relative.trim().trim_start_matches('/'))
-            .join("cgroup.procs"),
-    )
+/// Every numeric entry of `proc_root`.
+fn all_pids(proc_root: &Path) -> Vec<u32> {
+    std::fs::read_dir(proc_root)
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| entry.ok()?.file_name().to_str()?.parse().ok())
+        .collect()
 }
 
 /// [`discover`] against an arbitrary `/proc` root and candidate pid list, so it can be tested
 /// against a fake `/proc` tree.
-fn discover_in(
-    proc_root: &Path,
-    pids: &[u32],
-    uid: u32,
-    agent_id: &str,
-    exec_id: &str,
-    expected_cmdline: &[OsString],
-) -> Discovery {
+fn discover_in(proc_root: &Path, pids: &[u32], uid: u32, identity: &Identity) -> Discovery {
     let candidates: Vec<Candidate> = pids
         .iter()
-        .filter_map(|&pid| read_candidate(proc_root, pid, uid, agent_id, exec_id, expected_cmdline))
+        .filter_map(|&pid| read_candidate(proc_root, pid, uid, identity))
         .collect();
     match select_root(&candidates).cloned() {
         Some(root) => Discovery {
             root: Some(root),
-            orphans: Vec::new(),
+            ..Discovery::default()
         },
         None => Discovery {
-            root: None,
             orphans: candidates,
+            ..Discovery::default()
         },
     }
 }
@@ -176,23 +159,17 @@ fn select_root(candidates: &[Candidate]) -> Option<&Candidate> {
         .min_by_key(|c| c.start_time_marker)
 }
 
-fn read_candidate(
-    proc_root: &Path,
-    pid: u32,
-    uid: u32,
-    agent_id: &str,
-    exec_id: &str,
-    expected_cmdline: &[OsString],
-) -> Option<Candidate> {
+fn read_candidate(proc_root: &Path, pid: u32, uid: u32, identity: &Identity) -> Option<Candidate> {
     let dir = proc_root.join(pid.to_string());
 
     if std::fs::metadata(&dir).ok()?.uid() != uid {
         return None;
     }
-    if !has_markers(&std::fs::read(dir.join("environ")).ok()?, agent_id, exec_id) {
+    // cmdline first: it is the cheapest reject when scanning every process on the host.
+    if !cmdline_matches(&std::fs::read(dir.join("cmdline")).ok()?, identity.cmdline) {
         return None;
     }
-    if !cmdline_matches(&std::fs::read(dir.join("cmdline")).ok()?, expected_cmdline) {
+    if !has_markers(&std::fs::read(dir.join("environ")).ok()?, identity) {
         return None;
     }
     let (ppid, pgid, start_time_marker) =
@@ -205,16 +182,20 @@ fn read_candidate(
     })
 }
 
-/// Whether the NUL-separated `environ` carries both markers with exactly these values.
-fn has_markers(environ: &[u8], agent_id: &str, exec_id: &str) -> bool {
-    let agent = format!("{ENV_AGENT_ID}={agent_id}");
-    let exec = format!("{ENV_EXEC_ID}={exec_id}");
-    let mut found = (false, false);
+/// Whether the NUL-separated `environ` carries all markers with exactly these values.
+fn has_markers(environ: &[u8], identity: &Identity) -> bool {
+    let expected = [
+        format!("{ENV_AGENT_ID}={}", identity.agent_id),
+        format!("{ENV_EXEC_ID}={}", identity.exec_id),
+        format!("{ENV_INSTANCE}={}", identity.instance),
+    ];
+    let mut found = [false; 3];
     for entry in environ.split(|b| *b == 0) {
-        found.0 |= entry == agent.as_bytes();
-        found.1 |= entry == exec.as_bytes();
+        for (found, want) in found.iter_mut().zip(&expected) {
+            *found |= entry == want.as_bytes();
+        }
     }
-    found.0 && found.1
+    found.iter().all(|f| *f)
 }
 
 /// Whether the NUL-separated `cmdline` is exactly `expected`.
@@ -249,6 +230,7 @@ mod tests {
 
     const AGENT: &str = "agent-a";
     const EXEC: &str = "exec-a";
+    const INSTANCE: &str = "/var/lib/ac-a";
 
     fn cmdline(args: &[&str]) -> Vec<OsString> {
         args.iter().map(OsString::from).collect()
@@ -297,7 +279,14 @@ mod tests {
         }
 
         fn scan(&self, pids: &[u32], uid: u32, expected: &[&str]) -> Discovery {
-            discover_in(self.dir.path(), pids, uid, AGENT, EXEC, &cmdline(expected))
+            let cmdline = cmdline(expected);
+            let identity = Identity {
+                agent_id: AGENT,
+                exec_id: EXEC,
+                instance: INSTANCE,
+                cmdline: &cmdline,
+            };
+            discover_in(self.dir.path(), pids, uid, &identity)
         }
 
         fn discover(&self, pids: &[u32], uid: u32, expected: &[&str]) -> Option<Candidate> {
@@ -313,8 +302,12 @@ mod tests {
         nix::unistd::geteuid().as_raw()
     }
 
-    fn markers() -> [&'static str; 2] {
-        ["NR_AC_AGENT_ID=agent-a", "NR_AC_EXEC_ID=exec-a"]
+    fn markers() -> [&'static str; 3] {
+        [
+            "NR_AC_AGENT_ID=agent-a",
+            "NR_AC_EXEC_ID=exec-a",
+            "NR_AC_INSTANCE=/var/lib/ac-a",
+        ]
     }
 
     #[test]
@@ -324,25 +317,33 @@ mod tests {
     }
 
     #[test]
-    fn cgroup_procs_path_uses_the_unified_hierarchy_entry() {
-        let self_cgroup = "12:cpu:/legacy\n0::/system.slice/newrelic-agent-control.service\n";
-        assert_eq!(
-            cgroup_procs_path(self_cgroup, Path::new("/sys/fs/cgroup")),
-            Some(PathBuf::from(
-                "/sys/fs/cgroup/system.slice/newrelic-agent-control.service/cgroup.procs"
-            ))
-        );
-        assert_eq!(
-            cgroup_procs_path("0::/\n", Path::new("/sys/fs/cgroup")),
-            Some(PathBuf::from("/sys/fs/cgroup/cgroup.procs"))
-        );
+    fn all_pids_lists_only_numeric_entries() {
+        let proc = FakeProc::new();
+        proc.add(10, &markers(), &["/bin/sleep"], 1, 1);
+        std::fs::create_dir(proc.dir.path().join("self")).unwrap();
+        std::fs::write(proc.dir.path().join("uptime"), "1").unwrap();
+
+        assert_eq!(all_pids(proc.dir.path()), vec![10]);
     }
 
     #[test]
-    fn cgroup_procs_path_is_none_without_a_unified_hierarchy() {
+    fn ignores_a_process_from_another_agent_control_instance() {
+        let proc = FakeProc::new();
+        proc.add(
+            10,
+            &[
+                "NR_AC_AGENT_ID=agent-a",
+                "NR_AC_EXEC_ID=exec-a",
+                "NR_AC_INSTANCE=/var/lib/ac-b",
+            ],
+            &["/bin/sleep", "30"],
+            1,
+            500,
+        );
+
         assert_eq!(
-            cgroup_procs_path("1:name=systemd:/x\n", Path::new("/sys/fs/cgroup")),
-            None
+            proc.scan(&[10], own_uid(), &["/bin/sleep", "30"]),
+            Discovery::default()
         );
     }
 
@@ -369,14 +370,22 @@ mod tests {
         let proc = FakeProc::new();
         proc.add(
             10,
-            &["NR_AC_AGENT_ID=other", "NR_AC_EXEC_ID=exec-a"],
+            &[
+                "NR_AC_AGENT_ID=other",
+                "NR_AC_EXEC_ID=exec-a",
+                "NR_AC_INSTANCE=/var/lib/ac-a",
+            ],
             &["/bin/sleep", "30"],
             1,
             500,
         );
         proc.add(
             11,
-            &["NR_AC_AGENT_ID=agent-a", "NR_AC_EXEC_ID=other"],
+            &[
+                "NR_AC_AGENT_ID=agent-a",
+                "NR_AC_EXEC_ID=other",
+                "NR_AC_INSTANCE=/var/lib/ac-a",
+            ],
             &["/bin/sleep", "30"],
             1,
             501,
@@ -526,12 +535,22 @@ mod tests {
 
     #[test]
     fn marker_values_must_match_exactly() {
+        let cmdline = [];
+        let identity = Identity {
+            agent_id: AGENT,
+            exec_id: EXEC,
+            instance: INSTANCE,
+            cmdline: &cmdline,
+        };
         assert!(!has_markers(
-            &nul_joined(&["NR_AC_AGENT_ID=agent-ab", "NR_AC_EXEC_ID=exec-a"]),
-            AGENT,
-            EXEC
+            &nul_joined(&[
+                "NR_AC_AGENT_ID=agent-ab",
+                "NR_AC_EXEC_ID=exec-a",
+                "NR_AC_INSTANCE=/var/lib/ac-a"
+            ]),
+            &identity
         ));
-        assert!(has_markers(&nul_joined(&markers()), AGENT, EXEC));
+        assert!(has_markers(&nul_joined(&markers()), &identity));
     }
 
     #[test]
@@ -542,17 +561,18 @@ mod tests {
             .process_group(0)
             .env(ENV_AGENT_ID, "real-agent")
             .env(ENV_EXEC_ID, "real-exec")
+            .env(ENV_INSTANCE, "real-instance")
             .spawn()
             .unwrap();
 
-        let found = discover_in(
-            Path::new(PROC_ROOT),
-            &[child.id()],
-            own_uid(),
-            "real-agent",
-            "real-exec",
-            &cmdline(&["sleep", "30"]),
-        );
+        let cmdline = cmdline(&["sleep", "30"]);
+        let identity = Identity {
+            agent_id: "real-agent",
+            exec_id: "real-exec",
+            instance: "real-instance",
+            cmdline: &cmdline,
+        };
+        let found = discover_in(Path::new(PROC_ROOT), &[child.id()], own_uid(), &identity);
 
         child.kill().unwrap();
         child.wait().unwrap();

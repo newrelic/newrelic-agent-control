@@ -45,6 +45,10 @@ pub struct CommandOSNotStarted {
     exec_id: String,
     file_logging_config: SubAgentFileLoggingConfig,
     shutdown_timeout: Duration,
+    /// PoC, Linux only: identifies this Agent Control instance in the process tags, so one
+    /// instance never adopts or kills another's processes.
+    #[cfg(target_os = "linux")]
+    instance: String,
     /// PoC, Windows only: defaults to the real `runtime-state`-rooted storer; overridable in
     /// tests via [`CommandOSNotStarted::with_process_record_storer`] so adoption can be driven
     /// against a temp directory instead of Agent Control's real dynamic data dir. Linux
@@ -207,13 +211,19 @@ fn unknown_exit_status() -> ExitStatus {
 fn discover_adoptable_process(
     agent_id: &AgentID,
     exec_id: &str,
+    instance: &str,
     cmd: &Command,
 ) -> Option<AdoptedProcess> {
     let expected_cmdline: Vec<OsString> = std::iter::once(cmd.get_program())
         .chain(cmd.get_args())
         .map(OsString::from)
         .collect();
-    let found = process_discovery::discover(&agent_id.to_string(), exec_id, &expected_cmdline);
+    let found = process_discovery::discover(&process_discovery::Identity {
+        agent_id: &agent_id.to_string(),
+        exec_id,
+        instance,
+        cmdline: &expected_cmdline,
+    });
     if !found.orphans.is_empty() {
         warn!(%agent_id, exec_id, orphans = found.orphans.len(), "Killing orphaned processes left by a previous Agent Control instance");
         for err in process_discovery::kill_orphans(&found.orphans) {
@@ -303,9 +313,10 @@ impl CommandOSNotStarted {
         #[cfg(target_os = "linux")]
         std::os::unix::process::CommandExt::process_group(&mut cmd, 0)
             .env(process_discovery::ENV_AGENT_ID, agent_id.to_string())
-            .env(process_discovery::ENV_EXEC_ID, &executable_data.id);
+            .env(process_discovery::ENV_EXEC_ID, &executable_data.id)
+            .env(process_discovery::ENV_INSTANCE, remote_dir);
 
-        #[cfg(not(target_os = "windows"))]
+        #[cfg(not(any(target_os = "windows", target_os = "linux")))]
         let _ = remote_dir;
 
         Self {
@@ -314,6 +325,8 @@ impl CommandOSNotStarted {
             cmd,
             file_logging_config,
             shutdown_timeout: executable_data.shutdown_timeout,
+            #[cfg(target_os = "linux")]
+            instance: remote_dir.to_string_lossy().into_owned(),
             #[cfg(target_os = "windows")]
             process_record_storer: Arc::new(process_record::FileProcessRecordStorer::new(
                 fs::file::LocalFile,
@@ -343,7 +356,8 @@ impl CommandOSNotStarted {
     /// spawning a duplicate. See the on-host crash-survival CDD.
     pub fn start(mut self) -> Result<CommandOSStarted, CommandError> {
         #[cfg(target_os = "linux")]
-        if let Some(adopted) = discover_adoptable_process(&self.agent_id, &self.exec_id, &self.cmd)
+        if let Some(adopted) =
+            discover_adoptable_process(&self.agent_id, &self.exec_id, &self.instance, &self.cmd)
         {
             info!(agent_id = %self.agent_id, exec_id = %self.exec_id, pid = adopted.pid, "PoC: adopted a still-running process from a previous Agent Control instance instead of respawning it");
             return Ok(CommandOSStarted {
@@ -965,8 +979,7 @@ mod adoption_poc {
 /// PoC: Linux discovery-based adoption driven through the real `start()` call site. Two
 /// `CommandOSNotStarted` for the same `(agent_id, exec_id)` stand in for "Agent Control before
 /// and after a crash": the first spawns a tagged process, the second must find and adopt it
-/// from the cgroup instead of spawning a duplicate. Skipped on hosts without a cgroup v2
-/// unified hierarchy, where discovery is a no-op by design.
+/// instead of spawning a duplicate.
 ///
 /// What this deliberately does not cover: Agent Control's own process actually crashing under
 /// a real service manager with `KillMode=process`; see
@@ -1007,10 +1020,6 @@ mod discovery_adoption {
 
     #[test]
     fn start_adopts_a_tagged_process_instead_of_spawning_a_duplicate() {
-        if process_discovery::own_cgroup_pids().is_none() {
-            eprintln!("skipping: no cgroup v2 unified hierarchy on this host");
-            return;
-        }
         let agent_id = AgentID::try_from("discovery-adopts").unwrap();
         let exec = sleeper_data("discovery-exec");
 
@@ -1026,11 +1035,29 @@ mod discovery_adoption {
     }
 
     #[test]
+    fn start_does_not_adopt_a_process_from_another_agent_control_instance() {
+        let agent_id = AgentID::try_from("discovery-other-instance").unwrap();
+        let exec = sleeper_data("instance-exec");
+        let other_instance = |dir: &str| {
+            CommandOSNotStarted::new(
+                agent_id.clone(),
+                &exec,
+                SubAgentFileLoggingConfig::default(),
+                std::path::Path::new(dir),
+            )
+        };
+
+        let mut first = other_instance("/instance-one").start().unwrap();
+        let mut second = other_instance("/instance-two").start().unwrap();
+
+        let (first_pid, second_pid) = (first.get_pid(), second.get_pid());
+        first.shutdown().unwrap();
+        second.shutdown().unwrap();
+        assert_ne!(first_pid, second_pid);
+    }
+
+    #[test]
     fn start_does_not_adopt_a_process_tagged_for_another_exec() {
-        if process_discovery::own_cgroup_pids().is_none() {
-            eprintln!("skipping: no cgroup v2 unified hierarchy on this host");
-            return;
-        }
         let agent_id = AgentID::try_from("discovery-other-exec").unwrap();
 
         let mut first = not_started(&agent_id, &sleeper_data("exec-one"))
