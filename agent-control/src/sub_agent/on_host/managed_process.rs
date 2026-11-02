@@ -41,7 +41,7 @@ impl ProcessOrigin {
     pub fn try_into_supervised(self) -> Result<SupervisedProcess, CommandError> {
         match self {
             Self::Spawn(config) => {
-                let os_process = config.start()?.stream()?;
+                let os_process = config.start()?;
                 let pid = os_process.get_pid();
                 let agent_id = os_process.agent_id().clone();
                 #[cfg(target_family = "unix")]
@@ -142,7 +142,6 @@ mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
     use crate::sub_agent::on_host::managed_process::spawned_process::executable_data::ExecutableData;
-    use crate::sub_agent::on_host::managed_process::spawned_process::logging::file_logger::SubAgentFileLoggingConfig;
     use crate::sub_agent::on_host::managed_process::spawned_process::os_process::OsProcessConfig;
     use std::time::Instant;
 
@@ -191,13 +190,10 @@ mod tests {
         }
 
         fn spawn(&self) -> (SupervisedProcess, u32) {
-            let process = ProcessOrigin::Spawn(OsProcessConfig::new(
-                AgentID::AgentControl,
-                self,
-                SubAgentFileLoggingConfig::default(),
-            ))
-            .try_into_supervised()
-            .unwrap();
+            let process =
+                ProcessOrigin::Spawn(OsProcessConfig::new(AgentID::AgentControl, self, None))
+                    .try_into_supervised()
+                    .unwrap();
             let pid = process.pid;
             (process, pid)
         }

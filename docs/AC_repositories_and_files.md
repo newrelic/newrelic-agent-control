@@ -93,8 +93,8 @@ The following shows the directory structure used by Agent Control, assuming an e
 │              |── agent-control
 │              |    └── newrelic-agent-control.log.2025-01-15-23
 │              └── nr-infra
-│                   ├── stdout.log.2025-01-15-23
-│                   └── stderr.log.2025-01-15-23
+│                   ├── stdout.log
+│                   └── stderr.log
 └── usr
      └── lib
           └── newrelic-agent-control
@@ -143,7 +143,7 @@ C:\ProgramData\New Relic\newrelic-agent-control
 │   |───agent-control
 │   |    └── newrelic-agent-control.log.2025-01-15-23
 │   └── nr-infra
-│        └── stderr.log.2026-01-19-22
+│        └── stderr.log
 └───packages
     └── nr-infra
          ├── stored_packages

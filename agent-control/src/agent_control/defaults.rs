@@ -181,10 +181,10 @@ pub const SHARED_FILESYSTEM_FOLDER_NAME: &str = "shared-filesystem";
 pub const PACKAGES_FOLDER_NAME: &str = "packages";
 /// File name of the Agent Control log file.
 pub const AGENT_CONTROL_LOG_FILENAME: &str = "newrelic-agent-control.log";
-/// Suffix for per-agent stdout log files.
-pub const STDOUT_LOG_FILE_NAME_SUFFIX: &str = "stdout.log";
-/// Suffix for per-agent stderr log files.
-pub const STDERR_LOG_FILE_NAME_SUFFIX: &str = "stderr.log";
+/// File name of the per-agent stdout log file.
+pub const STDOUT_LOG_FILE_NAME: &str = "stdout.log";
+/// File name of the per-agent stderr log file.
+pub const STDERR_LOG_FILE_NAME: &str = "stderr.log";
 /// Environment-variable prefix for Agent Control configuration overrides.
 pub const AGENT_CONTROL_CONFIG_ENV_VAR_PREFIX: &str = "NR_AC";
 
