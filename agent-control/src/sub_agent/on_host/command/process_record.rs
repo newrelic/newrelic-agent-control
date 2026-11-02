@@ -2,6 +2,8 @@
 //! restarted Agent Control can recognize a still-running process instead of respawning
 //! it. See `command_os.rs`'s `adoptable_process`/`record_spawned_process` for how this is
 //! wired into the spawn/adopt path, and the on-host crash-survival CDD/PoC for the design.
+//! Only Windows uses the bookkeeping now; Linux discovers its processes instead (see
+//! `process_discovery`) and only needs [`read_process_creation_marker`] from here.
 
 use std::io;
 use std::path::PathBuf;
