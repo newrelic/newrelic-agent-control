@@ -22,7 +22,7 @@ right ones. Each example implements one way of doing that, end to end:
 
 | Example | Strategy | Question it answers |
 |---|---|---|
-| `crash_survival_bookkeeping` | `(pid, start_time)` persisted at spawn | Does the child survive the crash, can it be adopted from the stored values and killed without root? Is a wrong `start_time` (pid reuse) rejected? Does the orphan keep the dead supervisor as parent (it does not, unlike Windows)? |
+| `crash_survival_bookkeeping` | `(pid, start_time)` persisted at spawn | Does the child survive the crash, can it be adopted from the stored values and killed without root? Is a wrong `start_time` (pid reuse) rejected? Does the orphan keep the dead supervisor as parent? |
 | `crash_survival_env_tag` | `NR_AC_AGENT_ID` / `NR_AC_EXEC_ID` / `NR_AC_INSTANCE` in the environment, whole-host `/proc` scan | Can the orphan be found with no stored state? Is the group leader picked over a forked worker with the same cmdline and env? Is another AC instance ignored? **Caveats:** a sub-agent that scrubs its environment (`env -i`) is *not* found; workers whose leader died are reported as orphans and killed. |
 | `crash_survival_cgroup` | A named cgroup per sub-agent is the only record | Can the restarted AC find the members by name, with the sub-agent having scrubbed its environment, and kill them atomically (`cgroup.kill`)? Needs cgroup v2 and write access to AC's cgroup. |
 | `crash_survival_shim` | A shim process is the real parent and AC reconnects to its unix socket | Can AC reconnect with no scanning, read the **real exit status** of a sub-agent that died while AC was down, and keep its output (written to a file the shim owns)? |

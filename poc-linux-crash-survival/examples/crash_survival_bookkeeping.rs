@@ -85,7 +85,7 @@ fn orchestrator() -> Result<(), Box<dyn std::error::Error>> {
         "the adopted child should still be running"
     );
 
-    // Unlike Windows, the dead supervisor is NOT left behind as the parent: the kernel reparents
+    // The dead supervisor is NOT left behind as the parent: the kernel reparents
     // the orphan to init (or the nearest subreaper), so the parent pid is no discovery hint.
     assert!(
         read_stat(supervisor_pid).is_none(),

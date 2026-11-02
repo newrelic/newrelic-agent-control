@@ -17,6 +17,13 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::Duration;
 
+/// Request asking for the sub-agent's status.
+const REQ_STATUS: &str = "STATUS";
+/// Request asking the shim to SIGKILL its sub-agent.
+const REQ_KILL: &str = "KILL";
+/// Request asking the shim to exit.
+const REQ_QUIT: &str = "QUIT";
+
 /// Deterministic socket path for an `(agent_id, exec_id)`, so AC needs no discovery.
 pub fn socket_path(dir: &Path, agent_id: &str, exec_id: &str) -> PathBuf {
     dir.join(format!("{agent_id}-{exec_id}.sock"))
@@ -66,18 +73,18 @@ fn request(socket: &Path, line: &str) -> io::Result<String> {
 
 /// Asks the shim at `socket` for its sub-agent's status.
 pub fn query(socket: &Path) -> io::Result<Status> {
-    let reply = request(socket, "STATUS")?;
+    let reply = request(socket, REQ_STATUS)?;
     Status::from_line(&reply).ok_or_else(|| io::Error::other(format!("bad reply: {reply:?}")))
 }
 
 /// Asks the shim to SIGKILL its sub-agent.
 pub fn kill_agent(socket: &Path) -> io::Result<()> {
-    request(socket, "KILL").map(|_| ())
+    request(socket, REQ_KILL).map(|_| ())
 }
 
 /// Asks the shim to exit.
 pub fn quit(socket: &Path) -> io::Result<()> {
-    request(socket, "QUIT").map(|_| ())
+    request(socket, REQ_QUIT).map(|_| ())
 }
 
 /// Runs the shim until told to `QUIT`: spawns `program args`, redirecting its stdout and stderr to
@@ -147,21 +154,21 @@ fn serve(stream: UnixStream, child_pid: Pid, exited: &Option<Status>) -> io::Res
     BufReader::new(&stream).read_line(&mut line)?;
     let mut stream = stream;
     match line.trim() {
-        "STATUS" => {
+        REQ_STATUS => {
             let status = exited.clone().unwrap_or(Status::Running {
                 pid: child_pid.as_raw() as u32,
             });
             writeln!(stream, "{}", status.to_line())?;
             Ok(false)
         }
-        "KILL" => {
+        REQ_KILL => {
             if exited.is_none() {
                 let _ = kill(child_pid, Signal::SIGKILL);
             }
             writeln!(stream, "OK")?;
             Ok(false)
         }
-        "QUIT" => {
+        REQ_QUIT => {
             writeln!(stream, "OK")?;
             Ok(true)
         }

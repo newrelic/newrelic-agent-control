@@ -104,11 +104,21 @@ impl Cgroup {
 pub fn spawn_in_cgroup(cmd: &mut Command, cgroup: &Cgroup) -> io::Result<Child> {
     let procs = CString::new(cgroup.path.join("cgroup.procs").as_os_str().as_bytes())
         .map_err(io::Error::other)?;
-    // SAFETY: the closure only calls open/write, which are async-signal-safe.
+    // SAFETY: `pre_exec` runs in the forked child, before `exec`, where only async-signal-safe
+    // calls are allowed (the parent may be multithreaded, so e.g. taking the allocator lock could
+    // deadlock). The closure only calls `open` and `write`, and the path was converted to a
+    // `CString` beforehand, so it does not allocate.
     unsafe {
         cmd.pre_exec(move || {
+            // Open `cgroup.procs` of the target cgroup.
             let fd = open(procs.as_c_str(), OFlag::O_WRONLY, Mode::empty())?;
+            // Writing `0` moves the calling process (here, the child itself) into that cgroup.
+            // Doing it before `exec` means the sub-agent never runs a single instruction outside
+            // its cgroup, so there is no spawn-to-move window for a crash to leave an untracked
+            // orphan. The kernel then keeps it, and all its descendants, in the cgroup.
             write(&fd, b"0")?;
+            // `fd` is closed on drop; any error above makes the spawn fail instead of running the
+            // sub-agent outside the cgroup.
             Ok(())
         });
     }
