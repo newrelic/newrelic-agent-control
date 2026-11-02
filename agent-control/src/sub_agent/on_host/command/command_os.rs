@@ -2,13 +2,12 @@
 
 use tracing::warn;
 
-use super::{error::CommandError, logging::file_logger::open_log_file};
+use super::{error::CommandError, log_files::open_std_log_files};
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_control::defaults::{STDERR_LOG_FILE_NAME, STDOUT_LOG_FILE_NAME};
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
-use crate::sub_agent::on_host::command::logging::file_logger::SubAgentFileLoggingConfig;
 #[cfg(target_family = "windows")]
 use crate::utils::job_object::JobObject;
+use std::path::PathBuf;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
@@ -21,7 +20,7 @@ const POLL_INTERVAL: Duration = Duration::from_millis(100);
 pub struct CommandOSNotStarted {
     cmd: Command,
     agent_id: AgentID,
-    file_logging_config: SubAgentFileLoggingConfig,
+    log_dir: Option<PathBuf>,
     shutdown_timeout: Duration,
 }
 /// A spawned OS command process with (on Windows) its job object.
@@ -38,11 +37,12 @@ pub struct CommandOSStarted {
 // Not Started Command OS
 ////////////////////////////////////////////////////////////////////////////////////
 impl CommandOSNotStarted {
-    /// Creates a not-started command for the given executable.
+    /// Creates a not-started command for the given executable. Its stdout/stderr are written to log
+    /// files in `log_dir` when provided, and discarded otherwise.
     pub fn new(
         agent_id: AgentID,
         executable_data: &ExecutableData,
-        file_logging_config: SubAgentFileLoggingConfig,
+        log_dir: Option<PathBuf>,
     ) -> Self {
         let mut cmd = Command::new(&executable_data.bin);
         cmd.args(&executable_data.args).envs(&executable_data.env);
@@ -50,7 +50,7 @@ impl CommandOSNotStarted {
         Self {
             agent_id,
             cmd,
-            file_logging_config,
+            log_dir,
             shutdown_timeout: executable_data.shutdown_timeout,
         }
     }
@@ -83,23 +83,14 @@ impl CommandOSNotStarted {
         }
     }
 
-    /// Returns the process stdout/stderr: the agent's log files when file logging is enabled,
-    /// discarded otherwise. The process owns its handles to them, so its output does not depend
-    /// on Agent Control being alive.
+    /// Returns the process stdout/stderr: the log files in `log_dir` when set, discarded otherwise.
+    /// The process owns its handles to them, so its output does not depend on Agent Control being
+    /// alive.
     fn std_streams(&self) -> Result<(Stdio, Stdio), CommandError> {
-        if !self.file_logging_config.enabled {
+        let Some(log_dir) = &self.log_dir else {
             return Ok((Stdio::null(), Stdio::null()));
-        }
-        let stdout = open_log_file(
-            &self.agent_id,
-            &self.file_logging_config,
-            STDOUT_LOG_FILE_NAME,
-        )?;
-        let stderr = open_log_file(
-            &self.agent_id,
-            &self.file_logging_config,
-            STDERR_LOG_FILE_NAME,
-        )?;
+        };
+        let (stdout, stderr) = open_std_log_files(log_dir)?;
         Ok((stdout.into(), stderr.into()))
     }
 }

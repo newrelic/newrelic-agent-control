@@ -3,7 +3,6 @@
 use std::fmt::Debug;
 use thiserror::Error;
 
-use crate::sub_agent::on_host::command::logging::file_logger::FileLoggerError;
 #[cfg(target_family = "windows")]
 use crate::utils::job_object::JobObjectError;
 
@@ -14,9 +13,9 @@ pub enum CommandError {
     #[error("{0}")]
     IOError(#[from] std::io::Error),
 
-    /// The sub-agent log files could not be opened.
-    #[error("opening log files: {0}")]
-    FileLoggerError(#[from] FileLoggerError),
+    /// The process stdout/stderr log files could not be set up.
+    #[error("setting up log files: {0}")]
+    LogFile(String),
 
     /// The process's Windows Job Object could not be created, assigned, or terminated.
     #[cfg(target_family = "windows")]

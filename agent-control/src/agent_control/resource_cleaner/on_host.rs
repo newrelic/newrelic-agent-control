@@ -20,7 +20,7 @@ use crate::agent_type::runtime_config::on_host::filesystem::DeclaredPaths;
 use crate::opamp::instance_id::storer::{InstanceIDStorer, StorerError};
 use crate::package::manager::AgentPackagesRemover;
 use crate::package::oci::package_manager::OCIPackageManagerError;
-use crate::sub_agent::on_host::command::logging::file_logger::agent_log_dir;
+use crate::sub_agent::on_host::command::log_files::agent_log_dir;
 use crate::values::config_repository::{ConfigRepository, ConfigRepositoryError};
 
 use super::{ResourceCleaner, ResourceCleanerError};
