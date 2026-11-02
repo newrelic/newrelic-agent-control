@@ -1,17 +1,9 @@
-//! OS-level command wrapper with not-started/started states, output streaming, and shutdown handling.
+//! OS-level command wrapper with not-started/started states, output redirection, and shutdown handling.
 
 use super::executable_data::ExecutableData;
-use super::logging::file_logger::SubAgentFileLoggingConfig;
-use super::{
-    error::CommandError,
-    logging::{
-        self,
-        file_logger::{FileSystemLoggers, file_logger},
-        logger::Logger,
-    },
-};
+use super::{error::CommandError, log_files::open_std_log_files};
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_control::defaults::{STDERR_LOG_FILE_NAME_SUFFIX, STDOUT_LOG_FILE_NAME_SUFFIX};
+use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 #[cfg(target_family = "unix")]
 use std::time::Duration;
@@ -23,16 +15,15 @@ use std::time::Duration;
 pub struct OsProcessConfig {
     cmd: Command,
     agent_id: AgentID,
-    file_logging_config: SubAgentFileLoggingConfig,
+    log_dir: Option<PathBuf>,
     #[cfg(target_family = "unix")]
     shutdown_timeout: Duration,
 }
 
-/// A spawned OS process with its loggers.
+/// A spawned OS process.
 pub struct OsProcess {
     agent_id: AgentID,
     process: Child,
-    loggers: Option<FileSystemLoggers>,
     #[cfg(target_family = "unix")]
     shutdown_timeout: Duration,
 }
@@ -41,53 +32,46 @@ pub struct OsProcess {
 // Not Started OS Process
 ////////////////////////////////////////////////////////////////////////////////////
 impl OsProcessConfig {
-    /// Creates a not-started process config for the given executable, configuring stdio pipes and logging.
+    /// Creates a not-started process config for the given executable. Its stdout/stderr are written
+    /// to log files in `log_dir` when provided, and discarded otherwise.
     pub fn new(
         agent_id: AgentID,
         executable_data: &ExecutableData,
-        file_logging_config: SubAgentFileLoggingConfig,
+        log_dir: Option<PathBuf>,
     ) -> Self {
         let mut cmd = Command::new(&executable_data.bin);
-        cmd.args(&executable_data.args)
-            .envs(&executable_data.env)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
+        cmd.args(&executable_data.args).envs(&executable_data.env);
 
         Self {
             agent_id,
             cmd,
-            file_logging_config,
+            log_dir,
             #[cfg(target_family = "unix")]
             shutdown_timeout: executable_data.shutdown_timeout,
         }
     }
 
-    /// Spawns the process, setting up file loggers and (on Windows) a job object.
+    /// Spawns the process with its stdout/stderr set up.
     pub fn start(mut self) -> Result<OsProcess, CommandError> {
-        let loggers = if self.file_logging_config.enabled {
-            Some(FileSystemLoggers::new(
-                file_logger(
-                    &self.agent_id,
-                    self.file_logging_config.clone(),
-                    STDOUT_LOG_FILE_NAME_SUFFIX,
-                )?,
-                file_logger(
-                    &self.agent_id,
-                    self.file_logging_config.clone(),
-                    STDERR_LOG_FILE_NAME_SUFFIX,
-                )?,
-            ))
-        } else {
-            None
-        };
-        let child = self.cmd.spawn()?;
+        let (stdout, stderr) = self.std_streams()?;
+        let child = self.cmd.stdout(stdout).stderr(stderr).spawn()?;
         Ok(OsProcess {
             agent_id: self.agent_id,
             process: child,
-            loggers,
             #[cfg(target_family = "unix")]
             shutdown_timeout: self.shutdown_timeout,
         })
+    }
+
+    /// Returns the process stdout/stderr: the log files in `log_dir` when set, discarded otherwise.
+    /// The process owns its handles to them, so its output does not depend on Agent Control being
+    /// alive.
+    fn std_streams(&self) -> Result<(Stdio, Stdio), CommandError> {
+        let Some(log_dir) = &self.log_dir else {
+            return Ok((Stdio::null(), Stdio::null()));
+        };
+        let (stdout, stderr) = open_std_log_files(log_dir)?;
+        Ok((stdout.into(), stderr.into()))
     }
 }
 
@@ -99,37 +83,6 @@ impl OsProcess {
     /// Returns the process id of the running process.
     pub fn get_pid(&self) -> u32 {
         self.process.id()
-    }
-
-    pub(crate) fn stream(mut self) -> Result<Self, CommandError> {
-        let stdout = self
-            .process
-            .stdout
-            .take()
-            .ok_or(CommandError::StreamPipeError("stdout".to_string()))?;
-
-        let stderr = self
-            .process
-            .stderr
-            .take()
-            .ok_or(CommandError::StreamPipeError("stderr".to_string()))?;
-
-        let mut stdout_loggers = vec![Logger::Stdout(self.agent_id.clone())];
-        let mut stderr_loggers = vec![Logger::Stderr(self.agent_id.clone())];
-
-        if let Some(l) = self.loggers.take() {
-            let (out, err) = l.into_loggers();
-            stdout_loggers.push(Logger::File(Box::new(out)));
-            stderr_loggers.push(Logger::File(Box::new(err)));
-        };
-
-        // Read stdout and send to the channel
-        logging::thread::spawn_logger(stdout, stdout_loggers);
-
-        // Read stderr and send to the channel
-        logging::thread::spawn_logger(stderr, stderr_loggers);
-
-        Ok(self)
     }
 
     /// Returns the agent this process belongs to.

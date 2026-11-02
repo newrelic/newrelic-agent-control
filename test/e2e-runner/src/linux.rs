@@ -24,6 +24,12 @@ pub fn sub_agent_log_path(agent_id: &str, file_name: &str) -> String {
     format!("/var/log/newrelic-agent-control/{agent_id}/{file_name}")
 }
 
+/// Directory where Agent Control writes the stdout/stderr log files of a sub-agent with
+/// `enable_file_logging` set.
+pub fn sub_agent_log_dir(agent_id: &str) -> String {
+    format!("/var/log/newrelic-agent-control/{agent_id}/")
+}
+
 const SERVICE_NAME: &str = "newrelic-agent-control";
 
 /// Run Linux e2e corresponding scenario which will panic on failure

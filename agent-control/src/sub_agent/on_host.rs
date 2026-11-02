@@ -9,7 +9,7 @@ pub(crate) mod test_utils {
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::agent_id::tests::UniqueAgentID;
 
-    /// The process/logger threads don't inherit the test's `#[traced_test]` span (spans aren't
+    /// The supervisor threads don't inherit the test's `#[traced_test]` span (spans aren't
     /// propagated across `std::thread::spawn`), so `logs_contain` can't see their output. Read
     /// the shared log buffer directly instead, filtered to the lines emitted for `agent_id`.
     pub(crate) fn global_logs_lines(agent_id: UniqueAgentID) -> Vec<String> {

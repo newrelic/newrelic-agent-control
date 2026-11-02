@@ -2,7 +2,6 @@ use newrelic_agent_control::sub_agent::on_host::managed_process::ProcessOrigin;
 #[cfg(target_family = "unix")]
 use newrelic_agent_control::sub_agent::on_host::managed_process::ProcessState;
 use newrelic_agent_control::sub_agent::on_host::managed_process::spawned_process::executable_data::ExecutableData;
-use newrelic_agent_control::sub_agent::on_host::managed_process::spawned_process::logging::file_logger::SubAgentFileLoggingConfig;
 use newrelic_agent_control::sub_agent::on_host::managed_process::spawned_process::os_process::OsProcessConfig;
 use newrelic_agent_control::sub_agent::on_host::managed_process::spawned_process::restart_policy::RestartPolicy;
 use std::collections::HashMap;
@@ -32,7 +31,7 @@ fn non_blocking_runner() {
             restart_policy: RestartPolicy::default(),
             shutdown_timeout: Default::default(),
         },
-        SubAgentFileLoggingConfig::default(),
+        None,
     );
 
     let started_cmd = ProcessOrigin::Spawn(config).try_into_supervised().unwrap();
@@ -56,7 +55,7 @@ fn command_shutdown_when_sigterm_is_ignored() {
             restart_policy: Default::default(),
             shutdown_timeout: Duration::from_millis(100),
         },
-        SubAgentFileLoggingConfig::default(),
+        None,
     ))
     .try_into_supervised()
     .unwrap();
@@ -96,7 +95,7 @@ fn command_shutdown_kill_orphan_process() {
             restart_policy: Default::default(),
             shutdown_timeout: Duration::from_millis(100),
         },
-        SubAgentFileLoggingConfig::default(),
+        None,
     ))
     .try_into_supervised()
     .unwrap();
