@@ -437,7 +437,7 @@ where
                 let command =
                     CommandOSNotStarted::new(agent_id.clone(), &exec_data, logging_config.clone());
 
-                let started = command.start().and_then(|cmd| cmd.stream());
+                let started = command.start();
 
                 let executable_result = started.and_then(|cmd| {
                     wait_exit(
@@ -704,7 +704,7 @@ pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::agent_id::tests::UniqueAgentID;
-    use crate::agent_control::defaults::STDOUT_LOG_FILE_NAME_SUFFIX;
+    use crate::agent_control::defaults::STDOUT_LOG_FILE_NAME;
     use crate::agent_type::agent_attributes::AgentAttributes;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::runtime_config::health_config::HealthCheckTimeout;
@@ -726,6 +726,7 @@ pub mod tests {
     use crate::event::channel::pub_sub;
     use crate::package::manager::tests::MockPackageManager;
     use crate::sub_agent::agent_renderer::RenderedAgent;
+    use crate::sub_agent::on_host::command::logging::file_logger::agent_log_dir;
     use crate::sub_agent::on_host::command::restart_policy::BackoffStrategy;
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
     use crate::sub_agent::on_host::test_utils::global_logs_lines;
@@ -1082,6 +1083,9 @@ declared-dir:
             agent_id.clone().into(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
+        let logging_dir = tempfile::tempdir().unwrap();
+        let stdout_log =
+            agent_log_dir(logging_dir.path(), &agent_identity.id).join(STDOUT_LOG_FILE_NAME);
 
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
@@ -1090,7 +1094,10 @@ declared-dir:
             get_empty_packages(),
             None,
             MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::default(),
+            SubAgentFileLoggingConfig {
+                enabled: true,
+                base_path: logging_dir.path().to_path_buf(),
+            },
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         );
@@ -1108,12 +1115,8 @@ declared-dir:
             }
         }
 
-        thread::sleep(Duration::from_secs(1));
-        assert!(
-            global_logs_lines(agent_id)
-                .iter()
-                .any(|l| l.contains("NR-command"))
-        );
+        let stdout = fs::read_to_string(&stdout_log).expect("stdout log should exist");
+        assert!(stdout.contains("NR-command"), "unexpected stdout: {stdout}");
     }
 
     #[test]
@@ -1664,9 +1667,8 @@ declared-dir:
             .map(|entry| entry.expect("entry").path())
             .filter(|p| {
                 // The `echo` commands should write to stdout, so we look for these files only.
-                // Filtering by prefix because the timestamp is appended to the file name.
                 p.file_name()
-                    .is_some_and(|n| n.to_string_lossy().ends_with(STDOUT_LOG_FILE_NAME_SUFFIX))
+                    .is_some_and(|n| n.to_string_lossy().ends_with(STDOUT_LOG_FILE_NAME))
             })
             .map(|p| fs::read_to_string(p).unwrap_or_default())
             // we just merge all contents
@@ -1794,9 +1796,8 @@ declared-dir:
             .map(|entry| entry.expect("entry").path())
             .filter(|p| {
                 // The `echo` commands should write to stdout, so we look for these files only.
-                // Filtering by prefix because the timestamp is appended to the file name.
                 p.file_name()
-                    .is_some_and(|n| n.to_string_lossy().ends_with(STDOUT_LOG_FILE_NAME_SUFFIX))
+                    .is_some_and(|n| n.to_string_lossy().ends_with(STDOUT_LOG_FILE_NAME))
             })
             .map(|p| fs::read_to_string(p).unwrap_or_default())
             // we just merge all contents
@@ -1924,9 +1925,8 @@ declared-dir:
             .map(|entry| entry.expect("entry").path())
             .filter(|p| {
                 // The `echo` commands should write to stdout, so we look for these files only.
-                // Filtering by prefix because the timestamp is appended to the file name.
                 p.file_name()
-                    .is_some_and(|n| n.to_string_lossy().ends_with(STDOUT_LOG_FILE_NAME_SUFFIX))
+                    .is_some_and(|n| n.to_string_lossy().ends_with(STDOUT_LOG_FILE_NAME))
             })
             .map(|p| fs::read_to_string(p).unwrap_or_default())
             // we just merge all contents to handle the corner case of multiple log files

@@ -15,9 +15,7 @@ use crate::{
 };
 use fake_opamp_server::FakeServer;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
-use newrelic_agent_control::agent_control::{
-    agent_id::AgentID, defaults::STDOUT_LOG_FILE_NAME_SUFFIX,
-};
+use newrelic_agent_control::agent_control::{agent_id::AgentID, defaults::STDOUT_LOG_FILE_NAME};
 use rstest::rstest;
 
 #[cfg(target_family = "unix")]
@@ -97,7 +95,7 @@ fn collect_stdout_logs(log_dir: &Path, agent_id: &str) -> io::Result<String> {
             .map(|entry| entry.path())
             .filter(|p| {
                 p.file_name()
-                    .is_some_and(|n| n.to_string_lossy().ends_with(STDOUT_LOG_FILE_NAME_SUFFIX))
+                    .is_some_and(|n| n.to_string_lossy().ends_with(STDOUT_LOG_FILE_NAME))
             })
             .map(fs::read_to_string)
             .collect::<Result<Vec<_>, _>>()?

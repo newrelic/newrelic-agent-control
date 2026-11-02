@@ -1,4 +1,4 @@
-//! Errors produced while spawning, streaming, or stopping an OS command.
+//! Errors produced while spawning or stopping an OS command.
 
 use std::fmt::Debug;
 use thiserror::Error;
@@ -10,16 +10,12 @@ use crate::utils::job_object::JobObjectError;
 /// Errors produced while managing an OS command process.
 #[derive(Error, Debug)]
 pub enum CommandError {
-    /// A standard stream (stdout/stderr) could not be piped.
-    #[error("{0} not piped")]
-    StreamPipeError(String),
-
     /// An I/O error occurred.
     #[error("{0}")]
     IOError(#[from] std::io::Error),
 
-    /// The file logger could not be built.
-    #[error("building file logger: {0}")]
+    /// The sub-agent log files could not be opened.
+    #[error("opening log files: {0}")]
     FileLoggerError(#[from] FileLoggerError),
 
     /// The process's Windows Job Object could not be created, assigned, or terminated.

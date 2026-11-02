@@ -1,5 +1,3 @@
-//! Logging for on-host executable output: stdout/stderr forwarding and optional file logging.
+//! Logging for on-host executable output: optional redirection of stdout/stderr to files.
 
 pub mod file_logger;
-pub(crate) mod logger;
-pub(crate) mod thread;

@@ -1,3 +1,4 @@
+use crate::common::agent_metadata::AgentKind;
 use crate::common::logs::expect_log_line_contains;
 use crate::common::ohi::{
     TEST_LABEL, TEST_LABEL_VALUE, get_all_ohi_to_test,
@@ -13,7 +14,7 @@ use std::time::Duration;
 use tracing::info;
 
 /// Installs Agent Control with the infra-agent and every OHI sub-agent side-by-side,
-/// and then verifies from the Agent Control logs that
+/// and then verifies from the infra-agent logs that
 /// the infra-agent invoked each integration binary with a specific label. Since no real
 /// services are running, the integrations will not monitor anything — the test only checks
 /// that the binaries were triggered and that a specific label TEST_LABEL is passed from config.
@@ -30,17 +31,20 @@ pub fn test_all_ohis_no_service(args: InstallationArgs) {
 
     restart_service(SERVICE_NAME, STATUS_RUNNING);
 
+    let infra_log_path =
+        windows::infra_agent_log_path(args.agent(AgentKind::InfraAgent).sub_agent_id);
+
     info!(
-        "Waiting for each OHI to be invoked with the expected label, notice that debug level is needed in order to assert such logs"
+        "Waiting for each OHI to be invoked with the expected label, notice that infra-agent debug level is needed in order to assert such logs"
     );
     retry_panic(
         60,
         Duration::from_secs(2),
-        "every OHI invocation in AC log with expected label",
+        "every OHI invocation in infra-agent log with expected label",
         || {
             for ohi in &ohis {
                 expect_log_line_contains(
-                    windows::DEFAULT_LOG_PATH,
+                    &infra_log_path,
                     &[
                         "component=integrations.runner.Runner",
                         &format!("integration_name={}", ohi.integration_name),
