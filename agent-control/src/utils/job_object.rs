@@ -20,6 +20,7 @@ pub struct JobObjectError(String);
 pub struct JobObject {
     handle: HANDLE,
 }
+
 impl JobObject {
     /// Creates a new JobObject with the "kill on job close" configuration.
     pub fn new() -> Result<Self, JobObjectError> {
@@ -47,18 +48,14 @@ impl JobObject {
         unsafe {
             let process_handle = HANDLE(process.as_raw_handle());
             AssignProcessToJobObject(self.handle, process_handle)
-                .map_err(|e| JobObjectError(format!("assigning process to JobObject: {e}")))?;
         }
-        Ok(())
+        .map_err(|e| JobObjectError(format!("assigning process to JobObject: {e}")))
     }
 
-    /// Kills the JobObject, terminating all associated processes.
+    /// Terminates all processes in the JobObject, consuming it to prevent double-kills.
     pub fn kill(self) -> Result<(), JobObjectError> {
-        unsafe {
-            TerminateJobObject(self.handle, 0)
-                .map_err(|e| JobObjectError(format!("closing JobObject handle: {e}")))?;
-        }
-        Ok(())
+        unsafe { TerminateJobObject(self.handle, 0) }
+            .map_err(|e| JobObjectError(format!("terminating JobObject: {e}")))
     }
 }
 

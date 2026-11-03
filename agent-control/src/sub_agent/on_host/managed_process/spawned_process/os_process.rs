@@ -12,9 +12,7 @@ use super::{
 };
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{STDERR_LOG_FILE_NAME_SUFFIX, STDOUT_LOG_FILE_NAME_SUFFIX};
-#[cfg(target_family = "windows")]
-use crate::utils::job_object::JobObject;
-use std::process::{Child, Command, ExitStatus, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -28,15 +26,12 @@ pub struct OsProcessConfig {
     shutdown_timeout: Duration,
 }
 
-/// A spawned OS process with its loggers and (on Windows) job object.
+/// A spawned OS process with its loggers.
 pub struct OsProcess {
     agent_id: AgentID,
     process: Child,
     loggers: Option<FileSystemLoggers>,
     shutdown_timeout: Duration,
-
-    #[cfg(target_family = "windows")]
-    job_object: Option<JobObject>,
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -82,30 +77,12 @@ impl OsProcessConfig {
             None
         };
         let child = self.cmd.spawn()?;
-
-        #[cfg(target_family = "unix")]
-        {
-            Ok(OsProcess {
-                agent_id: self.agent_id,
-                process: child,
-                loggers,
-                shutdown_timeout: self.shutdown_timeout,
-            })
-        }
-        #[cfg(target_family = "windows")]
-        {
-            // Each started process gets its own JobObject. All sub-processes that the process spawns
-            // will be assigned to the same JobObject, allowing for a graceful shutdown of the entire process tree.
-            let job_object = JobObject::new()?;
-            job_object.assign_process(&child)?;
-            Ok(OsProcess {
-                agent_id: self.agent_id,
-                process: child,
-                job_object: Some(job_object),
-                loggers,
-                shutdown_timeout: self.shutdown_timeout,
-            })
-        }
+        Ok(OsProcess {
+            agent_id: self.agent_id,
+            process: child,
+            loggers,
+            shutdown_timeout: self.shutdown_timeout,
+        })
     }
 }
 
@@ -117,15 +94,6 @@ impl OsProcess {
     /// Returns the process id of the running process.
     pub fn get_pid(&self) -> u32 {
         self.process.id()
-    }
-
-    /// Returns whether the process is still running.
-    pub fn is_running(&mut self) -> bool {
-        self.process.try_wait().is_ok_and(|v| v.is_none())
-    }
-
-    pub(crate) fn wait(mut self) -> Result<ExitStatus, CommandError> {
-        Ok(self.process.wait()?)
     }
 
     pub(crate) fn stream(mut self) -> Result<Self, CommandError> {
@@ -169,30 +137,13 @@ impl OsProcess {
         self.shutdown_timeout
     }
 
-    /// Forcefully kills the process.
-    pub(crate) fn kill(&mut self) -> Result<(), CommandError> {
-        self.process.kill().map_err(CommandError::from)
-    }
-
-    #[cfg(target_family = "unix")]
-    pub(crate) fn graceful_shutdown(&mut self) -> Result<(), CommandError> {
-        use nix::{sys::signal, unistd::Pid};
-        let pid = self.get_pid();
-
-        signal::kill(Pid::from_raw(pid as i32), signal::SIGTERM)
-            .map_err(|e| CommandError::from(std::io::Error::from(e)))
-    }
-
+    /// Creates a Job Object and assigns this process to it.
     #[cfg(target_family = "windows")]
-    /// On Windows there is no direct equivalent to sending SIGTERM. Applications that runs as
-    /// services handles stops signals via Service Control Manager (SCM), and console applications
-    /// can handle Ctrl-C or Ctrl-Break events via attached consoles.
-    /// The current implementation uses Job Objects to manage process groups, and there is no graceful
-    /// shutdown signal sent to the processes. The Job Object will terminate all associated processes.
-    pub(crate) fn graceful_shutdown(&mut self) -> Result<(), CommandError> {
-        if let Some(job_object) = self.job_object.take() {
-            job_object.kill()?;
-        }
-        Ok(())
+    pub(crate) fn create_job_object(
+        &self,
+    ) -> Result<crate::utils::job_object::JobObject, super::error::CommandError> {
+        let job = crate::utils::job_object::JobObject::new()?;
+        job.assign_process(&self.process)?;
+        Ok(job)
     }
 }
