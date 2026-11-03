@@ -1,19 +1,18 @@
-use newrelic_agent_control::sub_agent::on_host::managed_process::ManagedProcess;
+use newrelic_agent_control::sub_agent::on_host::managed_process::Acquisition;
+#[cfg(target_family = "unix")]
+use newrelic_agent_control::sub_agent::on_host::managed_process::ProcessState;
 use newrelic_agent_control::sub_agent::on_host::managed_process::spawned_process::executable_data::ExecutableData;
 use newrelic_agent_control::sub_agent::on_host::managed_process::spawned_process::logging::file_logger::SubAgentFileLoggingConfig;
 use newrelic_agent_control::sub_agent::on_host::managed_process::spawned_process::os_process::OsProcessConfig;
 use newrelic_agent_control::sub_agent::on_host::managed_process::spawned_process::restart_policy::RestartPolicy;
 use std::collections::HashMap;
-use std::process::Command;
 use std::{thread::sleep, time::Duration};
 
 #[test]
 fn non_blocking_runner() {
     let agent_id = "sleep-test".to_string().try_into().unwrap();
-    let mut sleep_cmd = Command::new("sleep");
-    sleep_cmd.arg("5");
 
-    let cmd = OsProcessConfig::new(
+    let config = OsProcessConfig::new(
         agent_id,
         #[cfg(target_family = "unix")]
         &ExecutableData {
@@ -36,7 +35,7 @@ fn non_blocking_runner() {
         SubAgentFileLoggingConfig::default(),
     );
 
-    let mut started_cmd = ManagedProcess::Spawned(cmd.start().unwrap());
+    let started_cmd = Acquisition::Spawn(config).acquire().unwrap();
     sleep(Duration::from_millis(500)); // Give the process some room to start
 
     let terminated = started_cmd.shutdown();
@@ -47,7 +46,7 @@ fn non_blocking_runner() {
 #[cfg(target_family = "unix")]
 fn command_shutdown_when_sigterm_is_ignored() {
     let agent_id = "test".to_string().try_into().unwrap();
-    let mut cmd = OsProcessConfig::new(
+    let cmd = Acquisition::Spawn(OsProcessConfig::new(
         agent_id,
         &ExecutableData {
             id: "test".to_string(),
@@ -58,32 +57,21 @@ fn command_shutdown_when_sigterm_is_ignored() {
             shutdown_timeout: Duration::from_millis(100),
         },
         SubAgentFileLoggingConfig::default(),
-    )
-    .start()
-    .map(ManagedProcess::Spawned)
+    ))
+    .acquire()
     .unwrap();
 
-    // Wait for the process to start
-    while !cmd.is_running() {
-        sleep(Duration::from_millis(500));
-    }
+    // Confirm the process is running before sending SIGTERM.
+    let ProcessState::Running(cmd) = cmd.try_wait() else {
+        panic!("process exited before shutdown test could run")
+    };
 
-    let terminated = cmd.shutdown();
-
-    // Wait for the process to terminate
-    let mut retry = 10;
-    while cmd.is_running() && retry > 0 {
-        sleep(Duration::from_millis(500));
-        retry -= 1;
-    }
-
-    assert!(!cmd.is_running());
-    assert!(terminated.is_ok());
+    // shutdown() sends SIGTERM, waits shutdown_timeout, then SIGKILL, and only returns once
+    // the process is confirmed dead — no post-shutdown polling needed.
+    assert!(cmd.shutdown().is_ok());
 }
 
 #[test]
-// This test ensure the Job Object is properly terminating orphan processes on Windows
-// On Unix, this is handled by systemd.
 #[cfg(target_family = "windows")]
 fn command_shutdown_kill_orphan_process() {
     use crate::common::retry::retry;
@@ -91,7 +79,7 @@ fn command_shutdown_kill_orphan_process() {
 
     let agent_id = "test".to_string().try_into().unwrap();
     let id = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
-    let mut cmd = OsProcessConfig::new(
+    let cmd = Acquisition::Spawn(OsProcessConfig::new(
         agent_id,
         &ExecutableData {
             id: "test".to_string(),
@@ -109,9 +97,8 @@ fn command_shutdown_kill_orphan_process() {
             shutdown_timeout: Duration::from_millis(100),
         },
         SubAgentFileLoggingConfig::default(),
-    )
-    .start()
-    .map(ManagedProcess::Spawned)
+    ))
+    .acquire()
     .unwrap();
 
     // Check that we have a leaked process

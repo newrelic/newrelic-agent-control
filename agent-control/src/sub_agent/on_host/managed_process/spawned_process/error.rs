@@ -22,7 +22,7 @@ pub enum CommandError {
     #[error("building file logger: {0}")]
     FileLoggerError(#[from] FileLoggerError),
 
-    /// The process's Windows Job Object could not be created, assigned, or terminated.
+    /// A Windows Job Object operation failed.
     #[cfg(target_family = "windows")]
     #[error("{0}")]
     JobObjectError(#[from] JobObjectError),
