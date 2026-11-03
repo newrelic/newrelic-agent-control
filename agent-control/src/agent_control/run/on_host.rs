@@ -93,6 +93,7 @@ impl AgentControlRunner {
     pub fn run_onhost(self) -> Result<GracefulShutdownReason, RunError> {
         let local_dir = self.base_paths.local_dir;
         let remote_dir = self.base_paths.remote_dir;
+        let log_dir = self.base_paths.log_dir;
 
         // Windows-only: best-effort repair of the managed data tree before anything reads/writes/
         // deletes it (see NR-601065). Any entries that could not be repaired are logged as a warning
@@ -152,7 +153,7 @@ impl AgentControlRunner {
             yaml_config_repository.clone(),
             agent_filesystem_base,
             fleet_data_base,
-            self.base_paths.log_dir.clone(),
+            log_dir.clone(),
             dir_manager,
             agents_package_manager.clone(),
             self.agent_type_registry.clone(),
@@ -209,10 +210,11 @@ impl AgentControlRunner {
             agent_control_variables,
             value_providers,
             &remote_dir,
+            &log_dir,
         ));
 
         let supervisor_builder = SupervisorBuilderOnHost {
-            logging_base_path: self.base_paths.log_dir,
+            logging_base_path: log_dir,
             package_manager: agents_package_manager,
         };
 
