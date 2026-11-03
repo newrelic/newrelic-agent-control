@@ -24,13 +24,14 @@ use crate::opamp::attributes::publish_update_attributes_event;
 use crate::package::manager::{PackageData, PackageManager};
 use crate::sub_agent::agent_renderer::{AgentRendererError, RenderedAgent};
 use crate::sub_agent::identity::AgentIdentity;
-use crate::sub_agent::on_host::command::command_os::{CommandOSNotStarted, CommandOSStarted};
-use crate::sub_agent::on_host::command::error::CommandError;
-use crate::sub_agent::on_host::command::executable_data::ExecutableData;
-use crate::sub_agent::on_host::command::logging::file_logger::{
+use crate::sub_agent::on_host::managed_process::ManagedProcess;
+use crate::sub_agent::on_host::managed_process::spawned_process::error::CommandError;
+use crate::sub_agent::on_host::managed_process::spawned_process::executable_data::ExecutableData;
+use crate::sub_agent::on_host::managed_process::spawned_process::logging::file_logger::{
     SubAgentFileLoggingConfig, agent_log_dir,
 };
-use crate::sub_agent::on_host::command::restart_policy::RestartPolicy;
+use crate::sub_agent::on_host::managed_process::spawned_process::os_process::OsProcessConfig;
+use crate::sub_agent::on_host::managed_process::spawned_process::restart_policy::RestartPolicy;
 use crate::sub_agent::supervisor::{Supervisor, SupervisorStarter};
 use crate::utils::thread_context::{
     NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
@@ -458,9 +459,12 @@ where
 
                 info!(%agent_id, %exec_id, "Starting executable");
                 let command =
-                    CommandOSNotStarted::new(agent_id.clone(), &exec_data, logging_config.clone());
+                    OsProcessConfig::new(agent_id.clone(), &exec_data, logging_config.clone());
 
-                let started = command.start().and_then(|cmd| cmd.stream());
+                let started = command
+                    .start()
+                    .and_then(|cmd| cmd.stream())
+                    .map(ManagedProcess::Spawned);
 
                 let executable_result = started.and_then(|cmd| {
                     wait_exit(
@@ -573,7 +577,7 @@ fn stop_supervisor_threads(
 
 /// Waits for the command to complete or be cancelled
 fn wait_exit(
-    mut command: CommandOSStarted,
+    mut command: ManagedProcess,
     stop_consumer: &EventConsumer<CancellationMessage>,
     healthy_publish_delay: Duration,
     health_handler: Option<&HealthHandler>,
@@ -749,8 +753,10 @@ pub mod tests {
     use crate::event::channel::pub_sub;
     use crate::package::manager::tests::MockPackageManager;
     use crate::sub_agent::agent_renderer::RenderedAgent;
-    use crate::sub_agent::on_host::command::restart_policy::BackoffStrategy;
-    use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
+    use crate::sub_agent::on_host::managed_process::spawned_process::restart_policy::BackoffStrategy;
+    use crate::sub_agent::on_host::managed_process::spawned_process::restart_policy::{
+        Backoff, RestartPolicy,
+    };
     use crate::sub_agent::on_host::test_utils::global_logs_lines;
     use crate::sub_agent::supervisor::Supervisor;
     use crate::utils::retry::retry;
@@ -1423,12 +1429,13 @@ declared-dir:
             .with_args(vec!["/T".to_owned(), "3".to_owned(), "/NOBREAK".to_owned()]);
 
         let agent_id = AgentID::AgentControl;
-        let command = CommandOSNotStarted::new(
+        let command = OsProcessConfig::new(
             agent_id.clone(),
             &exec_data,
             SubAgentFileLoggingConfig::default(),
         )
         .start()
+        .map(ManagedProcess::Spawned)
         .unwrap();
 
         let (health_publisher, health_consumer) = pub_sub();
@@ -1552,12 +1559,13 @@ declared-dir:
         ]);
 
         let agent_id = AgentID::AgentControl;
-        let command = CommandOSNotStarted::new(
+        let command = OsProcessConfig::new(
             agent_id.clone(),
             &exec_data,
             SubAgentFileLoggingConfig::default(),
         )
         .start()
+        .map(ManagedProcess::Spawned)
         .unwrap();
 
         let (health_publisher, health_consumer) = pub_sub();
