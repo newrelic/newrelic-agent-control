@@ -1,7 +1,7 @@
 //! OS-level command wrapper with not-started/started states, output streaming, and shutdown handling.
 
-use tracing::warn;
-
+use super::executable_data::ExecutableData;
+use super::logging::file_logger::SubAgentFileLoggingConfig;
 use super::{
     error::CommandError,
     logging::{
@@ -12,27 +12,24 @@ use super::{
 };
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{STDERR_LOG_FILE_NAME_SUFFIX, STDOUT_LOG_FILE_NAME_SUFFIX};
-use crate::sub_agent::on_host::command::executable_data::ExecutableData;
-use crate::sub_agent::on_host::command::logging::file_logger::SubAgentFileLoggingConfig;
 #[cfg(target_family = "windows")]
 use crate::utils::job_object::JobObject;
 use std::process::{Child, Command, ExitStatus, Stdio};
-use std::time::{Duration, Instant};
-
-const POLL_INTERVAL: Duration = Duration::from_millis(100);
+use std::time::Duration;
 
 ////////////////////////////////////////////////////////////////////////////////////
 // States for Started/Not Started/Sync Command
 ////////////////////////////////////////////////////////////////////////////////////
-/// A configured but not-yet-spawned OS command.
-pub struct CommandOSNotStarted {
+/// A configured but not-yet-spawned OS process.
+pub struct OsProcessConfig {
     cmd: Command,
     agent_id: AgentID,
     file_logging_config: SubAgentFileLoggingConfig,
     shutdown_timeout: Duration,
 }
-/// A spawned OS command process with its loggers and (on Windows) job object.
-pub struct CommandOSStarted {
+
+/// A spawned OS process with its loggers and (on Windows) job object.
+pub struct OsProcess {
     agent_id: AgentID,
     process: Child,
     loggers: Option<FileSystemLoggers>,
@@ -43,10 +40,10 @@ pub struct CommandOSStarted {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
-// Not Started Command OS
+// Not Started OS Process
 ////////////////////////////////////////////////////////////////////////////////////
-impl CommandOSNotStarted {
-    /// Creates a not-started command for the given executable, configuring stdio pipes and logging.
+impl OsProcessConfig {
+    /// Creates a not-started process config for the given executable, configuring stdio pipes and logging.
     pub fn new(
         agent_id: AgentID,
         executable_data: &ExecutableData,
@@ -67,7 +64,7 @@ impl CommandOSNotStarted {
     }
 
     /// Spawns the process, setting up file loggers and (on Windows) a job object.
-    pub fn start(mut self) -> Result<CommandOSStarted, CommandError> {
+    pub fn start(mut self) -> Result<OsProcess, CommandError> {
         let loggers = if self.file_logging_config.enabled {
             Some(FileSystemLoggers::new(
                 file_logger(
@@ -88,7 +85,7 @@ impl CommandOSNotStarted {
 
         #[cfg(target_family = "unix")]
         {
-            Ok(CommandOSStarted {
+            Ok(OsProcess {
                 agent_id: self.agent_id,
                 process: child,
                 loggers,
@@ -101,7 +98,7 @@ impl CommandOSNotStarted {
             // will be assigned to the same JobObject, allowing for a graceful shutdown of the entire process tree.
             let job_object = JobObject::new()?;
             job_object.assign_process(&child)?;
-            Ok(CommandOSStarted {
+            Ok(OsProcess {
                 agent_id: self.agent_id,
                 process: child,
                 job_object: Some(job_object),
@@ -113,11 +110,11 @@ impl CommandOSNotStarted {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
-// Started Command OS
+// Started OS Process
 ////////////////////////////////////////////////////////////////////////////////////
 
-impl CommandOSStarted {
-    /// Returns the process id of the running command.
+impl OsProcess {
+    /// Returns the process id of the running process.
     pub fn get_pid(&self) -> u32 {
         self.process.id()
     }
@@ -128,7 +125,7 @@ impl CommandOSStarted {
     }
 
     pub(crate) fn wait(mut self) -> Result<ExitStatus, CommandError> {
-        self.process.wait().map_err(CommandError::from)
+        Ok(self.process.wait()?)
     }
 
     pub(crate) fn stream(mut self) -> Result<Self, CommandError> {
@@ -162,37 +159,23 @@ impl CommandOSStarted {
         Ok(self)
     }
 
-    fn is_running_after_timeout(&mut self, timeout: Duration) -> bool {
-        let deadline = Instant::now() + timeout;
-
-        while Instant::now() < deadline {
-            if !self.is_running() {
-                return false;
-            }
-            std::thread::sleep(POLL_INTERVAL);
-        }
-        true
+    /// Returns the agent this process belongs to.
+    pub(crate) fn agent_id(&self) -> &AgentID {
+        &self.agent_id
     }
 
-    /// Stops the process, attempting a graceful shutdown and forcing a kill after the timeout.
-    pub fn shutdown(&mut self) -> Result<(), CommandError> {
-        // Attempt a graceful shutdown (platform-dependent).
-        let graceful_shutdown_result = self.graceful_shutdown();
+    /// Returns how long to wait after a graceful shutdown before forcing a kill.
+    pub(crate) fn shutdown_timeout(&self) -> Duration {
+        self.shutdown_timeout
+    }
 
-        if let Err(e) = &graceful_shutdown_result {
-            warn!(agent_id = %self.agent_id, "Graceful shutdown failed for process {}: {e}",self.get_pid());
-        }
-
-        if graceful_shutdown_result.is_err() || self.is_running_after_timeout(self.shutdown_timeout)
-        {
-            self.process.kill().map_err(CommandError::from)?;
-        }
-
-        Ok(())
+    /// Forcefully kills the process.
+    pub(crate) fn kill(&mut self) -> Result<(), CommandError> {
+        self.process.kill().map_err(CommandError::from)
     }
 
     #[cfg(target_family = "unix")]
-    fn graceful_shutdown(&self) -> Result<(), CommandError> {
+    pub(crate) fn graceful_shutdown(&mut self) -> Result<(), CommandError> {
         use nix::{sys::signal, unistd::Pid};
         let pid = self.get_pid();
 
@@ -206,7 +189,7 @@ impl CommandOSStarted {
     /// can handle Ctrl-C or Ctrl-Break events via attached consoles.
     /// The current implementation uses Job Objects to manage process groups, and there is no graceful
     /// shutdown signal sent to the processes. The Job Object will terminate all associated processes.
-    fn graceful_shutdown(&mut self) -> Result<(), CommandError> {
+    pub(crate) fn graceful_shutdown(&mut self) -> Result<(), CommandError> {
         if let Some(job_object) = self.job_object.take() {
             job_object.kill()?;
         }

@@ -1,6 +1,6 @@
 //! [ExecutableData]: the binary, arguments, environment, restart policy, and shutdown timeout for a supervised process.
 
-use crate::sub_agent::on_host::command::restart_policy::RestartPolicy;
+use super::restart_policy::RestartPolicy;
 use std::{collections::HashMap, time::Duration};
 
 const DEFAULT_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);

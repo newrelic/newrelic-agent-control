@@ -1,7 +1,8 @@
-use newrelic_agent_control::sub_agent::on_host::command::command_os::CommandOSNotStarted;
-use newrelic_agent_control::sub_agent::on_host::command::executable_data::ExecutableData;
-use newrelic_agent_control::sub_agent::on_host::command::logging::file_logger::SubAgentFileLoggingConfig;
-use newrelic_agent_control::sub_agent::on_host::command::restart_policy::RestartPolicy;
+use newrelic_agent_control::sub_agent::on_host::managed_process::ManagedProcess;
+use newrelic_agent_control::sub_agent::on_host::managed_process::spawned_process::executable_data::ExecutableData;
+use newrelic_agent_control::sub_agent::on_host::managed_process::spawned_process::logging::file_logger::SubAgentFileLoggingConfig;
+use newrelic_agent_control::sub_agent::on_host::managed_process::spawned_process::os_process::OsProcessConfig;
+use newrelic_agent_control::sub_agent::on_host::managed_process::spawned_process::restart_policy::RestartPolicy;
 use std::collections::HashMap;
 use std::process::Command;
 use std::{thread::sleep, time::Duration};
@@ -12,7 +13,7 @@ fn non_blocking_runner() {
     let mut sleep_cmd = Command::new("sleep");
     sleep_cmd.arg("5");
 
-    let cmd = CommandOSNotStarted::new(
+    let cmd = OsProcessConfig::new(
         agent_id,
         #[cfg(target_family = "unix")]
         &ExecutableData {
@@ -35,7 +36,7 @@ fn non_blocking_runner() {
         SubAgentFileLoggingConfig::default(),
     );
 
-    let mut started_cmd = cmd.start().unwrap();
+    let mut started_cmd = ManagedProcess::Spawned(cmd.start().unwrap());
     sleep(Duration::from_millis(500)); // Give the process some room to start
 
     let terminated = started_cmd.shutdown();
@@ -46,7 +47,7 @@ fn non_blocking_runner() {
 #[cfg(target_family = "unix")]
 fn command_shutdown_when_sigterm_is_ignored() {
     let agent_id = "test".to_string().try_into().unwrap();
-    let mut cmd = CommandOSNotStarted::new(
+    let mut cmd = OsProcessConfig::new(
         agent_id,
         &ExecutableData {
             id: "test".to_string(),
@@ -59,6 +60,7 @@ fn command_shutdown_when_sigterm_is_ignored() {
         SubAgentFileLoggingConfig::default(),
     )
     .start()
+    .map(ManagedProcess::Spawned)
     .unwrap();
 
     // Wait for the process to start
@@ -89,7 +91,7 @@ fn command_shutdown_kill_orphan_process() {
 
     let agent_id = "test".to_string().try_into().unwrap();
     let id = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
-    let mut cmd = CommandOSNotStarted::new(
+    let mut cmd = OsProcessConfig::new(
         agent_id,
         &ExecutableData {
             id: "test".to_string(),
@@ -109,6 +111,7 @@ fn command_shutdown_kill_orphan_process() {
         SubAgentFileLoggingConfig::default(),
     )
     .start()
+    .map(ManagedProcess::Spawned)
     .unwrap();
 
     // Check that we have a leaked process
