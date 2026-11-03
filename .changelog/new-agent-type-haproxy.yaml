@@ -1,0 +1,2 @@
+type: enhancement
+message: "On-host: added nri-haproxy Agent Type for Linux and Windows."
