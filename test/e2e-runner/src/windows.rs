@@ -21,6 +21,12 @@ pub const DEFAULT_AC_CONFIG_PATH: &str =
 const DEFAULT_LOG_PATH: &str =
     r"C:\ProgramData\New Relic\newrelic-agent-control\log\agent-control\";
 
+/// Path of `file_name` inside the log directory Agent Control creates for the sub-agent
+/// (`${nr-path:log_dir}`).
+pub fn sub_agent_log_path(agent_id: &str, file_name: &str) -> String {
+    format!(r"C:\ProgramData\New Relic\newrelic-agent-control\log\{agent_id}\{file_name}")
+}
+
 pub fn local_config_path(agent_id: &str) -> String {
     format!(
         r"C:\Program Files\New Relic\newrelic-agent-control\local-data\{agent_id}\local_config.yaml"

@@ -12,6 +12,7 @@ use crate::{
     common::nrql,
     linux::{
         self,
+        bash::check_file_exists,
         install::{install_agent_control_from_recipe, tear_down_test},
         redis::Redis,
     },
@@ -65,6 +66,9 @@ agents:
 config_agent:
   license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
   staging: {staging}
+  log:
+    level: info
+    file: '${{nr-path:log_dir}}/newrelic-infra.log'
   custom_attributes:
     test.id: {test_id}
 config_logging:
@@ -81,6 +85,15 @@ version: {}
     );
 
     linux::service::restart_service(linux::SERVICE_NAME);
+
+    let log_file = linux::sub_agent_log_path(infra_sub_agent_id, "newrelic-infra.log");
+    info!(
+        path = log_file,
+        "Checking the infra-agent log file is created"
+    );
+    retry_panic(30, Duration::from_secs(2), "infra-agent log file", || {
+        check_file_exists(&log_file)
+    });
 
     let nrql_query = format!(r#"SELECT * FROM SystemSample WHERE `host.id` = '{test_id}' LIMIT 1"#);
     info!(
