@@ -1,0 +1,49 @@
+namespace: newrelic
+name: com.newrelic.infrastructure.nri_winservices
+version: 0.1.0
+platform: host
+operating_system: windows
+protocol_version: "1.0"
+variables:
+  config:
+    description: "nri-winservices integration YAML consumed by the infra-agent"
+    type: yaml
+    required: true
+    classification: config
+  version:
+    description: "Agent version"
+    type: string
+    required: true
+  oci:
+    repository:
+      description: "OCI repository name for nri-winservices"
+      type: string
+      required: false
+      default: newrelic/nri-winservices-artifacts
+deployment:
+  packages:
+    nri-winservices:
+      download:
+        oci:
+          repository: ${nr-var:oci.repository}
+          version: ${nr-var:version}
+          public_key_url: https://publickeys.newrelic.com/g/agent-control-oci/global/nri-winservices/jwks.json
+  shared_filesystem:
+    infra-agent-ohi-configs:
+      kind: dir
+      entries:
+        nri-winservices.yaml:
+          kind: file
+          text: |
+            ${nr-var:config}
+    infra-agent-ohi-binaries:
+      kind: dir
+      entries:
+        nri-winservices.exe:
+          kind: file
+          copy_from_file: ${nr-sub:packages.nri-winservices.dir}\\nri-winservices.exe
+        # nri-winservices looks for windows_exporter.exe in the same directory as its own executable
+        # (filepath.Dir(os.Args[0])) and spawns it as a child process, so both binaries must live side by side.
+        windows_exporter.exe:
+          kind: file
+          copy_from_file: ${nr-sub:packages.nri-winservices.dir}\\windows_exporter.exe
