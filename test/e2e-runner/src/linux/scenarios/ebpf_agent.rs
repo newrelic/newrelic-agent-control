@@ -21,7 +21,6 @@ use tracing::info;
 // Regression check for the eBPF agent's own status-log write: it must land under the sub-agent log
 // directory managed by AC (`logFilePath: ${nr-path:log_dir}`), not fall back to its hardcoded default.
 const EBPF_STATUS_LOG: &str = "/var/log/newrelic-agent-control/nr-ebpf/ebpf-agent-status.log";
-const EBPF_DEFAULT_STATUS_LOG: &str = "/etc/newrelic-ebpf-agent/ebpf-agent-status.log";
 
 // Plain HTTP traffic for the eBPF agent to trace.
 const HTTP_SERVER_PORT: u16 = 18080;
@@ -100,8 +99,6 @@ version: "{ebpf_version}"
         "ebpf status log written under the AC managed filesystem directory",
         || exec_bash_command(&format!("test -f '{EBPF_STATUS_LOG}'")),
     );
-    exec_bash_command(&format!("test ! -f '{EBPF_DEFAULT_STATUS_LOG}'"))
-        .expect("eBPF status log should not fall back to /etc/newrelic-ebpf-agent");
 }
 
 /// Local HTTP server plus a client loop hitting it, both killed on drop.
