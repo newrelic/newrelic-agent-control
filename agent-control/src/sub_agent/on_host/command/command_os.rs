@@ -1,21 +1,13 @@
-//! OS-level command wrapper with not-started/started states, output streaming, and shutdown handling.
+//! OS-level command wrapper with not-started/started states, output redirection, and shutdown handling.
 
 use tracing::warn;
 
-use super::{
-    error::CommandError,
-    logging::{
-        self,
-        file_logger::{FileSystemLoggers, file_logger},
-        logger::Logger,
-    },
-};
+use super::{error::CommandError, log_files::open_std_log_files};
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_control::defaults::{STDERR_LOG_FILE_NAME_SUFFIX, STDOUT_LOG_FILE_NAME_SUFFIX};
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
-use crate::sub_agent::on_host::command::logging::file_logger::SubAgentFileLoggingConfig;
 #[cfg(target_family = "windows")]
 use crate::utils::job_object::JobObject;
+use std::path::PathBuf;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
@@ -28,14 +20,13 @@ const POLL_INTERVAL: Duration = Duration::from_millis(100);
 pub struct CommandOSNotStarted {
     cmd: Command,
     agent_id: AgentID,
-    file_logging_config: SubAgentFileLoggingConfig,
+    log_dir: Option<PathBuf>,
     shutdown_timeout: Duration,
 }
-/// A spawned OS command process with its loggers and (on Windows) job object.
+/// A spawned OS command process with (on Windows) its job object.
 pub struct CommandOSStarted {
     agent_id: AgentID,
     process: Child,
-    loggers: Option<FileSystemLoggers>,
     shutdown_timeout: Duration,
 
     #[cfg(target_family = "windows")]
@@ -46,52 +37,34 @@ pub struct CommandOSStarted {
 // Not Started Command OS
 ////////////////////////////////////////////////////////////////////////////////////
 impl CommandOSNotStarted {
-    /// Creates a not-started command for the given executable, configuring stdio pipes and logging.
+    /// Creates a not-started command for the given executable. Its stdout/stderr are written to log
+    /// files in `log_dir` when provided, and discarded otherwise.
     pub fn new(
         agent_id: AgentID,
         executable_data: &ExecutableData,
-        file_logging_config: SubAgentFileLoggingConfig,
+        log_dir: Option<PathBuf>,
     ) -> Self {
         let mut cmd = Command::new(&executable_data.bin);
-        cmd.args(&executable_data.args)
-            .envs(&executable_data.env)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
+        cmd.args(&executable_data.args).envs(&executable_data.env);
 
         Self {
             agent_id,
             cmd,
-            file_logging_config,
+            log_dir,
             shutdown_timeout: executable_data.shutdown_timeout,
         }
     }
 
-    /// Spawns the process, setting up file loggers and (on Windows) a job object.
+    /// Spawns the process with its stdout/stderr set up and (on Windows) a job object.
     pub fn start(mut self) -> Result<CommandOSStarted, CommandError> {
-        let loggers = if self.file_logging_config.enabled {
-            Some(FileSystemLoggers::new(
-                file_logger(
-                    &self.agent_id,
-                    self.file_logging_config.clone(),
-                    STDOUT_LOG_FILE_NAME_SUFFIX,
-                )?,
-                file_logger(
-                    &self.agent_id,
-                    self.file_logging_config.clone(),
-                    STDERR_LOG_FILE_NAME_SUFFIX,
-                )?,
-            ))
-        } else {
-            None
-        };
-        let child = self.cmd.spawn()?;
+        let (stdout, stderr) = self.std_streams()?;
+        let child = self.cmd.stdout(stdout).stderr(stderr).spawn()?;
 
         #[cfg(target_family = "unix")]
         {
             Ok(CommandOSStarted {
                 agent_id: self.agent_id,
                 process: child,
-                loggers,
                 shutdown_timeout: self.shutdown_timeout,
             })
         }
@@ -105,10 +78,20 @@ impl CommandOSNotStarted {
                 agent_id: self.agent_id,
                 process: child,
                 job_object: Some(job_object),
-                loggers,
                 shutdown_timeout: self.shutdown_timeout,
             })
         }
+    }
+
+    /// Returns the process stdout/stderr: the log files in `log_dir` when set, discarded otherwise.
+    /// The process owns its handles to them, so its output does not depend on Agent Control being
+    /// alive.
+    fn std_streams(&self) -> Result<(Stdio, Stdio), CommandError> {
+        let Some(log_dir) = &self.log_dir else {
+            return Ok((Stdio::null(), Stdio::null()));
+        };
+        let (stdout, stderr) = open_std_log_files(log_dir)?;
+        Ok((stdout.into(), stderr.into()))
     }
 }
 
@@ -129,37 +112,6 @@ impl CommandOSStarted {
 
     pub(crate) fn wait(mut self) -> Result<ExitStatus, CommandError> {
         self.process.wait().map_err(CommandError::from)
-    }
-
-    pub(crate) fn stream(mut self) -> Result<Self, CommandError> {
-        let stdout = self
-            .process
-            .stdout
-            .take()
-            .ok_or(CommandError::StreamPipeError("stdout".to_string()))?;
-
-        let stderr = self
-            .process
-            .stderr
-            .take()
-            .ok_or(CommandError::StreamPipeError("stderr".to_string()))?;
-
-        let mut stdout_loggers = vec![Logger::Stdout(self.agent_id.clone())];
-        let mut stderr_loggers = vec![Logger::Stderr(self.agent_id.clone())];
-
-        if let Some(l) = self.loggers.take() {
-            let (out, err) = l.into_loggers();
-            stdout_loggers.push(Logger::File(Box::new(out)));
-            stderr_loggers.push(Logger::File(Box::new(err)));
-        };
-
-        // Read stdout and send to the channel
-        logging::thread::spawn_logger(stdout, stdout_loggers);
-
-        // Read stderr and send to the channel
-        logging::thread::spawn_logger(stderr, stderr_loggers);
-
-        Ok(self)
     }
 
     fn is_running_after_timeout(&mut self, timeout: Duration) -> bool {
