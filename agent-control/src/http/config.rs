@@ -223,6 +223,7 @@ pub(crate) mod tests {
     use assert_matches::assert_matches;
 
     use super::{ProxyConfig, ProxyUrl};
+    use crate::utils::yaml::from_str_or_empty_mapping;
     use std::{collections::HashMap, env::VarError, path::PathBuf};
 
     impl ProxyConfig {
@@ -259,7 +260,7 @@ pub(crate) mod tests {
 
         impl TestCase {
             fn run(self) {
-                let actual = serde_saphyr::from_str::<ProxyConfig>(self.content).unwrap();
+                let actual = from_str_or_empty_mapping::<ProxyConfig>(self.content).unwrap();
                 assert_eq!(self.expected, actual, "Test Name: {}", self._name);
             }
         }

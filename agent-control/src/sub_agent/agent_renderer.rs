@@ -251,6 +251,7 @@ pub(crate) mod tests {
     };
     use crate::agent_type::variable::namespace::{Namespace, VariableName};
     use crate::agent_type::variable::value::VariableValue;
+    use crate::utils::yaml::from_str_or_empty_mapping;
     use crate::values::yaml_config::YAMLConfig;
     use assert_matches::assert_matches;
     use fs::directory_manager::DirectoryManagerFs;
@@ -435,7 +436,7 @@ deployment:
 "#;
 
     fn testing_values(yaml_values: &str) -> YAMLConfig {
-        serde_saphyr::from_str(yaml_values).unwrap()
+        from_str_or_empty_mapping(yaml_values).unwrap()
     }
 
     /// Builds a [MockAgentTypeRegistry] that resolves the given yaml definition and an

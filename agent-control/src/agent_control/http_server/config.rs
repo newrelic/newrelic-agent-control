@@ -63,6 +63,7 @@ mod tests {
     use crate::agent_control::http_server::config::{
         DEFAULT_HOST, DEFAULT_PORT, Host, Port, ServerConfig,
     };
+    use crate::utils::yaml::from_str_or_empty_mapping;
     use serde::Deserialize;
 
     #[derive(Deserialize, Default, Debug, PartialEq)]
@@ -85,7 +86,7 @@ mod tests {
         }
         impl Test {
             fn run(&self) {
-                let config: ConfigContainer = serde_saphyr::from_str(&self.content).unwrap();
+                let config: ConfigContainer = from_str_or_empty_mapping(&self.content).unwrap();
                 assert_eq!(self.expected, config);
             }
         }

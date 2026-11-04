@@ -8,6 +8,7 @@ use thiserror::Error;
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::default_capabilities;
 use crate::opamp::remote_config::ConfigurationMap;
+use crate::utils::yaml::from_str_or_empty_mapping;
 use crate::values::config_repository::ConfigRepository;
 use crate::values::yaml_config::YAMLConfig;
 
@@ -73,7 +74,7 @@ impl TryFrom<YAMLConfig> for AgentControlEffectiveConfig {
             ))
         })?;
 
-        let effective_config = serde_saphyr::from_str(&config_string).map_err(|err| {
+        let effective_config = from_str_or_empty_mapping(&config_string).map_err(|err| {
             AgentControlEffectiveConfigError::Conversion(format!(
                 "converting effective config: {err}"
             ))

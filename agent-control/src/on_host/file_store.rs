@@ -25,6 +25,7 @@ use crate::{
     },
     data_store::{DataStore, StoreKey},
     resource_ownership::ResourceOwnership,
+    utils::yaml::from_str_or_empty_mapping,
 };
 
 /// [`DataStore`] implementation that persists agent data to the local filesystem.
@@ -142,7 +143,7 @@ where
         trace!("Loading data from path '{}'", key.display());
         self.load_file_if_present(&key).and_then(|maybe_values| {
             maybe_values
-                .map(|s| serde_saphyr::from_str(&s))
+                .map(|s| from_str_or_empty_mapping(&s))
                 .transpose()
                 .map_err(|err: serde_saphyr::Error| {
                     Error::new(

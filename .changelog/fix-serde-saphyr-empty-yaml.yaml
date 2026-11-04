@@ -1,0 +1,2 @@
+type: dependency
+message: Upgrade serde-saphyr to 2.1.0; handle empty YAML documents that the new version rejects where AC previously treated them as empty mappings.

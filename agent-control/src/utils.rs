@@ -15,6 +15,7 @@ pub mod sensitive_string;
 pub mod thread_context;
 pub mod threads;
 pub mod time;
+pub mod yaml;
 
 #[cfg(test)]
 #[allow(missing_docs)]

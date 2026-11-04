@@ -4,7 +4,8 @@ use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::templates::Templateable;
 use crate::agent_type::variable::value::VariableValues;
 use crate::{
-    agent_control::config::AgentControlDynamicConfig, agent_type::templates::TEMPLATE_KEY_SEPARATOR,
+    agent_control::config::AgentControlDynamicConfig,
+    agent_type::templates::TEMPLATE_KEY_SEPARATOR, utils::yaml::from_str_or_empty_mapping,
 };
 use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::capabilities::Capabilities;
@@ -238,7 +239,7 @@ impl TryFrom<&AgentControlDynamicConfig> for YAMLConfig {
 }
 
 fn parse_yaml_config(value: &str) -> Result<YAMLConfig, YAMLConfigError> {
-    serde_saphyr::from_str(value).map_err(|e| {
+    from_str_or_empty_mapping(value).map_err(|e| {
         YAMLConfigError(format!(
             "decoding config: {}",
             e.render_with_formatter(&serde_saphyr::UserMessageFormatter)

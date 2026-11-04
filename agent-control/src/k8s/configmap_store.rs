@@ -11,6 +11,7 @@ use crate::agent_control::defaults::{FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_D
 use crate::data_store::{DataStore, StoreKey};
 use crate::k8s::{self, annotations::Annotations};
 use crate::resource_ownership::ResourceOwnership;
+use crate::utils::yaml::from_str_or_empty_mapping;
 use std::sync::{Arc, RwLock};
 
 /// Represents a Kubernetes persistent store of Agents data such as instance id and configs.
@@ -51,7 +52,7 @@ impl<C: K8sClient> ConfigMapStore<C> {
             self.k8s_client
                 .get_configmap_key(&configmap_name, self.namespace.as_str(), key)?
         {
-            let ds = serde_saphyr::from_str::<T>(&data)?;
+            let ds = from_str_or_empty_mapping::<T>(&data)?;
 
             return Ok(Some(ds));
         }
