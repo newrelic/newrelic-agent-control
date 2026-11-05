@@ -22,22 +22,13 @@ const POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 /// The origin of a process that Agent Control will supervise.
 ///
-/// Once [`ProcessOrigin::try_into_supervised`] is called, both paths yield an identical [`SupervisedProcess`]
-/// regardless of origin.
-#[allow(clippy::large_enum_variant)]
+/// Once [`ProcessOrigin::try_into_supervised`] is called, the result is a [`SupervisedProcess`]
+/// ready to be managed regardless of how it was acquired.
+// An `Adopt { pid, agent_id, shutdown_timeout }` variant will be added here once per-instance
+// bookkeeping (PID files, cgroup inspection) is in place.
 pub enum ProcessOrigin {
-    /// Start a new process from the given config, then immediately detach from it.
+    /// Start a new process from the given config.
     Spawn(OsProcessConfig),
-    /// Supervise a process that was already running when this instance started.
-    ///
-    /// Not yet active: constructed only once per-instance bookkeeping (PID files, cgroup
-    /// inspection, etc.) is in place. Until then this variant is intentionally unreachable.
-    #[allow(dead_code)]
-    Adopt {
-        pid: u32,
-        agent_id: AgentID,
-        shutdown_timeout: Duration,
-    },
 }
 
 impl ProcessOrigin {
@@ -50,34 +41,13 @@ impl ProcessOrigin {
                 let agent_id = os_process.agent_id().clone();
                 let shutdown_timeout = os_process.shutdown_timeout();
                 #[cfg(target_family = "windows")]
-                let job_object = Some(os_process.create_job_object()?);
+                let job_object = os_process.create_job_object()?;
                 // `from_os_process` opens a secondary handle while OsProcess is still alive,
                 // pinning the process object so the exit code stays retrievable after detach.
                 #[cfg(target_family = "windows")]
                 let process_handle = ProcessHandle::from_os_process(&os_process)?;
                 // Detach: drop OsProcess (and its Child handle). The spawned process continues
                 // running; from here on both spawned and adopted processes are managed by PID.
-                Ok(SupervisedProcess {
-                    pid,
-                    agent_id,
-                    shutdown_timeout,
-                    #[cfg(target_family = "windows")]
-                    job_object,
-                    #[cfg(target_family = "windows")]
-                    process_handle,
-                })
-            }
-            Self::Adopt {
-                pid,
-                agent_id,
-                shutdown_timeout,
-            } => {
-                // Job-object wiring is deferred to when ProcessOrigin::Adopt is fully
-                // implemented; remove the Option from the field when that happens.
-                #[cfg(target_family = "windows")]
-                let job_object: Option<JobObject> = None;
-                #[cfg(target_family = "windows")]
-                let process_handle = ProcessHandle::open(pid)?;
                 Ok(SupervisedProcess {
                     pid,
                     agent_id,
@@ -105,10 +75,8 @@ pub struct SupervisedProcess {
     #[allow(dead_code)]
     shutdown_timeout: Duration,
     /// Job Object used to terminate the entire process tree on Windows.
-    /// `None` only for adopted processes, whose job-object wiring is not yet implemented;
-    /// remove the `Option` when `ProcessOrigin::Adopt` is fully implemented.
     #[cfg(target_family = "windows")]
-    job_object: Option<JobObject>,
+    job_object: JobObject,
     /// Keeps the process object alive so the exit code remains retrievable even after the
     /// process exits quickly and before we get a chance to query it.
     #[cfg(target_family = "windows")]
