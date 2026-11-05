@@ -15,7 +15,7 @@ impl SupervisedProcess {
             Ok(status) => ProcessState::Exited(self.into_exited(Self::raw_exit_status(status))),
             Err(nix::errno::Errno::ECHILD) => {
                 // Not our child: adopted process. Full liveness check will be wired up
-                // when Acquisition::Adopt is implemented.
+                // when ProcessOrigin::Adopt is implemented.
                 ProcessState::Running(self)
             }
             Err(_) => ProcessState::Running(self),
