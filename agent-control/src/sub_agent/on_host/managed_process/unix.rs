@@ -11,7 +11,9 @@ impl SupervisedProcess {
 
         let pid = Pid::from_raw(self.pid as i32);
         match waitpid(pid, Some(WaitPidFlag::WNOHANG)) {
-            Ok(WaitStatus::StillAlive) => ProcessState::Running(self),
+            Ok(WaitStatus::StillAlive)
+            | Ok(WaitStatus::Stopped(..))
+            | Ok(WaitStatus::Continued(..)) => ProcessState::Running(self),
             Ok(status) => ProcessState::Exited(self.into_exited(Self::raw_exit_status(status))),
             Err(nix::errno::Errno::ECHILD) => {
                 // Not our child: adopted process. Full liveness check will be wired up
