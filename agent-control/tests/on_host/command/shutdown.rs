@@ -1,4 +1,4 @@
-use newrelic_agent_control::sub_agent::on_host::managed_process::Acquisition;
+use newrelic_agent_control::sub_agent::on_host::managed_process::ProcessOrigin;
 #[cfg(target_family = "unix")]
 use newrelic_agent_control::sub_agent::on_host::managed_process::ProcessState;
 use newrelic_agent_control::sub_agent::on_host::managed_process::spawned_process::executable_data::ExecutableData;
@@ -35,7 +35,7 @@ fn non_blocking_runner() {
         SubAgentFileLoggingConfig::default(),
     );
 
-    let started_cmd = Acquisition::Spawn(config).acquire().unwrap();
+    let started_cmd = ProcessOrigin::Spawn(config).try_into_supervised().unwrap();
     sleep(Duration::from_millis(500)); // Give the process some room to start
 
     let terminated = started_cmd.shutdown();
@@ -46,7 +46,7 @@ fn non_blocking_runner() {
 #[cfg(target_family = "unix")]
 fn command_shutdown_when_sigterm_is_ignored() {
     let agent_id = "test".to_string().try_into().unwrap();
-    let cmd = Acquisition::Spawn(OsProcessConfig::new(
+    let cmd = ProcessOrigin::Spawn(OsProcessConfig::new(
         agent_id,
         &ExecutableData {
             id: "test".to_string(),
@@ -58,7 +58,7 @@ fn command_shutdown_when_sigterm_is_ignored() {
         },
         SubAgentFileLoggingConfig::default(),
     ))
-    .acquire()
+    .try_into_supervised()
     .unwrap();
 
     // Confirm the process is running before sending SIGTERM.
@@ -79,7 +79,7 @@ fn command_shutdown_kill_orphan_process() {
 
     let agent_id = "test".to_string().try_into().unwrap();
     let id = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
-    let cmd = Acquisition::Spawn(OsProcessConfig::new(
+    let cmd = ProcessOrigin::Spawn(OsProcessConfig::new(
         agent_id,
         &ExecutableData {
             id: "test".to_string(),
@@ -98,7 +98,7 @@ fn command_shutdown_kill_orphan_process() {
         },
         SubAgentFileLoggingConfig::default(),
     ))
-    .acquire()
+    .try_into_supervised()
     .unwrap();
 
     // Check that we have a leaked process

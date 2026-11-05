@@ -31,7 +31,7 @@ use crate::sub_agent::on_host::managed_process::spawned_process::logging::file_l
 };
 use crate::sub_agent::on_host::managed_process::spawned_process::os_process::OsProcessConfig;
 use crate::sub_agent::on_host::managed_process::spawned_process::restart_policy::RestartPolicy;
-use crate::sub_agent::on_host::managed_process::{Acquisition, ProcessState, SupervisedProcess};
+use crate::sub_agent::on_host::managed_process::{ProcessOrigin, ProcessState, SupervisedProcess};
 use crate::sub_agent::supervisor::{Supervisor, SupervisorStarter};
 use crate::utils::thread_context::{
     NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
@@ -407,9 +407,9 @@ where
                     .as_ref()
                     .map(|hc| hc.health_publisher.clone());
                 // TODO: once PID-file / cgroup inspection is in place, derive the initial
-                // acquisition from that state (Acquisition::Adopt when a process from a
-                // previous AC run is still alive, Acquisition::Spawn otherwise).
-                let initial = Acquisition::Spawn(OsProcessConfig::new(
+                // origin from that state (ProcessOrigin::Adopt when a process from a
+                // previous AC run is still alive, ProcessOrigin::Spawn otherwise).
+                let initial = ProcessOrigin::Spawn(OsProcessConfig::new(
                     self.agent_identity.id.clone(),
                     e,
                     self.file_logging_config.clone(),
@@ -435,7 +435,7 @@ where
         &self,
         executable_data: &ExecutableData,
         health_publisher: Option<EventPublisher<(String, HealthWithStartTime)>>,
-        initial_acquisition: Acquisition,
+        initial_origin: ProcessOrigin,
     ) -> StartedThreadContext {
         let mut restart_policy = executable_data.restart_policy.clone();
         let exec_data = executable_data.clone();
@@ -448,7 +448,7 @@ where
 
             let exec_id = exec_data.id.clone();
             // Consumed on the first iteration; every subsequent restart always spawns.
-            let mut first = Some(initial_acquisition);
+            let mut first = Some(initial_origin);
 
             let mut i = 0;
             let mut last_error: Option<String>;
@@ -469,14 +469,14 @@ where
                     .map(|hp| HealthHandler::new(exec_id.clone(), hp));
 
                 info!(%agent_id, %exec_id, "Starting executable");
-                let acquisition = first.take().unwrap_or_else(|| {
-                    Acquisition::Spawn(OsProcessConfig::new(
+                let origin = first.take().unwrap_or_else(|| {
+                    ProcessOrigin::Spawn(OsProcessConfig::new(
                         agent_id.clone(),
                         &exec_data,
                         logging_config.clone(),
                     ))
                 });
-                let started = acquisition.acquire();
+                let started = origin.try_into_supervised();
 
                 let executable_result = started.and_then(|cmd| {
                     wait_exit(
@@ -1296,7 +1296,7 @@ declared-dir:
         let executables_clone = agent.executables.clone();
 
         let executable_thread_contexts = executables_clone.iter().map(|e| {
-            let initial = Acquisition::Spawn(OsProcessConfig::new(
+            let initial = ProcessOrigin::Spawn(OsProcessConfig::new(
                 agent.agent_identity.id.clone(),
                 e,
                 agent.file_logging_config.clone(),
@@ -1396,7 +1396,7 @@ declared-dir:
         let executables_clone = agent.executables.clone();
 
         let executable_thread_contexts = executables_clone.iter().map(|e| {
-            let initial = Acquisition::Spawn(OsProcessConfig::new(
+            let initial = ProcessOrigin::Spawn(OsProcessConfig::new(
                 agent.agent_identity.id.clone(),
                 e,
                 agent.file_logging_config.clone(),
@@ -1446,12 +1446,12 @@ declared-dir:
             .with_args(vec!["/T".to_owned(), "3".to_owned(), "/NOBREAK".to_owned()]);
 
         let agent_id = AgentID::AgentControl;
-        let command = Acquisition::Spawn(OsProcessConfig::new(
+        let command = ProcessOrigin::Spawn(OsProcessConfig::new(
             agent_id.clone(),
             &exec_data,
             SubAgentFileLoggingConfig::default(),
         ))
-        .acquire()
+        .try_into_supervised()
         .unwrap();
 
         let (health_publisher, health_consumer) = pub_sub();
@@ -1575,12 +1575,12 @@ declared-dir:
         ]);
 
         let agent_id = AgentID::AgentControl;
-        let command = Acquisition::Spawn(OsProcessConfig::new(
+        let command = ProcessOrigin::Spawn(OsProcessConfig::new(
             agent_id.clone(),
             &exec_data,
             SubAgentFileLoggingConfig::default(),
         ))
-        .acquire()
+        .try_into_supervised()
         .unwrap();
 
         let (health_publisher, health_consumer) = pub_sub();

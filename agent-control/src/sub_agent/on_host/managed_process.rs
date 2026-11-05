@@ -20,14 +20,12 @@ use windows::process_handle::ProcessHandle;
 
 const POLL_INTERVAL: Duration = Duration::from_millis(100);
 
-/// How Agent Control acquires a process to supervise.
+/// The origin of a process that Agent Control will supervise.
 ///
-/// Once [`Acquisition::acquire`] is called, both paths yield an identical [`SupervisedProcess`]
+/// Once [`ProcessOrigin::try_into_supervised`] is called, both paths yield an identical [`SupervisedProcess`]
 /// regardless of origin.
-// Acquisition is consumed immediately by acquire(); it is never stored, so the stack size
-// difference between Spawn (which carries OsProcessConfig) and Adopt is not a concern.
 #[allow(clippy::large_enum_variant)]
-pub enum Acquisition {
+pub enum ProcessOrigin {
     /// Start a new process from the given config, then immediately detach from it.
     Spawn(OsProcessConfig),
     /// Supervise a process that was already running when this instance started.
@@ -42,9 +40,9 @@ pub enum Acquisition {
     },
 }
 
-impl Acquisition {
-    /// Executes the acquisition and returns a [`SupervisedProcess`] ready to manage.
-    pub fn acquire(self) -> Result<SupervisedProcess, CommandError> {
+impl ProcessOrigin {
+    /// Resolves the origin and returns a [`SupervisedProcess`] ready to be managed.
+    pub fn try_into_supervised(self) -> Result<SupervisedProcess, CommandError> {
         match self {
             Self::Spawn(config) => {
                 let os_process = config.start()?.stream()?;
@@ -74,7 +72,7 @@ impl Acquisition {
                 agent_id,
                 shutdown_timeout,
             } => {
-                // Job-object wiring is deferred to when Acquisition::Adopt is fully
+                // Job-object wiring is deferred to when ProcessOrigin::Adopt is fully
                 // implemented; remove the Option from the field when that happens.
                 #[cfg(target_family = "windows")]
                 let job_object: Option<JobObject> = None;
@@ -108,7 +106,7 @@ pub struct SupervisedProcess {
     shutdown_timeout: Duration,
     /// Job Object used to terminate the entire process tree on Windows.
     /// `None` only for adopted processes, whose job-object wiring is not yet implemented;
-    /// remove the `Option` when `Acquisition::Adopt` is fully implemented.
+    /// remove the `Option` when `ProcessOrigin::Adopt` is fully implemented.
     #[cfg(target_family = "windows")]
     job_object: Option<JobObject>,
     /// Keeps the process object alive so the exit code remains retrievable even after the
@@ -223,12 +221,12 @@ mod tests {
         }
 
         fn spawn(&self) -> (SupervisedProcess, u32) {
-            let process = Acquisition::Spawn(OsProcessConfig::new(
+            let process = ProcessOrigin::Spawn(OsProcessConfig::new(
                 AgentID::AgentControl,
                 self,
                 SubAgentFileLoggingConfig::default(),
             ))
-            .acquire()
+            .try_into_supervised()
             .unwrap();
             let pid = process.get_pid();
             (process, pid)
