@@ -169,7 +169,11 @@ where
                     // In those particular cases, we should stop the reflector, to avoid serving outdated stored data.
                     // As is not complealty defined which are exactly those cases, the approach taken is to stop the current
                     // reflector assuming that a new one will be created with correct data.
-                    Some(Err(watcher::Error::WatchFailed(err))) => {
+                    // Since kube 5 a rejected watch start, such as the 404 returned once the CRD is removed, is
+                    // reported as `WatchStartFailed` instead of `WatchFailed`, so it needs the same treatment.
+                    Some(Err(
+                        watcher::Error::WatchFailed(err) | watcher::Error::WatchStartFailed(err),
+                    )) => {
                         warn!(
                             "Error updating internal cache for resource '{}'. The cache will attempt to auto-recover: {}",
                             resource_url, err
