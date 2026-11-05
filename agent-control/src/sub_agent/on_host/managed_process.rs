@@ -114,17 +114,6 @@ impl SupervisedProcess {
         self.pid
     }
 
-    /// Non-blocking liveness check. Returns [`ProcessState::Running`] with ownership of `self`
-    /// if the process is still alive, or [`ProcessState::Exited`] once it has exited.
-    pub fn try_wait(self) -> ProcessState {
-        self.platform_try_wait()
-    }
-
-    /// Stops the process, waits for it to exit, and returns the result.
-    pub fn shutdown(self) -> Result<ExitedProcess, CommandError> {
-        self.platform_shutdown()
-    }
-
     /// Constructs an [`ExitedProcess`] by consuming `self` and recording `exit_status`.
     fn into_exited(self, exit_status: ExitStatus) -> ExitedProcess {
         ExitedProcess {
@@ -150,7 +139,7 @@ mod tests {
         pub(crate) fn wait(self) -> Result<ExitedProcess, spawned_process::error::CommandError> {
             let mut current = self;
             loop {
-                match current.platform_try_wait() {
+                match current.try_wait() {
                     ProcessState::Exited(exited) => break Ok(exited),
                     ProcessState::Running(running) => {
                         std::thread::sleep(POLL_INTERVAL);
@@ -214,7 +203,7 @@ mod tests {
     fn spawned_is_running_until_shutdown() {
         let (process, _) = ExecutableData::long_running().spawn();
 
-        let ProcessState::Running(process) = process.platform_try_wait() else {
+        let ProcessState::Running(process) = process.try_wait() else {
             panic!("expected process to be running immediately after spawn");
         };
 
@@ -251,7 +240,7 @@ mod tests {
         let deadline = Instant::now() + Duration::from_secs(10);
         let mut current = process;
         loop {
-            match current.platform_try_wait() {
+            match current.try_wait() {
                 ProcessState::Exited(_) => return,
                 ProcessState::Running(running) => {
                     assert!(Instant::now() < deadline, "process did not exit in time");
