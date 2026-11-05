@@ -5,7 +5,7 @@ use std::time::Instant;
 use tracing::warn;
 
 impl SupervisedProcess {
-    pub(super) fn platform_try_wait(self) -> ProcessState {
+    pub fn try_wait(self) -> ProcessState {
         use nix::sys::wait::{WaitPidFlag, WaitStatus, waitpid};
         use nix::unistd::Pid;
 
@@ -38,7 +38,7 @@ impl SupervisedProcess {
         }
     }
 
-    pub(super) fn platform_shutdown(self) -> Result<ExitedProcess, CommandError> {
+    pub fn shutdown(self) -> Result<ExitedProcess, CommandError> {
         let pid_raw = self.pid as i32;
         let agent_id_display = self.agent_id.clone();
         let shutdown_timeout = self.shutdown_timeout;

@@ -4,7 +4,7 @@ use super::spawned_process::error::CommandError;
 use super::{ExitedProcess, POLL_INTERVAL, ProcessState, SupervisedProcess};
 
 impl SupervisedProcess {
-    pub(super) fn platform_try_wait(self) -> ProcessState {
+    pub fn try_wait(self) -> ProcessState {
         use std::os::windows::process::ExitStatusExt;
         use std::process::ExitStatus;
         match self.process_handle.exit_code() {
@@ -14,7 +14,7 @@ impl SupervisedProcess {
         }
     }
 
-    pub(super) fn platform_shutdown(self) -> Result<ExitedProcess, CommandError> {
+    pub fn shutdown(self) -> Result<ExitedProcess, CommandError> {
         use std::os::windows::process::ExitStatusExt;
         use std::process::ExitStatus;
         // Destructure to consume job_object independently of the other fields.
