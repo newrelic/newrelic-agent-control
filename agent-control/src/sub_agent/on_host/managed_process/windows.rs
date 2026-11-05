@@ -26,9 +26,7 @@ impl SupervisedProcess {
             process_handle,
         } = self;
         // TerminateJobObject terminates the process and all processes it has spawned.
-        if let Some(job) = job_object {
-            job.kill().map_err(CommandError::from)?;
-        }
+        job_object.kill().map_err(CommandError::from)?;
         // Spin-poll using the retained handle until the process reports a final exit code.
         loop {
             match process_handle.exit_code() {
