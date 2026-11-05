@@ -3,69 +3,22 @@
 
 pub mod spawned_process;
 
+#[cfg(target_family = "unix")]
+mod unix;
+#[cfg(target_family = "windows")]
+mod windows;
+
 use crate::agent_control::agent_id::AgentID;
 use spawned_process::{error::CommandError, os_process::OsProcessConfig};
 use std::process::ExitStatus;
 use std::time::Duration;
-#[cfg(target_family = "unix")]
-use std::time::Instant;
-#[cfg(target_family = "unix")]
-use tracing::warn;
 
 #[cfg(target_family = "windows")]
 use crate::utils::job_object::JobObject;
+#[cfg(target_family = "windows")]
+use windows::process_handle::ProcessHandle;
 
 const POLL_INTERVAL: Duration = Duration::from_millis(100);
-
-// ---- Windows process handle wrapper ------------------------------------------------------------
-
-/// Owns a Windows process HANDLE and closes it on drop, keeping the process object alive long
-/// enough to reliably retrieve the exit code even for very short-lived processes.
-#[cfg(target_family = "windows")]
-struct ProcessHandle(windows::Win32::Foundation::HANDLE);
-
-#[cfg(target_family = "windows")]
-impl ProcessHandle {
-    /// Opens a secondary handle to `os_process`, guaranteeing it refers to the same process
-    /// object. Safe because `os_process` holds the `Child` handle that keeps the kernel object
-    /// alive, so the PID cannot be recycled before this call returns.
-    fn from_os_process(
-        os_process: &spawned_process::os_process::OsProcess,
-    ) -> Result<Self, CommandError> {
-        Self::open(os_process.get_pid())
-    }
-
-    /// Opens a handle to an already-running process by PID alone. The caller must ensure the
-    /// PID has not been recycled since it was observed (no `Child` handle to pin it).
-    fn open(pid: u32) -> Result<Self, CommandError> {
-        use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
-        unsafe {
-            OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
-                .map(Self)
-                .map_err(std::io::Error::from)
-                .map_err(CommandError::from)
-        }
-    }
-
-    /// Returns the current exit code, or `None` if the handle is no longer accessible.
-    /// `Some(259)` means the process is still running (STILL_ACTIVE).
-    fn exit_code(&self) -> Option<u32> {
-        use windows::Win32::System::Threading::GetExitCodeProcess;
-        let mut code = 0u32;
-        unsafe { GetExitCodeProcess(self.0, &mut code).ok().map(|_| code) }
-    }
-}
-
-#[cfg(target_family = "windows")]
-impl Drop for ProcessHandle {
-    fn drop(&mut self) {
-        unsafe {
-            let _ = windows::Win32::Foundation::CloseHandle(self.0);
-        }
-    }
-}
-
-// ---- Acquisition -------------------------------------------------------------------------------
 
 /// How Agent Control acquires a process to supervise.
 ///
@@ -141,8 +94,6 @@ impl Acquisition {
     }
 }
 
-// ---- Process state types -----------------------------------------------------------------------
-
 /// A process supervised by Agent Control that has not yet exited.
 ///
 /// Invariant: the underlying OS process is alive. Transitions to [`ExitedProcess`] via
@@ -191,8 +142,6 @@ pub enum ProcessState {
     Exited(ExitedProcess),
 }
 
-// ---- SupervisedProcess public API --------------------------------------------------------------
-
 impl SupervisedProcess {
     /// Returns the process id.
     pub fn get_pid(&self) -> u32 {
@@ -219,163 +168,6 @@ impl SupervisedProcess {
         }
     }
 }
-
-// ---- Unix implementation -----------------------------------------------------------------------
-
-#[cfg(target_family = "unix")]
-impl SupervisedProcess {
-    fn platform_try_wait(self) -> ProcessState {
-        use nix::sys::wait::{WaitPidFlag, WaitStatus, waitpid};
-        use nix::unistd::Pid;
-
-        let pid = Pid::from_raw(self.pid as i32);
-        match waitpid(pid, Some(WaitPidFlag::WNOHANG)) {
-            Ok(WaitStatus::StillAlive) => ProcessState::Running(self),
-            Ok(status) => ProcessState::Exited(self.into_exited(Self::raw_exit_status(status))),
-            Err(nix::errno::Errno::ECHILD) => {
-                // Not our child: adopted process. Full liveness check will be wired up
-                // when Acquisition::Adopt is implemented.
-                ProcessState::Running(self)
-            }
-            Err(_) => ProcessState::Running(self),
-        }
-    }
-
-    fn wait(self) -> Result<ExitedProcess, CommandError> {
-        use nix::sys::wait::waitpid;
-        use nix::unistd::Pid;
-
-        let pid = Pid::from_raw(self.pid as i32);
-        loop {
-            match waitpid(pid, None) {
-                Ok(status) => break Ok(self.into_exited(Self::raw_exit_status(status))),
-                Err(nix::errno::Errno::EINTR) => continue,
-                Err(e) => break Err(CommandError::IOError(std::io::Error::from(e))),
-            }
-        }
-    }
-
-    fn platform_shutdown(self) -> Result<ExitedProcess, CommandError> {
-        let pid_raw = self.pid as i32;
-        let agent_id_display = self.agent_id.clone();
-        let shutdown_timeout = self.shutdown_timeout;
-
-        if let Err(e) = Self::sigterm(pid_raw) {
-            warn!(agent_id = %agent_id_display, pid = pid_raw, %e, "Graceful shutdown failed. Stopping forcefully");
-            self.kill()
-        } else {
-            let deadline = Instant::now() + shutdown_timeout;
-            let mut current = self;
-            loop {
-                match current.try_wait() {
-                    ProcessState::Exited(exited) => break Ok(exited),
-                    ProcessState::Running(running) => {
-                        if Instant::now() >= deadline {
-                            warn!(agent_id = %agent_id_display, pid = pid_raw, "Graceful shutdown timeout exceeded. Stopping forcefully");
-                            break running.kill();
-                        }
-                        std::thread::sleep(POLL_INTERVAL);
-                        current = running;
-                    }
-                }
-            }
-        }
-    }
-
-    /// Sends SIGKILL and waits for the process to exit.
-    fn kill(self) -> Result<ExitedProcess, CommandError> {
-        use nix::sys::signal::{Signal, kill};
-        use nix::unistd::Pid;
-
-        let pid = Pid::from_raw(self.pid as i32);
-        match kill(pid, Signal::SIGKILL) {
-            Ok(()) | Err(nix::errno::Errno::ESRCH) => self.wait(),
-            Err(e) => Err(CommandError::IOError(std::io::Error::from(e))),
-        }
-    }
-
-    /// Sends SIGTERM to `pid_raw`. ESRCH (already gone) is treated as success since the goal —
-    /// process is not running — is already achieved.
-    fn sigterm(pid_raw: i32) -> Result<(), CommandError> {
-        use nix::sys::signal::{Signal, kill};
-        use nix::unistd::Pid;
-
-        match kill(Pid::from_raw(pid_raw), Signal::SIGTERM) {
-            Ok(()) | Err(nix::errno::Errno::ESRCH) => Ok(()),
-            Err(e) => Err(CommandError::IOError(std::io::Error::from(e))),
-        }
-    }
-
-    /// Converts a nix `WaitStatus` into a `std::process::ExitStatus` by reconstructing the raw
-    /// waitpid status word that `ExitStatus::from_raw` expects.
-    fn raw_exit_status(status: nix::sys::wait::WaitStatus) -> ExitStatus {
-        use nix::sys::wait::WaitStatus;
-        use std::os::unix::process::ExitStatusExt;
-
-        let raw = match status {
-            // Normal exit: exit code occupies bits 8–15.
-            WaitStatus::Exited(_, code) => (code & 0xFF) << 8,
-            // Signal termination: signal number in bits 0–6, core-dump flag in bit 7.
-            WaitStatus::Signaled(_, signal, core_dumped) => {
-                (signal as i32 & 0x7F) | (if core_dumped { 0x80 } else { 0 })
-            }
-            _ => 0,
-        };
-        ExitStatus::from_raw(raw)
-    }
-}
-
-// ---- Windows implementation --------------------------------------------------------------------
-
-#[cfg(target_family = "windows")]
-impl SupervisedProcess {
-    fn platform_try_wait(self) -> ProcessState {
-        use std::os::windows::process::ExitStatusExt;
-        match self.process_handle.exit_code() {
-            Some(259) => ProcessState::Running(self),
-            Some(code) => ProcessState::Exited(self.into_exited(ExitStatus::from_raw(code))),
-            None => ProcessState::Exited(self.into_exited(ExitStatus::from_raw(1))),
-        }
-    }
-
-    fn platform_shutdown(self) -> Result<ExitedProcess, CommandError> {
-        use std::os::windows::process::ExitStatusExt;
-        // Destructure to consume job_object independently of the other fields.
-        let SupervisedProcess {
-            pid,
-            agent_id,
-            shutdown_timeout: _,
-            job_object,
-            process_handle,
-        } = self;
-        // TerminateJobObject terminates the process and all processes it has spawned.
-        if let Some(job) = job_object {
-            job.kill().map_err(CommandError::from)?;
-        }
-        // Spin-poll using the retained handle until the process reports a final exit code.
-        loop {
-            match process_handle.exit_code() {
-                Some(259) => std::thread::sleep(POLL_INTERVAL),
-                Some(code) => {
-                    return Ok(ExitedProcess {
-                        pid,
-                        agent_id,
-                        exit_status: ExitStatus::from_raw(code),
-                    });
-                }
-                None => {
-                    return Ok(ExitedProcess {
-                        pid,
-                        agent_id,
-                        exit_status: ExitStatus::from_raw(1),
-                    });
-                }
-            }
-        }
-    }
-}
-
-// ---- Tests -------------------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
