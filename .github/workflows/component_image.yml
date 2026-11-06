@@ -79,8 +79,8 @@ jobs:
 
       - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
         with:
-          username: ${{ secrets.OHAI_DOCKER_HUB_ID }}
-          password: ${{ secrets.OHAI_DOCKER_HUB_PASSWORD }}
+          username: ${{ vars.AC_DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.AC_DOCKER_HUB_PASSWORD }}
 
       - name: Build images (push=${{ inputs.push }})
         run: |
