@@ -1,13 +1,13 @@
-//! Errors produced while spawning, streaming, or stopping an OS command.
+//! Errors produced while spawning, streaming, or stopping an OS process.
 
 use std::fmt::Debug;
 use thiserror::Error;
 
-use crate::sub_agent::on_host::command::logging::file_logger::FileLoggerError;
+use super::logging::file_logger::FileLoggerError;
 #[cfg(target_family = "windows")]
 use crate::utils::job_object::JobObjectError;
 
-/// Errors produced while managing an OS command process.
+/// Errors produced while managing an OS process.
 #[derive(Error, Debug)]
 pub enum CommandError {
     /// A standard stream (stdout/stderr) could not be piped.
@@ -22,7 +22,7 @@ pub enum CommandError {
     #[error("building file logger: {0}")]
     FileLoggerError(#[from] FileLoggerError),
 
-    /// The process's Windows Job Object could not be created, assigned, or terminated.
+    /// A Windows Job Object operation failed.
     #[cfg(target_family = "windows")]
     #[error("{0}")]
     JobObjectError(#[from] JobObjectError),

@@ -61,10 +61,10 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::super::file_logger::FileLogger;
     use super::*;
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::agent_id::tests::UniqueAgentID;
-    use crate::sub_agent::on_host::command::logging::file_logger::FileLogger;
     use crate::sub_agent::on_host::test_utils::global_logs_lines;
     use mockall::predicate::*;
     use mockall::{Sequence, mock};
