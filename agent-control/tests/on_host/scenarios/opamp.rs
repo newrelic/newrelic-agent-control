@@ -109,7 +109,7 @@ agents:
             .join(AGENT_CONTROL_ID)
             .join(build_config_name(STORE_KEY_OPAMP_DATA_CONFIG));
         let remote_config = std::fs::read_to_string(remote_file.as_path())
-            .unwrap_or("config: \nhash: a-hash\nstate: applying\n".to_string());
+            .unwrap_or("config: {}\nhash: a-hash\nstate: applying\n".to_string());
         let content_parsed =
             serde_saphyr::from_str::<RemoteConfig>(remote_config.as_str()).unwrap();
         if content_parsed.config != expected_config_parsed {
