@@ -7,6 +7,7 @@ use crate::common::test::{retry, retry_panic};
 use crate::common::{InstallationArgs, RecipeData, nrql};
 use crate::windows;
 use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe, tear_down_test};
+use crate::windows::powershell::test_file_exists;
 use crate::windows::scenarios::DEFAULT_STATUS_PORT;
 use crate::windows::service::STATUS_RUNNING;
 use std::thread;
@@ -70,6 +71,12 @@ agents:
     let status_json = serde_json::to_string_pretty(&status)
         .unwrap_or_else(|err| panic!("Failed to serialize status to JSON: {err}"));
     info!(response = status_json, "Agent Control is healthy");
+
+    let log_file = windows::sub_agent_log_path(nrdot_sub_agent_id, "nrdot-collector.log");
+    info!(path = log_file, "Checking the nr-dot log file is created");
+    retry_panic(30, Duration::from_secs(2), "nr-dot log file", || {
+        test_file_exists(&log_file)
+    });
 
     let nrql_query = format!(
         r#"SELECT `system.memory.utilization` FROM Metric WHERE `host.id` = '{test_id}' LIMIT 1"#

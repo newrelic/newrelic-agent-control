@@ -12,6 +12,7 @@ use crate::agent_type::templates::Templateable;
 use crate::agent_type::variable::dynamic_variables::{DynamicVariables, DynamicVariablesError};
 use crate::agent_type::variable::value::VariableValues;
 use crate::sub_agent::identity::AgentIdentity;
+use crate::sub_agent::on_host::command::logging::file_logger::agent_log_dir;
 use crate::value_provider::{Registry, ValueProvider, ValueProviderType};
 use crate::values::yaml_config::{YAMLConfig, YAMLConfigError};
 use std::collections::HashMap;
@@ -127,6 +128,7 @@ where
     ac_variables: VariableValues,
     value_providers: Registry<S>,
     remote_dir: PathBuf,
+    log_dir: PathBuf,
 }
 
 impl<R, S> AgentRenderer<R, S>
@@ -135,18 +137,21 @@ where
     S: ValueProvider,
 {
     /// Creates a renderer from an agent-type registry, agent-control variables,
-    /// value providers, and the remote configuration directory.
+    /// value providers, the remote configuration directory, and the directory holding the
+    /// sub-agents log directories.
     pub fn new(
         registry: Arc<R>,
         ac_variables: VariableValues,
         value_providers: Registry<S>,
         remote_dir: &Path,
+        log_dir: &Path,
     ) -> Self {
         AgentRenderer {
             registry,
             ac_variables,
             value_providers,
             remote_dir: remote_dir.to_path_buf(),
+            log_dir: log_dir.to_path_buf(),
         }
     }
 
@@ -186,9 +191,12 @@ where
     ) -> Result<RenderedAgent, AgentRendererError> {
         let agent_type = self.registry.get(&agent_identity.agent_type_id)?;
 
-        let agent_attributes =
-            AgentAttributes::try_new(agent_identity.id.to_owned(), self.remote_dir.to_path_buf())
-                .map_err(|e| AgentRendererError::Generic(e.to_string()))?;
+        let agent_attributes = AgentAttributes::try_new(
+            agent_identity.id.to_owned(),
+            self.remote_dir.to_path_buf(),
+            agent_log_dir(&self.log_dir, &agent_identity.id),
+        )
+        .map_err(|e| AgentRendererError::Generic(e.to_string()))?;
 
         let dynamic_variables =
             self.load_dynamic_variables(&agent_type.runtime_config, user_values.clone())?;
@@ -315,6 +323,7 @@ pub(crate) mod tests {
                 ac_variables: HashMap::new(),
                 value_providers: Registry::default(),
                 remote_dir: PathBuf::default(),
+                log_dir: PathBuf::default(),
             }
         }
     }
@@ -631,6 +640,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
             HashMap::new(),
             value_providers,
             Path::new(""),
+            Path::new(""),
         );
         let values = testing_values(K8S_CONFIG_YAML_VALUES);
 
@@ -674,6 +684,7 @@ substituted_2: my-value-2
             Arc::new(registry),
             HashMap::new(),
             value_providers,
+            Path::new(""),
             Path::new(""),
         );
         let values = testing_values(
@@ -756,6 +767,7 @@ deployment:
             HashMap::new(),
             value_providers,
             Path::new(""),
+            Path::new(""),
         );
         let values = testing_values(K8S_CONFIG_YAML_VALUES);
 
@@ -794,6 +806,7 @@ deployment:
             Arc::new(registry),
             agent_control_variables,
             Registry::<ValueProviderType>::default(),
+            Path::new(""),
             Path::new(""),
         );
         let values = testing_values("");
@@ -856,6 +869,7 @@ deployment:
             Arc::new(registry),
             HashMap::new(),
             value_providers,
+            Path::new(""),
             Path::new(""),
         );
 
@@ -927,6 +941,7 @@ deployment:
             HashMap::new(),
             Registry::<ValueProviderType>::default(),
             &remote_dir,
+            Path::new(""),
         );
 
         let values = testing_values(

@@ -2,6 +2,10 @@ use std::process::Command;
 
 use crate::common::test::TestResult;
 
+pub fn check_file_exists(path: &str) -> TestResult<String> {
+    exec_bash_command(&format!("test -f '{path}'"))
+}
+
 /// Executes a bash command and returns its output or an error.
 pub fn exec_bash_command(command: &str) -> TestResult<String> {
     let output = Command::new("bash")

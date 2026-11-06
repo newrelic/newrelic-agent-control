@@ -4,6 +4,7 @@ use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_loc
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
 use crate::common::{InstallationArgs, RecipeData};
+use crate::linux::bash::check_file_exists;
 use crate::linux::install::tear_down_test;
 use crate::{
     common::nrql,
@@ -52,6 +53,12 @@ agents:
     );
 
     linux::service::restart_service(linux::SERVICE_NAME);
+
+    let log_file = linux::sub_agent_log_path(nrdot_sub_agent_id, "nrdot-collector.log");
+    info!(path = log_file, "Checking the nr-dot log file is created");
+    retry_panic(30, Duration::from_secs(2), "nr-dot log file", || {
+        check_file_exists(&log_file)
+    });
 
     let nrql_query = format!(
         r#"SELECT `system.memory.utilization` FROM Metric WHERE `host.id` = '{test_id}' LIMIT 1"#

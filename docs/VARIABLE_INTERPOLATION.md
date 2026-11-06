@@ -106,18 +106,28 @@ env:
 
 ### `nr-path` — Path helpers
 
-Same value as `nr-sub:filesystem_agent_dir` but expressed as a native OS path. Use this instead
-of `nr-sub:filesystem_agent_dir` inside values that are later used as filesystem paths, to avoid
+Sub-agent paths expressed as native OS paths. Use `nr-path:agent_dir` instead of
+`nr-sub:filesystem_agent_dir` inside values that are later used as filesystem paths, to avoid
 path separator issues on Windows.
+
+Unlike `nr-sub`, `nr-path` variables can also be used inside `nr-var` values set in the agent
+configuration (local or remote).
 
 | Variable | Description |
 |---|---|
 | `nr-path:agent_dir` | Agent's dedicated filesystem directory (OS-native separator) |
+| `nr-path:log_dir` | Directory for the agent's own logs: `<AC log directory>/<agent id>`, e.g. `/var/log/newrelic-agent-control/<agent id>` on Linux. Agent Control creates it before starting the agent and removes it with the agent. It is the same directory where Agent Control writes the agent's stdout/stderr when file logging is enabled. On-host only. |
 
 ```yaml
 args:
   - --config
   - ${nr-path:agent_dir}/config.yaml
+```
+
+```yaml
+# agent configuration provided by the user
+log:
+  file: ${nr-path:log_dir}/agent.log
 ```
 
 ---

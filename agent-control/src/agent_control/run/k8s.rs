@@ -181,6 +181,7 @@ impl AgentControlRunner {
             agent_control_variables,
             value_providers,
             &self.base_paths.remote_dir,
+            &self.base_paths.log_dir,
         ));
 
         let supervisor_builder = SupervisorBuilderK8s::new(k8s_client.clone(), k8s_config.clone());

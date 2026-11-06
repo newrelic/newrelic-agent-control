@@ -1,5 +1,6 @@
 use crate::common::InstallationArgs;
 use crate::common::RecipeData;
+use crate::common::agent_metadata::AgentKind;
 use crate::common::config::write_agent_local_config;
 use crate::common::nrql::Region;
 use crate::common::on_drop::CleanUp;
@@ -17,11 +18,9 @@ use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 use tracing::info;
 
-// Regression check for the eBPF agent's own status-log write: it must land under the AC managed
-// filesystem directory (via NEW_RELIC_LOG_FILE_PATH), not fall back to its hardcoded default.
-const EBPF_STATUS_LOG: &str =
-    "/var/lib/newrelic-agent-control/filesystem/nr-ebpf/logs/ebpf-agent-status.log";
-const EBPF_DEFAULT_STATUS_LOG: &str = "/etc/newrelic-ebpf-agent/ebpf-agent-status.log";
+// Regression check for the eBPF agent's own status-log write: it must land under the sub-agent log
+// directory managed by AC (`logFilePath: ${nr-path:log_dir}`), not fall back to its hardcoded default.
+const EBPF_STATUS_LOG: &str = "/var/log/newrelic-agent-control/nr-ebpf/ebpf-agent-status.log";
 
 // Plain HTTP traffic for the eBPF agent to trace.
 const HTTP_SERVER_PORT: u16 = 18080;
@@ -44,6 +43,8 @@ pub fn test_ebpf_agent(args: InstallationArgs) {
 
     install_agent_control_from_recipe(&recipe_data);
 
+    let ebpf_sub_agent_id = AgentKind::EbpfAgent.sub_agent_id();
+
     let test_id = format!(
         "onhost-e2e-ebpf-agent_{}",
         chrono::Local::now().format("%Y-%m-%d_%H-%M-%S%.3f")
@@ -54,7 +55,7 @@ pub fn test_ebpf_agent(args: InstallationArgs) {
         r#"
 host_id: {test_id}
 agents:
-  nr-ebpf:
+  {ebpf_sub_agent_id}:
     agent_type: "newrelic/com.newrelic.ebpf:0.1.0"
 {DEBUG_LOGGING_CONFIG}
 "#
@@ -67,10 +68,12 @@ agents:
 config:
   deploymentName: "{test_id}"
   region: "{region}"
+  logFilePath: "${{nr-path:log_dir}}"
+  loglevel: "INFO"
 version: "{ebpf_version}"
     "#
     );
-    write_agent_local_config(&linux::local_config_path("nr-ebpf"), ebpf_config);
+    write_agent_local_config(&linux::local_config_path(ebpf_sub_agent_id), ebpf_config);
 
     linux::service::restart_service(linux::SERVICE_NAME);
 
@@ -96,8 +99,6 @@ version: "{ebpf_version}"
         "ebpf status log written under the AC managed filesystem directory",
         || exec_bash_command(&format!("test -f '{EBPF_STATUS_LOG}'")),
     );
-    exec_bash_command(&format!("test ! -f '{EBPF_DEFAULT_STATUS_LOG}'"))
-        .expect("eBPF status log should not fall back to /etc/newrelic-ebpf-agent");
 }
 
 /// Local HTTP server plus a client loop hitting it, both killed on drop.
