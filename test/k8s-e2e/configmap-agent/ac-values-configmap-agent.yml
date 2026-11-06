@@ -20,6 +20,10 @@ agentsConfig:
   gateway:
     config:
       exporters:
+        otlphttp:
+          endpoint: https://otlp.nr-data.net
+          headers:
+            api-key: ${env:NEW_RELIC_LICENSE_KEY}
         otlp/exporter:
           endpoint: https://otlp.nr-data.net:443
           headers:

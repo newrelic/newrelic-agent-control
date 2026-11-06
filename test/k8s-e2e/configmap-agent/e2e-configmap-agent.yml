@@ -19,8 +19,7 @@ scenarios:
       - timeout 120 bash -c 'until kubectl get configmap pcg-otel-config -n newrelic-agents 2>/dev/null; do sleep 5; done'
       # Install pipeline-control-gateway from the public chart, pointing it at the ConfigMap AC created
       - helm repo add newrelic https://helm-charts.newrelic.com && helm repo update
-      # TODO: Next chart version (3.2.0) doesn't work with the current local config, we need to update such config to go back to latest
-      - helm install pcg newrelic/pipeline-control-gateway --version 2.5.0 --namespace newrelic-agents --create-namespace --set global.licenseKey=${LICENSE_KEY} --set global.cluster=${SCENARIO_TAG} --set deployment.customConfigMap=pcg-otel-config --set autoscaling.minReplicas=1 --set autoscaling.maxReplicas=1 --set deployment.resources.requests.memory=256Mi --set deployment.resources.requests.cpu=100m --set deployment.resources.limits.memory=512Mi --set deployment.resources.limits.cpu=500m --wait --timeout 5m
+      - helm install pcg newrelic/pipeline-control-gateway --namespace newrelic-agents --create-namespace --set global.licenseKey=${LICENSE_KEY} --set global.cluster=${SCENARIO_TAG} --set deployment.customConfigMap=pcg-otel-config --set autoscaling.minReplicas=1 --set autoscaling.maxReplicas=1 --set deployment.resources.requests.memory=256Mi --set deployment.resources.requests.cpu=100m --set deployment.resources.limits.memory=512Mi --set deployment.resources.limits.cpu=500m --wait --timeout 5m
     after:
       - kubectl logs --tail=-1 -l app.kubernetes.io/name=agent-control --all-containers --prefix=true -n newrelic
       - kubectl get configmap -n newrelic-agents --show-labels
