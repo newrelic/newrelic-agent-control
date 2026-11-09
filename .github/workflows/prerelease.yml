@@ -89,22 +89,22 @@ jobs:
           repo_name: ${{ github.repository }}
           schema: "custom-local"
           schema_path: "/srv/build/upload-schema-windows-zip.yml"
-          aws_access_key_id: ${{ secrets.TMP_OHAI_AWS_ACCESS_KEY_ID_STAGING }}
-          aws_secret_access_key: ${{ secrets.TMP_OHAI_AWS_SECRET_ACCESS_KEY_STAGING }}
-          aws_s3_bucket_name: "nr-downloads-ohai-staging"
-          aws_s3_lock_bucket_name: "onhost-ci-lock-staging"
           access_point_host: "staging"
           run_id: ${{ github.run_id }}
+          dest_prefix: "preview/"
+          local_packages_path: "/srv/dist/"
+          disable_lock: false
+          apt_skip_mirror: false
           aws_region: "us-east-1"
-          aws_role_session_name: ${{ secrets.TMP_OHAI_AWS_ROLE_SESSION_NAME_STAGING }}
-          aws_role_arn: ${{ secrets.TMP_OHAI_AWS_ROLE_ARN_STAGING }}
+          aws_role_arn: ${{ secrets.OHAI_AWS_ROLE_ARN_STAGING }}
+          aws_role_session_name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_STAGING }}
+          aws_access_key_id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_STAGING }}
+          aws_secret_access_key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_STAGING }}
+          aws_s3_bucket_name: "nr-downloads-ohai-staging"
+          aws_s3_lock_bucket_name: "onhost-ci-lock-staging"
           # used for signing package stuff
           gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
-          disable_lock: false
-          dest_prefix: "preview/"
-          local_packages_path: "/srv/dist/"
-          apt_skip_mirror: false
 
       - name: Publish deb to S3 action
         uses: newrelic/infrastructure-publish-action@3bcecbdc6c7e2e1bd5cc6d06634008cc828ba91a # v1
@@ -114,22 +114,22 @@ jobs:
           repo_name: ${{ github.repository }}
           schema: "custom-local"
           schema_path: "/srv/build/upload-schema-linux-deb.yml"
-          aws_access_key_id: ${{ secrets.TMP_OHAI_AWS_ACCESS_KEY_ID_STAGING }}
-          aws_secret_access_key: ${{ secrets.TMP_OHAI_AWS_SECRET_ACCESS_KEY_STAGING }}
-          aws_s3_bucket_name: "nr-downloads-ohai-staging"
-          aws_s3_lock_bucket_name: "onhost-ci-lock-staging"
           access_point_host: "staging"
           run_id: ${{ github.run_id }}
+          dest_prefix: "preview/"
+          local_packages_path: "/srv/dist/"
+          disable_lock: false
+          apt_skip_mirror: false
           aws_region: "us-east-1"
-          aws_role_session_name: ${{ secrets.TMP_OHAI_AWS_ROLE_SESSION_NAME_STAGING }}
-          aws_role_arn: ${{ secrets.TMP_OHAI_AWS_ROLE_ARN_STAGING }}
+          aws_role_arn: ${{ secrets.OHAI_AWS_ROLE_ARN_STAGING }}
+          aws_role_session_name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_STAGING }}
+          aws_access_key_id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_STAGING }}
+          aws_secret_access_key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_STAGING }}
+          aws_s3_bucket_name: "nr-downloads-ohai-staging"
+          aws_s3_lock_bucket_name: "onhost-ci-lock-staging"
           # used for signing package stuff
           gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
-          disable_lock: false
-          dest_prefix: "preview/"
-          local_packages_path: "/srv/dist/"
-          apt_skip_mirror: false
 
       - name: Publish rpm to S3 action
         uses: newrelic/infrastructure-publish-action@3bcecbdc6c7e2e1bd5cc6d06634008cc828ba91a # v1
@@ -139,22 +139,22 @@ jobs:
           repo_name: ${{ github.repository }}
           schema: "custom-local"
           schema_path: "/srv/build/upload-schema-linux-rpm.yml"
-          aws_access_key_id: ${{ secrets.TMP_OHAI_AWS_ACCESS_KEY_ID_STAGING }}
-          aws_secret_access_key: ${{ secrets.TMP_OHAI_AWS_SECRET_ACCESS_KEY_STAGING }}
-          aws_s3_bucket_name: "nr-downloads-ohai-staging"
-          aws_s3_lock_bucket_name: "onhost-ci-lock-staging"
           access_point_host: "staging"
           run_id: ${{ github.run_id }}
+          dest_prefix: "preview/"
+          local_packages_path: "/srv/dist/"
+          disable_lock: false
+          apt_skip_mirror: false
           aws_region: "us-east-1"
-          aws_role_session_name: ${{ secrets.TMP_OHAI_AWS_ROLE_SESSION_NAME_STAGING }}
-          aws_role_arn: ${{ secrets.TMP_OHAI_AWS_ROLE_ARN_STAGING }}
+          aws_role_arn: ${{ secrets.OHAI_AWS_ROLE_ARN_STAGING }}
+          aws_role_session_name: ${{ secrets.OHAI_AWS_ROLE_SESSION_NAME_STAGING }}
+          aws_access_key_id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_STAGING }}
+          aws_secret_access_key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_STAGING }}
+          aws_s3_bucket_name: "nr-downloads-ohai-staging"
+          aws_s3_lock_bucket_name: "onhost-ci-lock-staging"
           # used for signing package stuff
           gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
-          disable_lock: false
-          dest_prefix: "preview/"
-          local_packages_path: "/srv/dist/"
-          apt_skip_mirror: false
 
   molecule-packaging-tests:
     uses: ./.github/workflows/component_molecule_packaging.yml
