@@ -1,4 +1,6 @@
 use super::super::spawned_process::{error::CommandError, os_process::OsProcess};
+use windows::Win32::System::Threading::GetExitCodeProcess;
+use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
 
 /// Owns a Windows process HANDLE and closes it on drop, keeping the process object alive long
 /// enough to reliably retrieve the exit code even for very short-lived processes.
@@ -15,7 +17,6 @@ impl ProcessHandle {
     /// Opens a handle to an already-running process by PID alone. The caller must ensure the
     /// PID has not been recycled since it was observed (no `Child` handle to pin it).
     pub(crate) fn open(pid: u32) -> Result<Self, CommandError> {
-        use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
         unsafe {
             OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
                 .map(Self)
@@ -27,7 +28,6 @@ impl ProcessHandle {
     /// Returns the current exit code, or `None` if the handle is no longer accessible.
     /// `Some(259)` means the process is still running (STILL_ACTIVE).
     pub(crate) fn exit_code(&self) -> Option<u32> {
-        use windows::Win32::System::Threading::GetExitCodeProcess;
         let mut code = 0u32;
         unsafe { GetExitCodeProcess(self.0, &mut code).ok().map(|_| code) }
     }

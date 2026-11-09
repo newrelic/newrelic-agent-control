@@ -2,11 +2,11 @@ pub(super) mod process_handle;
 
 use super::spawned_process::error::CommandError;
 use super::{POLL_INTERVAL, ProcessState, SupervisedProcess};
+use std::os::windows::process::ExitStatusExt;
 use std::process::ExitStatus;
 
 impl SupervisedProcess {
     pub fn try_wait(self) -> ProcessState {
-        use std::os::windows::process::ExitStatusExt;
         match self.process_handle.exit_code() {
             Some(259) => ProcessState::Running(self),
             Some(code) => ProcessState::Exited(self.into_exit_status(ExitStatus::from_raw(code))),
@@ -15,7 +15,6 @@ impl SupervisedProcess {
     }
 
     pub fn shutdown(self) -> Result<ExitStatus, CommandError> {
-        use std::os::windows::process::ExitStatusExt;
         // Destructure to consume job_object independently of the other fields.
         let SupervisedProcess {
             pid: _,

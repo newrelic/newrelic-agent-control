@@ -1,14 +1,15 @@
 use super::spawned_process::error::CommandError;
 use super::{POLL_INTERVAL, ProcessState, SupervisedProcess};
+use nix::sys::signal::{Signal, kill};
+use nix::sys::wait::{WaitPidFlag, WaitStatus, waitpid};
+use nix::unistd::Pid;
+use std::os::unix::process::ExitStatusExt;
 use std::process::ExitStatus;
 use std::time::Instant;
 use tracing::warn;
 
 impl SupervisedProcess {
     pub fn try_wait(self) -> ProcessState {
-        use nix::sys::wait::{WaitPidFlag, WaitStatus, waitpid};
-        use nix::unistd::Pid;
-
         let pid = Pid::from_raw(self.pid as i32);
         match waitpid(pid, Some(WaitPidFlag::WNOHANG)) {
             Ok(WaitStatus::StillAlive)
@@ -27,9 +28,6 @@ impl SupervisedProcess {
     }
 
     pub(super) fn wait(self) -> Result<ExitStatus, CommandError> {
-        use nix::sys::wait::waitpid;
-        use nix::unistd::Pid;
-
         let pid = Pid::from_raw(self.pid as i32);
         loop {
             match waitpid(pid, None) {
@@ -69,9 +67,6 @@ impl SupervisedProcess {
 
     /// Sends SIGKILL and waits for the process to exit.
     fn kill(self) -> Result<ExitStatus, CommandError> {
-        use nix::sys::signal::{Signal, kill};
-        use nix::unistd::Pid;
-
         let pid = Pid::from_raw(self.pid as i32);
         match kill(pid, Signal::SIGKILL) {
             Ok(()) | Err(nix::errno::Errno::ESRCH) => self.wait(),
@@ -82,9 +77,6 @@ impl SupervisedProcess {
     /// Sends SIGTERM to `pid_raw`. ESRCH (already gone) is treated as success since the goal —
     /// process is not running — is already achieved.
     fn sigterm(pid_raw: i32) -> Result<(), CommandError> {
-        use nix::sys::signal::{Signal, kill};
-        use nix::unistd::Pid;
-
         match kill(Pid::from_raw(pid_raw), Signal::SIGTERM) {
             Ok(()) | Err(nix::errno::Errno::ESRCH) => Ok(()),
             Err(e) => Err(CommandError::IOError(std::io::Error::from(e))),
@@ -94,9 +86,6 @@ impl SupervisedProcess {
     /// Converts a nix `WaitStatus` into a `std::process::ExitStatus` by reconstructing the raw
     /// waitpid status word that `ExitStatus::from_raw` expects.
     fn raw_exit_status(status: nix::sys::wait::WaitStatus) -> ExitStatus {
-        use nix::sys::wait::WaitStatus;
-        use std::os::unix::process::ExitStatusExt;
-
         let raw = match status {
             // Normal exit: exit code occupies bits 8–15.
             WaitStatus::Exited(_, code) => (code & 0xFF) << 8,
