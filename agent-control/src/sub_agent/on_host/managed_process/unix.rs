@@ -1,13 +1,11 @@
 use super::spawned_process::error::CommandError;
-use super::{POLL_INTERVAL, ProcessState, SupervisedProcess};
+use super::{ProcessState, SupervisedProcess};
 use nix::sys::signal::{Signal, kill};
 use nix::sys::wait::{WaitPidFlag, WaitStatus, waitpid};
 use nix::unistd::Pid;
 use std::os::unix::process::ExitStatusExt;
 use std::process::ExitStatus;
-use std::time::Instant;
-use std::{io, thread};
-use tracing::warn;
+use std::io;
 
 impl SupervisedProcess {
     /// Non-blocking check of whether the process has exited. Uses `WNOHANG` so `waitpid` returns
@@ -33,9 +31,27 @@ impl SupervisedProcess {
         }
     }
 
+    /// Sends SIGTERM. ESRCH (already gone) is treated as success since the goal —
+    /// process is not running — is already achieved.
+    pub(super) fn graceful_signal(&self) -> Result<(), CommandError> {
+        match kill(Pid::from_raw(self.pid as i32), Signal::SIGTERM) {
+            Ok(()) | Err(nix::errno::Errno::ESRCH) => Ok(()),
+            Err(e) => Err(CommandError::IOError(io::Error::from(e))),
+        }
+    }
+
+    /// Sends SIGKILL and blocks until the process exits.
+    pub(super) fn force_kill(self) -> Result<ExitStatus, CommandError> {
+        let pid = Pid::from_raw(self.pid as i32);
+        match kill(pid, Signal::SIGKILL) {
+            Ok(()) | Err(nix::errno::Errno::ESRCH) => self.wait(),
+            Err(e) => Err(CommandError::IOError(io::Error::from(e))),
+        }
+    }
+
     /// Blocks until the process exits. `EINTR` (signal interrupted the syscall) restarts the wait
     /// rather than surfacing an error, matching the POSIX idiom for restartable waits.
-    pub(super) fn wait(self) -> Result<ExitStatus, CommandError> {
+    fn wait(self) -> Result<ExitStatus, CommandError> {
         let pid = Pid::from_raw(self.pid as i32);
         loop {
             match waitpid(pid, None) {
@@ -43,51 +59,6 @@ impl SupervisedProcess {
                 Err(nix::errno::Errno::EINTR) => continue,
                 Err(e) => break Err(CommandError::IOError(io::Error::from(e))),
             }
-        }
-    }
-
-    pub fn shutdown(self) -> Result<ExitStatus, CommandError> {
-        let pid_raw = self.pid as i32;
-        let agent_id_display = self.agent_id.clone();
-        let shutdown_timeout = self.shutdown_timeout;
-
-        if let Err(e) = Self::sigterm(pid_raw) {
-            warn!(agent_id = %agent_id_display, pid = pid_raw, %e, "Graceful shutdown failed. Stopping forcefully");
-            self.kill()
-        } else {
-            let deadline = Instant::now() + shutdown_timeout;
-            let mut current = self;
-            loop {
-                match current.try_wait() {
-                    ProcessState::Exited(exit_status) => break Ok(exit_status),
-                    ProcessState::Running(running) => {
-                        if Instant::now() >= deadline {
-                            warn!(agent_id = %agent_id_display, pid = pid_raw, "Graceful shutdown timeout exceeded. Stopping forcefully");
-                            break running.kill();
-                        }
-                        thread::sleep(POLL_INTERVAL);
-                        current = running;
-                    }
-                }
-            }
-        }
-    }
-
-    /// Sends SIGKILL and waits for the process to exit.
-    fn kill(self) -> Result<ExitStatus, CommandError> {
-        let pid = Pid::from_raw(self.pid as i32);
-        match kill(pid, Signal::SIGKILL) {
-            Ok(()) | Err(nix::errno::Errno::ESRCH) => self.wait(),
-            Err(e) => Err(CommandError::IOError(std::io::Error::from(e))),
-        }
-    }
-
-    /// Sends SIGTERM to `pid_raw`. ESRCH (already gone) is treated as success since the goal —
-    /// process is not running — is already achieved.
-    fn sigterm(pid_raw: i32) -> Result<(), CommandError> {
-        match kill(Pid::from_raw(pid_raw), Signal::SIGTERM) {
-            Ok(()) | Err(nix::errno::Errno::ESRCH) => Ok(()),
-            Err(e) => Err(CommandError::IOError(std::io::Error::from(e))),
         }
     }
 

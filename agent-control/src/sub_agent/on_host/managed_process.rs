@@ -11,7 +11,9 @@ mod windows;
 use crate::agent_control::agent_id::AgentID;
 use spawned_process::{error::CommandError, os_process::OsProcessConfig};
 use std::process::ExitStatus;
-use std::time::Duration;
+use std::thread;
+use std::time::{Duration, Instant};
+use tracing::warn;
 
 #[cfg(target_family = "windows")]
 use crate::utils::job_object::JobObject;
@@ -85,6 +87,36 @@ pub enum ProcessState {
     Running(SupervisedProcess),
     /// The process has exited.
     Exited(ExitStatus),
+}
+
+impl SupervisedProcess {
+    pub fn shutdown(self) -> Result<ExitStatus, CommandError> {
+        let agent_id = self.agent_id.clone();
+        let pid = self.pid;
+        let shutdown_timeout = self.shutdown_timeout;
+
+        #[cfg(target_family = "unix")]
+        if let Err(e) = self.graceful_signal() {
+            warn!(agent_id = %agent_id, pid, %e, "Graceful shutdown failed, stopping forcefully");
+            return self.force_kill();
+        }
+
+        let deadline = Instant::now() + shutdown_timeout;
+        let mut current = self;
+        loop {
+            match current.try_wait() {
+                ProcessState::Exited(exit_status) => break Ok(exit_status),
+                ProcessState::Running(running) => {
+                    if Instant::now() >= deadline {
+                        warn!(agent_id = %agent_id, pid, "Graceful shutdown timeout exceeded, stopping forcefully");
+                        break running.force_kill();
+                    }
+                    thread::sleep(POLL_INTERVAL);
+                    current = running;
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
