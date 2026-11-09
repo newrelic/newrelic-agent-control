@@ -476,9 +476,7 @@ where
                         logging_config.clone(),
                     ))
                 });
-                let started = origin.try_into_supervised();
-
-                let executable_result = started.and_then(|cmd| {
+                let executable_result = origin.try_into_supervised().and_then(|cmd| {
                     wait_exit(
                         cmd,
                         &stop_consumer,
