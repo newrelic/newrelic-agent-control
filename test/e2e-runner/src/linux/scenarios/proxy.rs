@@ -27,6 +27,8 @@ const FLEET_ID_STAGING: &str =
 const EXPECTED_DOMAINS_PROD: &[&str] = &[
     // Installation
     "download.newrelic.com",
+    // OCI registry used to download the agent packages
+    "index.docker.io",
     // Keys generation and Agent Control authentication
     "publickeys.newrelic.com",
     "system-identity-oauth.service.newrelic.com",
@@ -40,6 +42,8 @@ const EXPECTED_DOMAINS_PROD: &[&str] = &[
 const EXPECTED_DOMAINS_STAGING: &[&str] = &[
     // Installation
     "download.newrelic.com",
+    // OCI registry used to download the agent packages
+    "index.docker.io",
     // Keys generation and Agent Control authentication
     "staging-publickeys.newrelic.com",
     "system-identity-oauth.staging-service.newrelic.com",
@@ -197,10 +201,7 @@ fn setup_mitmproxy() {
 
 /// Checks the mitmproxy logs to check if expected domains where reached
 fn verify_proxy_usage(expected_domains: &[&str]) {
-    let check_logs_cmd = format!(
-        "docker logs {} 2>&1 | grep -i 'newrelic' || echo 'No New Relic traffic found'",
-        PROXY_CONTAINER_NAME
-    );
+    let check_logs_cmd = format!("docker logs {} 2>&1", PROXY_CONTAINER_NAME);
 
     let logs = exec_bash_command(&check_logs_cmd)
         .unwrap_or_else(|err| panic!("Failed to check proxy logs: {err}"));
