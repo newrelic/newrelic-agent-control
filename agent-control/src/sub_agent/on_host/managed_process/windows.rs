@@ -19,8 +19,8 @@ impl SupervisedProcess {
         use std::process::ExitStatus;
         // Destructure to consume job_object independently of the other fields.
         let SupervisedProcess {
-            pid,
-            agent_id,
+            pid: _,
+            agent_id: _,
             shutdown_timeout: _,
             job_object,
             process_handle,
@@ -33,15 +33,11 @@ impl SupervisedProcess {
                 Some(259) => std::thread::sleep(POLL_INTERVAL),
                 Some(code) => {
                     return Ok(ExitedProcess {
-                        pid,
-                        agent_id,
                         exit_status: ExitStatus::from_raw(code),
                     });
                 }
                 None => {
                     return Ok(ExitedProcess {
-                        pid,
-                        agent_id,
                         exit_status: ExitStatus::from_raw(1),
                     });
                 }

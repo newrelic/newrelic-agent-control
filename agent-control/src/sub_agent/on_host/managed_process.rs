@@ -91,21 +91,13 @@ impl SupervisedProcess {
 
     /// Constructs an [`ExitedProcess`] by consuming `self` and recording `exit_status`.
     fn into_exited(self, exit_status: ExitStatus) -> ExitedProcess {
-        ExitedProcess {
-            pid: self.pid,
-            agent_id: self.agent_id,
-            exit_status,
-        }
+        ExitedProcess { exit_status }
     }
 }
 
 /// A process that has exited. Produced by [`SupervisedProcess::try_wait`] or
 /// [`SupervisedProcess::shutdown`].
 pub struct ExitedProcess {
-    #[allow(dead_code)]
-    pid: u32,
-    #[allow(dead_code)]
-    agent_id: AgentID,
     exit_status: ExitStatus,
 }
 
