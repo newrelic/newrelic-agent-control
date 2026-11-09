@@ -4,12 +4,12 @@ use super::error::CommandError;
 use super::executable_data::ExecutableData;
 use crate::agent_control::agent_id::AgentID;
 use crate::sub_agent::on_host::managed_process::spawned_process::log_files::std_streams;
+#[cfg(target_family = "unix")]
+use std::os::unix::process::CommandExt;
 use std::path::PathBuf;
 use std::process::{Child, Command};
 #[cfg(target_family = "unix")]
 use std::time::Duration;
-#[cfg(target_family = "unix")]
-use std::os::unix::process::CommandExt;
 
 ////////////////////////////////////////////////////////////////////////////////////
 // States for Started/Not Started/Sync Command
