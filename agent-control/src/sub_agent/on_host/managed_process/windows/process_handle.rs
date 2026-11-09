@@ -1,10 +1,12 @@
 use super::super::spawned_process::{error::CommandError, os_process::OsProcess};
-use windows::Win32::System::Threading::GetExitCodeProcess;
-use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
+use windows::Win32::Foundation::{CloseHandle, HANDLE};
+use windows::Win32::System::Threading::{
+    GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+};
 
 /// Owns a Windows process HANDLE and closes it on drop, keeping the process object alive long
 /// enough to reliably retrieve the exit code even for very short-lived processes.
-pub(crate) struct ProcessHandle(windows::Win32::Foundation::HANDLE);
+pub(crate) struct ProcessHandle(HANDLE);
 
 impl ProcessHandle {
     /// Opens a secondary handle to `os_process`, guaranteeing it refers to the same process
@@ -36,7 +38,7 @@ impl ProcessHandle {
 impl Drop for ProcessHandle {
     fn drop(&mut self) {
         unsafe {
-            let _ = windows::Win32::Foundation::CloseHandle(self.0);
+            let _ = CloseHandle(self.0);
         }
     }
 }
