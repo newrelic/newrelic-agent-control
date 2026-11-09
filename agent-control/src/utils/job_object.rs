@@ -52,8 +52,8 @@ impl JobObject {
         .map_err(|e| JobObjectError(format!("assigning process to JobObject: {e}")))
     }
 
-    /// Terminates all processes in the JobObject, consuming it to prevent double-kills.
-    pub fn kill(self) -> Result<(), JobObjectError> {
+    /// Terminates all processes in the JobObject immediately without waiting for drop.
+    pub fn kill(&self) -> Result<(), JobObjectError> {
         unsafe { TerminateJobObject(self.handle, 0) }
             .map_err(|e| JobObjectError(format!("terminating JobObject: {e}")))
     }
