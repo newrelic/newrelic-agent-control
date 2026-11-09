@@ -27,6 +27,8 @@ const FLEET_ID_STAGING: &str =
 const EXPECTED_DOMAINS_PROD: &[&str] = &[
     // Installation
     "download.newrelic.com",
+    // OCI registry used to download the agent packages
+    "index.docker.io",
     // Keys generation and Agent Control authentication
     "publickeys.newrelic.com",
     "system-identity-oauth.service.newrelic.com",
@@ -40,6 +42,8 @@ const EXPECTED_DOMAINS_PROD: &[&str] = &[
 const EXPECTED_DOMAINS_STAGING: &[&str] = &[
     // Installation
     "download.newrelic.com",
+    // OCI registry used to download the agent packages
+    "index.docker.io",
     // Keys generation and Agent Control authentication
     "staging-publickeys.newrelic.com",
     "system-identity-oauth.staging-service.newrelic.com",
