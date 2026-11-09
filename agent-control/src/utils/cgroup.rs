@@ -240,7 +240,10 @@ fn proc_stat(pid: u32) -> Option<Stat> {
 fn mount_hierarchy(mount: &procfs::process::MountInfo) -> Option<Hierarchy> {
     match mount.fs_type.as_str() {
         "cgroup2" => Some(Hierarchy::V2),
-        "cgroup" if mount.super_options.contains_key("name=systemd") => Some(Hierarchy::V1Systemd),
+        // `procfs` splits `name=systemd` into the key `name` and the value `systemd`.
+        "cgroup" if mount.super_options.get("name") == Some(&Some("systemd".to_string())) => {
+            Some(Hierarchy::V1Systemd)
+        }
         _ => None,
     }
 }
