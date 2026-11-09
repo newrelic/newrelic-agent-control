@@ -67,7 +67,7 @@ impl ProcessOrigin {
 /// Invariant: the underlying OS process is alive. Transitions to an exit status via
 /// [`Self::try_wait`] or [`Self::shutdown`].
 pub struct SupervisedProcess {
-    pub pid: u32,
+    pid: u32,
     agent_id: AgentID,
     shutdown_timeout: Duration,
     /// Job Object used to terminate the entire process tree on Windows.
