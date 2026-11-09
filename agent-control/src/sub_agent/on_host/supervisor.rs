@@ -1287,9 +1287,9 @@ declared-dir:
 
         let executables_clone = agent.executables.clone();
 
-        let executable_thread_contexts = executables_clone.iter().map(|e| {
-            agent.start_process_thread(e, Some(health_publisher.clone()), None)
-        });
+        let executable_thread_contexts = executables_clone
+            .iter()
+            .map(|e| agent.start_process_thread(e, Some(health_publisher.clone()), None));
 
         for thread_context in executable_thread_contexts {
             while !thread_context.is_thread_finished() {
@@ -1382,9 +1382,9 @@ declared-dir:
 
         let executables_clone = agent.executables.clone();
 
-        let executable_thread_contexts = executables_clone.iter().map(|e| {
-            agent.start_process_thread(e, Some(health_publisher.clone()), None)
-        });
+        let executable_thread_contexts = executables_clone
+            .iter()
+            .map(|e| agent.start_process_thread(e, Some(health_publisher.clone()), None));
 
         for thread_context in executable_thread_contexts {
             while !thread_context.is_thread_finished() {
