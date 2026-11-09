@@ -67,12 +67,8 @@ impl ProcessOrigin {
 /// Invariant: the underlying OS process is alive. Transitions to an exit status via
 /// [`Self::try_wait`] or [`Self::shutdown`].
 pub struct SupervisedProcess {
-    pid: u32,
-    // Used for logging and the graceful-shutdown timeout on Unix; will also be used on Windows
-    // once the adoption path and graceful-shutdown signalling are implemented there.
-    #[allow(dead_code)]
+    pub pid: u32,
     agent_id: AgentID,
-    #[allow(dead_code)]
     shutdown_timeout: Duration,
     /// Job Object used to terminate the entire process tree on Windows.
     #[cfg(target_family = "windows")]
@@ -81,18 +77,6 @@ pub struct SupervisedProcess {
     /// process exits quickly and before we get a chance to query it.
     #[cfg(target_family = "windows")]
     process_handle: ProcessHandle,
-}
-
-impl SupervisedProcess {
-    /// Returns the process id.
-    pub fn get_pid(&self) -> u32 {
-        self.pid
-    }
-
-    /// Consumes `self` (signalling the process is done) and returns `exit_status`.
-    pub(super) fn into_exit_status(self, exit_status: ExitStatus) -> ExitStatus {
-        exit_status
-    }
 }
 
 /// Result of a non-blocking liveness check.
@@ -164,7 +148,7 @@ mod tests {
             ))
             .try_into_supervised()
             .unwrap();
-            let pid = process.get_pid();
+            let pid = process.pid;
             (process, pid)
         }
     }
@@ -173,7 +157,7 @@ mod tests {
     fn spawned_reports_the_pid_of_the_started_command() {
         let (process, pid) = ExecutableData::long_running().spawn();
 
-        assert_eq!(process.get_pid(), pid);
+        assert_eq!(process.pid, pid);
 
         process.shutdown().unwrap();
     }

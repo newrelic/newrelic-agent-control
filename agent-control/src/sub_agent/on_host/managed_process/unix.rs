@@ -6,6 +6,7 @@ use nix::unistd::Pid;
 use std::os::unix::process::ExitStatusExt;
 use std::process::ExitStatus;
 use std::time::Instant;
+use std::{io, thread};
 use tracing::warn;
 
 impl SupervisedProcess {
@@ -20,13 +21,11 @@ impl SupervisedProcess {
                 ProcessState::Running(self)
             }
             Ok(status @ (WaitStatus::Exited(..) | WaitStatus::Signaled(..))) => {
-                ProcessState::Exited(self.into_exit_status(Self::raw_exit_status(status)))
+                ProcessState::Exited(Self::raw_exit_status(status))
             }
-            Err(nix::errno::Errno::ECHILD) => {
-                // Not our child: adopted process. Full liveness check will be wired up
-                // when ProcessOrigin::Adopt is implemented.
-                ProcessState::Running(self)
-            }
+            // Not our child: adopted process. Full liveness check will be wired up
+            // when ProcessOrigin::Adopt is implemented.
+            Err(nix::errno::Errno::ECHILD) => ProcessState::Running(self),
             Err(_) => ProcessState::Running(self),
         }
     }
@@ -35,9 +34,9 @@ impl SupervisedProcess {
         let pid = Pid::from_raw(self.pid as i32);
         loop {
             match waitpid(pid, None) {
-                Ok(status) => break Ok(self.into_exit_status(Self::raw_exit_status(status))),
+                Ok(status) => break Ok(Self::raw_exit_status(status)),
                 Err(nix::errno::Errno::EINTR) => continue,
-                Err(e) => break Err(CommandError::IOError(std::io::Error::from(e))),
+                Err(e) => break Err(CommandError::IOError(io::Error::from(e))),
             }
         }
     }
@@ -61,7 +60,7 @@ impl SupervisedProcess {
                             warn!(agent_id = %agent_id_display, pid = pid_raw, "Graceful shutdown timeout exceeded. Stopping forcefully");
                             break running.kill();
                         }
-                        std::thread::sleep(POLL_INTERVAL);
+                        thread::sleep(POLL_INTERVAL);
                         current = running;
                     }
                 }

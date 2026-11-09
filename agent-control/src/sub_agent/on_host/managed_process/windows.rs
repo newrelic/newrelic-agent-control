@@ -13,8 +13,8 @@ impl SupervisedProcess {
     pub fn try_wait(self) -> ProcessState {
         match self.process_handle.exit_code() {
             Some(STILL_ACTIVE) => ProcessState::Running(self),
-            Some(code) => ProcessState::Exited(self.into_exit_status(ExitStatus::from_raw(code))),
-            None => ProcessState::Exited(self.into_exit_status(ExitStatus::from_raw(1))),
+            Some(code) => ProcessState::Exited(ExitStatus::from_raw(code)),
+            None => ProcessState::Exited(ExitStatus::from_raw(1)),
         }
     }
 
