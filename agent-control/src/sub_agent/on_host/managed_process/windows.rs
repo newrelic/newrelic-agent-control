@@ -1,22 +1,21 @@
 pub(super) mod process_handle;
 
 use super::spawned_process::error::CommandError;
-use super::{ExitedProcess, POLL_INTERVAL, ProcessState, SupervisedProcess};
+use super::{POLL_INTERVAL, ProcessState, SupervisedProcess};
+use std::process::ExitStatus;
 
 impl SupervisedProcess {
     pub fn try_wait(self) -> ProcessState {
         use std::os::windows::process::ExitStatusExt;
-        use std::process::ExitStatus;
         match self.process_handle.exit_code() {
             Some(259) => ProcessState::Running(self),
-            Some(code) => ProcessState::Exited(self.into_exited(ExitStatus::from_raw(code))),
-            None => ProcessState::Exited(self.into_exited(ExitStatus::from_raw(1))),
+            Some(code) => ProcessState::Exited(self.into_exit_status(ExitStatus::from_raw(code))),
+            None => ProcessState::Exited(self.into_exit_status(ExitStatus::from_raw(1))),
         }
     }
 
-    pub fn shutdown(self) -> Result<ExitedProcess, CommandError> {
+    pub fn shutdown(self) -> Result<ExitStatus, CommandError> {
         use std::os::windows::process::ExitStatusExt;
-        use std::process::ExitStatus;
         // Destructure to consume job_object independently of the other fields.
         let SupervisedProcess {
             pid: _,
@@ -31,16 +30,8 @@ impl SupervisedProcess {
         loop {
             match process_handle.exit_code() {
                 Some(259) => std::thread::sleep(POLL_INTERVAL),
-                Some(code) => {
-                    return Ok(ExitedProcess {
-                        exit_status: ExitStatus::from_raw(code),
-                    });
-                }
-                None => {
-                    return Ok(ExitedProcess {
-                        exit_status: ExitStatus::from_raw(1),
-                    });
-                }
+                Some(code) => return Ok(ExitStatus::from_raw(code)),
+                None => return Ok(ExitStatus::from_raw(1)),
             }
         }
     }

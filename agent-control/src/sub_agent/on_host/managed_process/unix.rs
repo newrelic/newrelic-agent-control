@@ -1,5 +1,5 @@
 use super::spawned_process::error::CommandError;
-use super::{ExitedProcess, POLL_INTERVAL, ProcessState, SupervisedProcess};
+use super::{POLL_INTERVAL, ProcessState, SupervisedProcess};
 use std::process::ExitStatus;
 use std::time::Instant;
 use tracing::warn;
@@ -14,7 +14,7 @@ impl SupervisedProcess {
             Ok(WaitStatus::StillAlive)
             | Ok(WaitStatus::Stopped(..))
             | Ok(WaitStatus::Continued(..)) => ProcessState::Running(self),
-            Ok(status) => ProcessState::Exited(self.into_exited(Self::raw_exit_status(status))),
+            Ok(status) => ProcessState::Exited(self.into_exit_status(Self::raw_exit_status(status))),
             Err(nix::errno::Errno::ECHILD) => {
                 // Not our child: adopted process. Full liveness check will be wired up
                 // when ProcessOrigin::Adopt is implemented.
@@ -24,21 +24,21 @@ impl SupervisedProcess {
         }
     }
 
-    pub(super) fn wait(self) -> Result<ExitedProcess, CommandError> {
+    pub(super) fn wait(self) -> Result<ExitStatus, CommandError> {
         use nix::sys::wait::waitpid;
         use nix::unistd::Pid;
 
         let pid = Pid::from_raw(self.pid as i32);
         loop {
             match waitpid(pid, None) {
-                Ok(status) => break Ok(self.into_exited(Self::raw_exit_status(status))),
+                Ok(status) => break Ok(self.into_exit_status(Self::raw_exit_status(status))),
                 Err(nix::errno::Errno::EINTR) => continue,
                 Err(e) => break Err(CommandError::IOError(std::io::Error::from(e))),
             }
         }
     }
 
-    pub fn shutdown(self) -> Result<ExitedProcess, CommandError> {
+    pub fn shutdown(self) -> Result<ExitStatus, CommandError> {
         let pid_raw = self.pid as i32;
         let agent_id_display = self.agent_id.clone();
         let shutdown_timeout = self.shutdown_timeout;
@@ -51,7 +51,7 @@ impl SupervisedProcess {
             let mut current = self;
             loop {
                 match current.try_wait() {
-                    ProcessState::Exited(exited) => break Ok(exited),
+                    ProcessState::Exited(exit_status) => break Ok(exit_status),
                     ProcessState::Running(running) => {
                         if Instant::now() >= deadline {
                             warn!(agent_id = %agent_id_display, pid = pid_raw, "Graceful shutdown timeout exceeded. Stopping forcefully");
@@ -66,7 +66,7 @@ impl SupervisedProcess {
     }
 
     /// Sends SIGKILL and waits for the process to exit.
-    fn kill(self) -> Result<ExitedProcess, CommandError> {
+    fn kill(self) -> Result<ExitStatus, CommandError> {
         use nix::sys::signal::{Signal, kill};
         use nix::unistd::Pid;
 

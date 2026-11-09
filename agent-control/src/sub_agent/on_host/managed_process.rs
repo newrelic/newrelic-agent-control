@@ -64,7 +64,7 @@ impl ProcessOrigin {
 
 /// A process supervised by Agent Control that has not yet exited.
 ///
-/// Invariant: the underlying OS process is alive. Transitions to [`ExitedProcess`] via
+/// Invariant: the underlying OS process is alive. Transitions to an exit status via
 /// [`Self::try_wait`] or [`Self::shutdown`].
 pub struct SupervisedProcess {
     pid: u32,
@@ -89,22 +89,9 @@ impl SupervisedProcess {
         self.pid
     }
 
-    /// Constructs an [`ExitedProcess`] by consuming `self` and recording `exit_status`.
-    fn into_exited(self, exit_status: ExitStatus) -> ExitedProcess {
-        ExitedProcess { exit_status }
-    }
-}
-
-/// A process that has exited. Produced by [`SupervisedProcess::try_wait`] or
-/// [`SupervisedProcess::shutdown`].
-pub struct ExitedProcess {
-    exit_status: ExitStatus,
-}
-
-impl ExitedProcess {
-    /// Returns the exit status of the process.
-    pub fn exit_status(&self) -> ExitStatus {
-        self.exit_status
+    /// Consumes `self` (signalling the process is done) and returns `exit_status`.
+    pub(super) fn into_exit_status(self, exit_status: ExitStatus) -> ExitStatus {
+        exit_status
     }
 }
 
@@ -113,7 +100,7 @@ pub enum ProcessState {
     /// The process is still running; ownership of the [`SupervisedProcess`] is returned.
     Running(SupervisedProcess),
     /// The process has exited.
-    Exited(ExitedProcess),
+    Exited(ExitStatus),
 }
 
 #[cfg(test)]
@@ -128,11 +115,11 @@ mod tests {
     /// Blocking wait used only in Windows tests to verify exit-code retrieval via `ProcessHandle`.
     #[cfg(target_family = "windows")]
     impl SupervisedProcess {
-        pub(crate) fn wait(self) -> Result<ExitedProcess, spawned_process::error::CommandError> {
+        pub(crate) fn wait(self) -> Result<ExitStatus, spawned_process::error::CommandError> {
             let mut current = self;
             loop {
                 match current.try_wait() {
-                    ProcessState::Exited(exited) => break Ok(exited),
+                    ProcessState::Exited(exit_status) => break Ok(exit_status),
                     ProcessState::Running(running) => {
                         std::thread::sleep(POLL_INTERVAL);
                         current = running;
@@ -199,7 +186,6 @@ mod tests {
             panic!("expected process to be running immediately after spawn");
         };
 
-        // shutdown() kills the process, waits for it to exit, and returns an ExitedProcess
         process.shutdown().unwrap();
     }
 
@@ -209,7 +195,7 @@ mod tests {
 
         let exited = process.wait().unwrap();
 
-        assert!(exited.exit_status().success());
+        assert!(exited.success());
     }
 
     #[test]
@@ -219,7 +205,7 @@ mod tests {
         let exited = process.shutdown().unwrap();
 
         cfg_select! {
-            target_family = "unix" => assert!(!exited.exit_status().success()),
+            target_family = "unix" => assert!(!exited.success()),
             // TerminateJobObject exits processes with code 0.
             target_family = "windows" => { let _ = exited; },
         }

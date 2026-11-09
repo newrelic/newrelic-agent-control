@@ -601,21 +601,20 @@ fn wait_exit(
 
     loop {
         match process.try_wait() {
-            ProcessState::Exited(exited) => {
-                let status = exited.exit_status();
-                if !healthy_already_published && status.success() {
+            ProcessState::Exited(exit_status) => {
+                if !healthy_already_published && exit_status.success() {
                     debug!(%agent_id, %exec_id, "Informing executable as healthy after terminating successfully");
                     health_handler.inspect(|h| h.publish_healthy());
                 }
-                break Ok((status, false));
+                break Ok((exit_status, false));
             }
             // Busy waiting is avoided with `is_cancelled_with_timeout`
             ProcessState::Running(running) => {
                 if stop_consumer.is_cancelled_with_timeout(WAIT_FOR_EXIT_TIMEOUT) {
                     info!(%agent_id, %exec_id, "Stopping executable");
-                    let exited = running.shutdown()?;
+                    let exit_status = running.shutdown()?;
                     info!(%agent_id, %exec_id, "Executable terminated");
-                    break Ok((exited.exit_status(), true));
+                    break Ok((exit_status, true));
                 }
                 // Publish healthy status once after the process has been running
                 // for an arbitrary long time without issues.
