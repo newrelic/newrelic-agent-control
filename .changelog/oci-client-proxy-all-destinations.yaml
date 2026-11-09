@@ -1,2 +1,0 @@
-type: bugfix
-message: 'On-host: OCI registry requests now go through the configured proxy regardless of the proxy URL scheme, so an `http://` proxy is no longer bypassed.'

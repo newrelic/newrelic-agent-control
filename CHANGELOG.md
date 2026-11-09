@@ -8,6 +8,30 @@ New changes are added as change files in `.changelog/`, not here: the release mo
 
 ## Unreleased
 
+## v1.28.0 - 2026-11-09
+
+### 🚀 Enhancements
+- YAML parsing is now stricter about empty maps: a null value (an empty value, `~` or `null`) where a map is expected, such as a bare `config:` in a stored remote config, is rejected instead of being treated as an empty map. Use `{}` for an empty map. Empty documents are still accepted.
+
+### 🐞 Bug fixes
+- On-host: shared filesystem cleanup no longer follows symlinks, so content outside the shared filesystem is never deleted, and dangling symlinks are removed.
+- On-host: Startup failures that happen before logging is configured (e.g. an invalid `local_config.yaml`) are now written to the default Agent Control log file, so they are visible when running as a Windows service.
+- On-host: OCI registry requests now go through the configured proxy regardless of the proxy URL scheme, so an `http://` proxy is no longer bypassed.
+- On-host: a sub-agent killed by a signal (e.g. by the OOM killer) is now reported as terminated by that signal instead of "process exited with code: 0".
+
+### ⛓️ Dependencies
+- Updated rust crate aws-sigv4 to 1.6.4
+- Updated rust crate actix-web to 4.19.0
+- Updated rust crate zip to 9.4.1
+- Updated rust crate aws-lc-rs to 1.19.0
+- Updated rust crate encoding_rs to 0.8.44
+- Updated alpine/kubectl to v1.37.2
+- Updated rust crate toml to 1.2.1
+- Updated rust crate kube to v5
+- Updated rust crate serde-saphyr to 2.1.1
+- Updated rust crate flate2 to 1.1.11
+- Updated rust crate syn to 3.0.10
+
 ## v1.27.0 - 2026-10-22
 
 ### 🚀 Enhancements
