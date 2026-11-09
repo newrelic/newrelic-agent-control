@@ -406,15 +406,10 @@ where
                 let maybe_health_publisher = maybe_health_checker
                     .as_ref()
                     .map(|hc| hc.health_publisher.clone());
-                // TODO: once PID-file / cgroup inspection is in place, derive the initial
-                // origin from that state (ProcessOrigin::Adopt when a process from a
-                // previous AC run is still alive, ProcessOrigin::Spawn otherwise).
-                let initial = ProcessOrigin::Spawn(OsProcessConfig::new(
-                    self.agent_identity.id.clone(),
-                    e,
-                    self.file_logging_config.clone(),
-                ));
-                self.start_process_thread(e, maybe_health_publisher, initial)
+                // TODO: once PID-file / cgroup inspection is in place, pass
+                // Some(ProcessOrigin::Adopt(...)) when a process from a previous AC run is
+                // still alive; None otherwise always spawns fresh.
+                self.start_process_thread(e, maybe_health_publisher, None)
             })
             .collect();
         // Track the health checker thread alongside the executable ones, so that stopping or
@@ -435,7 +430,7 @@ where
         &self,
         executable_data: &ExecutableData,
         health_publisher: Option<EventPublisher<(String, HealthWithStartTime)>>,
-        initial_origin: ProcessOrigin,
+        process_supervision_operation: Option<ProcessOrigin>,
     ) -> StartedThreadContext {
         let mut restart_policy = executable_data.restart_policy.clone();
         let exec_data = executable_data.clone();
@@ -448,7 +443,7 @@ where
 
             let exec_id = exec_data.id.clone();
             // Consumed on the first iteration; every subsequent restart always spawns.
-            let mut process_supervision_operation = Some(initial_origin);
+            let mut process_supervision_operation = process_supervision_operation;
 
             let mut i = 0;
             let mut last_error: Option<String>;
@@ -1293,12 +1288,7 @@ declared-dir:
         let executables_clone = agent.executables.clone();
 
         let executable_thread_contexts = executables_clone.iter().map(|e| {
-            let initial = ProcessOrigin::Spawn(OsProcessConfig::new(
-                agent.agent_identity.id.clone(),
-                e,
-                agent.file_logging_config.clone(),
-            ));
-            agent.start_process_thread(e, Some(health_publisher.clone()), initial)
+            agent.start_process_thread(e, Some(health_publisher.clone()), None)
         });
 
         for thread_context in executable_thread_contexts {
@@ -1393,12 +1383,7 @@ declared-dir:
         let executables_clone = agent.executables.clone();
 
         let executable_thread_contexts = executables_clone.iter().map(|e| {
-            let initial = ProcessOrigin::Spawn(OsProcessConfig::new(
-                agent.agent_identity.id.clone(),
-                e,
-                agent.file_logging_config.clone(),
-            ));
-            agent.start_process_thread(e, Some(health_publisher.clone()), initial)
+            agent.start_process_thread(e, Some(health_publisher.clone()), None)
         });
 
         for thread_context in executable_thread_contexts {
