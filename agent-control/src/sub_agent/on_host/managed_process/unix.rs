@@ -15,7 +15,7 @@ impl SupervisedProcess {
             Ok(WaitStatus::StillAlive)
             | Ok(WaitStatus::Stopped(..))
             | Ok(WaitStatus::Continued(..)) => ProcessState::Running(self),
-            #[cfg(any(target_os = "linux", target_os = "android"))]
+            #[cfg(target_os = "linux")]
             Ok(WaitStatus::PtraceEvent(..) | WaitStatus::PtraceSyscall(..)) => {
                 ProcessState::Running(self)
             }
