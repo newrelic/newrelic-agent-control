@@ -15,6 +15,10 @@ use crate::agent_control::defaults::{STDERR_LOG_FILE_NAME_SUFFIX, STDOUT_LOG_FIL
 use std::process::{Child, Command, Stdio};
 #[cfg(target_family = "unix")]
 use std::time::Duration;
+#[cfg(target_family = "windows")]
+use std::os::windows::process::CommandExt;
+#[cfg(target_family = "windows")]
+use windows::Win32::System::Threading::CREATE_NEW_PROCESS_GROUP;
 
 ////////////////////////////////////////////////////////////////////////////////////
 // States for Started/Not Started/Sync Command
@@ -52,6 +56,10 @@ impl OsProcessConfig {
             .envs(&executable_data.env)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        // Assign the child its own console process group so GenerateConsoleCtrlEvent can
+        // target it by PID without affecting Agent Control's own process group.
+        #[cfg(target_family = "windows")]
+        cmd.creation_flags(CREATE_NEW_PROCESS_GROUP.0);
 
         Self {
             agent_id,
