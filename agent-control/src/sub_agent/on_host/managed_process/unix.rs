@@ -15,10 +15,13 @@ impl SupervisedProcess {
             Ok(WaitStatus::StillAlive)
             | Ok(WaitStatus::Stopped(..))
             | Ok(WaitStatus::Continued(..)) => ProcessState::Running(self),
+            #[cfg(any(target_os = "linux", target_os = "android"))]
+            Ok(WaitStatus::PtraceEvent(..) | WaitStatus::PtraceSyscall(..)) => {
+                ProcessState::Running(self)
+            }
             Ok(status @ (WaitStatus::Exited(..) | WaitStatus::Signaled(..))) => {
                 ProcessState::Exited(self.into_exit_status(Self::raw_exit_status(status)))
             }
-            Ok(_) => ProcessState::Running(self),
             Err(nix::errno::Errno::ECHILD) => {
                 // Not our child: adopted process. Full liveness check will be wired up
                 // when ProcessOrigin::Adopt is implemented.
