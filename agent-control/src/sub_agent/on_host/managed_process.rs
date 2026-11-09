@@ -83,6 +83,22 @@ pub struct SupervisedProcess {
     process_handle: ProcessHandle,
 }
 
+impl SupervisedProcess {
+    /// Returns the process id.
+    pub fn get_pid(&self) -> u32 {
+        self.pid
+    }
+
+    /// Constructs an [`ExitedProcess`] by consuming `self` and recording `exit_status`.
+    fn into_exited(self, exit_status: ExitStatus) -> ExitedProcess {
+        ExitedProcess {
+            pid: self.pid,
+            agent_id: self.agent_id,
+            exit_status,
+        }
+    }
+}
+
 /// A process that has exited. Produced by [`SupervisedProcess::try_wait`] or
 /// [`SupervisedProcess::shutdown`].
 pub struct ExitedProcess {
@@ -106,22 +122,6 @@ pub enum ProcessState {
     Running(SupervisedProcess),
     /// The process has exited.
     Exited(ExitedProcess),
-}
-
-impl SupervisedProcess {
-    /// Returns the process id.
-    pub fn get_pid(&self) -> u32 {
-        self.pid
-    }
-
-    /// Constructs an [`ExitedProcess`] by consuming `self` and recording `exit_status`.
-    fn into_exited(self, exit_status: ExitStatus) -> ExitedProcess {
-        ExitedProcess {
-            pid: self.pid,
-            agent_id: self.agent_id,
-            exit_status,
-        }
-    }
 }
 
 #[cfg(test)]
