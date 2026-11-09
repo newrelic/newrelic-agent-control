@@ -94,8 +94,7 @@ where
     /// Directory where executable output is logged when file logging is enabled.
     pub logging_base_path: PathBuf,
     /// The same `BasePaths::remote_dir` every other piece of Agent Control's runtime state
-    /// is rooted at; passed to `CommandOSNotStarted::new` so its adoption bookkeeping stays
-    /// test-isolated the same way everything else already is.
+    /// is rooted at; passed to `CommandOSNotStarted::new` for the Windows adoption bookkeeping.
     pub process_record_base_dir: PathBuf,
     /// The agent's filesystem.
     pub filesystem: FileSystem,

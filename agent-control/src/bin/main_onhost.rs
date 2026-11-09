@@ -70,6 +70,16 @@ fn _main(context: Context) -> Result<(), Box<dyn Error>> {
         return Err("Program must run with elevated permissions".into());
     }
 
+    // Sub-agents are tracked through cgroups and Agent Control cannot work without them, so check
+    // that this execution can use them and remove the empty cgroups left by previous runs.
+    #[cfg(target_os = "linux")]
+    {
+        use newrelic_agent_control::utils::cgroup::CgroupTracker;
+        let tracker = CgroupTracker::detect()?;
+        tracker.ensure_usable()?;
+        tracker.sweep_empty();
+    }
+
     // Create the actual agent control runner with the rest of required configs
     // and the application_event_consumer and capture the result to report the error in windows
     let run_result = AgentControlRunner::try_new(context.ac_runner_context)

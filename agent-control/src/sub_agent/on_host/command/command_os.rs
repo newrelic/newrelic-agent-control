@@ -4,25 +4,26 @@
 use tracing::info;
 use tracing::warn;
 
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(target_os = "windows")]
 use super::process_record;
 use super::{
     error::CommandError,
-    logging::{
-        self,
-        file_logger::{FileSystemLoggers, file_logger},
-        logger::Logger,
-    },
+    logging::{self, file_logger::FileSystemLoggers, logger::Logger},
 };
 use crate::agent_control::agent_id::AgentID;
+#[cfg(not(target_os = "linux"))]
 use crate::agent_control::defaults::{STDERR_LOG_FILE_NAME_SUFFIX, STDOUT_LOG_FILE_NAME_SUFFIX};
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
 use crate::sub_agent::on_host::command::logging::file_logger::SubAgentFileLoggingConfig;
+#[cfg(not(target_os = "linux"))]
+use crate::sub_agent::on_host::command::logging::file_logger::file_logger;
+#[cfg(target_os = "linux")]
+use crate::utils::cgroup::{CgroupTracker, ExecutableCgroup};
 #[cfg(target_family = "windows")]
 use crate::utils::job_object::JobObject;
 use std::io;
 use std::process::{Child, Command, ExitStatus, Stdio};
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(target_os = "windows")]
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -36,15 +37,18 @@ pub struct CommandOSNotStarted {
     cmd: Command,
     agent_id: AgentID,
     /// Identifies which of the agent's (possibly several) executables this is, so adoption
-    /// bookkeeping for one doesn't collide with another's under the same `agent_id`.
+    /// bookkeeping (Windows) or the cgroup (Linux) of one doesn't collide with another's under
+    /// the same `agent_id`.
     #[cfg_attr(not(any(target_os = "linux", target_os = "windows")), allow(dead_code))]
     exec_id: String,
+    // Linux sub-agents have their stdio set to null, so there is nothing to log.
+    #[cfg_attr(target_os = "linux", allow(dead_code))]
     file_logging_config: SubAgentFileLoggingConfig,
     shutdown_timeout: Duration,
-    /// PoC: defaults to the real `runtime-state`-rooted storer; overridable in tests via
+    /// Windows only: defaults to the real `runtime-state`-rooted storer; overridable in tests via
     /// [`CommandOSNotStarted::with_process_record_storer`] so adoption can be driven against
     /// a temp directory instead of Agent Control's real dynamic data dir.
-    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    #[cfg(target_os = "windows")]
     process_record_storer: Arc<dyn process_record::ProcessRecordStorer + Send + Sync>,
 }
 /// A spawned OS command process with its loggers and (on Windows) job object.
@@ -54,14 +58,17 @@ pub struct CommandOSStarted {
     loggers: Option<FileSystemLoggers>,
     shutdown_timeout: Duration,
 
+    /// Cgroup tracking the process tree of this executable.
+    #[cfg(target_os = "linux")]
+    cgroup: ExecutableCgroup,
     #[cfg(target_family = "windows")]
     job_object: Option<JobObject>,
 }
 
-/// PoC: a process this `CommandOSStarted` supervises, either one Agent Control spawned this
-/// run (`Spawned`, a real `Child`) or one it adopted from a previous instance's bookkeeping
-/// (`Adopted`; see `process_record`). Kept as a thin wrapper mirroring `Child`'s API so
-/// `CommandOSStarted`'s own methods barely change either way.
+/// A process this `CommandOSStarted` supervises, either one Agent Control spawned this run
+/// (`Spawned`, a real `Child`) or one it adopted from a previous instance (`Adopted`). Kept as a
+/// thin wrapper mirroring `Child`'s API so `CommandOSStarted`'s own methods barely change either
+/// way.
 enum ManagedProcess {
     Spawned(Child),
     // Adoption is wired in on Linux and Windows (see `start()`); never constructed elsewhere.
@@ -79,8 +86,8 @@ impl ManagedProcess {
 
     /// Mirrors `Child::try_wait`. For an adopted process this can never be a real
     /// `waitpid()`-backed result (we're not its parent); it's a liveness poll that
-    /// fabricates an [`ExitStatus`] once the process disappears or its start-time marker no
-    /// longer matches, since there's no way to retrieve its real exit code either way.
+    /// fabricates an [`ExitStatus`] once the process disappears, since there's no way to
+    /// retrieve its real exit code either way.
     fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
         match self {
             Self::Spawned(child) => child.try_wait(),
@@ -112,8 +119,8 @@ impl ManagedProcess {
         }
     }
 
-    /// Only ever `Some` for a process this run actually spawned; an adopted process never
-    /// had its stdout piped to us in the first place.
+    /// Only ever `Some` for a process this run actually spawned with piped stdout; an adopted
+    /// process never had its stdout piped to us in the first place.
     fn take_stdout(&mut self) -> Option<std::process::ChildStdout> {
         match self {
             Self::Spawned(child) => child.stdout.take(),
@@ -129,20 +136,28 @@ impl ManagedProcess {
     }
 }
 
-/// PoC: an already-running process Agent Control didn't spawn this run, recognized from a
-/// previous instance's bookkeeping. Linux and Windows only; liveness is a poll against the
-/// OS (`/proc/<pid>/stat` on Linux, `GetProcessTimes` on Windows), not an event, since we're
-/// not this process's real parent and can't `waitpid()` on it (nor, on Windows, retrieve its
-/// real exit code the way `GetExitCodeProcess` would for a process we hold a handle to).
+/// An already-running process Agent Control didn't spawn this run, recognized from a previous
+/// instance. Linux and Windows only; liveness is a poll, not an event, since we're not this
+/// process's real parent and can't `waitpid()` on it (nor, on Windows, retrieve its real exit
+/// code the way `GetExitCodeProcess` would for a process we hold a handle to).
 struct AdoptedProcess {
     pid: u32,
-    #[cfg_attr(not(any(target_os = "linux", target_os = "windows")), allow(dead_code))]
+    /// Cgroup of the executable; the process is alive while it is a member.
+    #[cfg(target_os = "linux")]
+    cgroup: ExecutableCgroup,
+    #[cfg(target_os = "windows")]
     start_time_marker: u64,
 }
 
 impl AdoptedProcess {
     fn is_alive(&self) -> bool {
-        #[cfg(any(target_os = "linux", target_os = "windows"))]
+        #[cfg(target_os = "linux")]
+        {
+            self.cgroup
+                .live_pids()
+                .is_ok_and(|pids| pids.contains(&self.pid))
+        }
+        #[cfg(target_os = "windows")]
         {
             process_record::read_process_creation_marker(self.pid) == Some(self.start_time_marker)
         }
@@ -194,12 +209,11 @@ fn unknown_exit_status() -> ExitStatus {
     }
 }
 
-/// PoC, Linux and Windows only: checks the bookkeeping for `(agent_id, exec_id)` and, if it
-/// points at a pid that's still alive with a matching start-time marker, returns it as
-/// adoptable. Takes the storer as a parameter (rather than constructing one internally)
-/// specifically so this is testable against a temp-dir storer instead of Agent Control's
-/// real dynamic data dir.
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+/// Windows only: checks the bookkeeping for `(agent_id, exec_id)` and, if it points at a pid
+/// that's still alive with a matching start-time marker, returns it as adoptable. Takes the
+/// storer as a parameter (rather than constructing one internally) specifically so this is
+/// testable against a temp-dir storer instead of Agent Control's real dynamic data dir.
+#[cfg(target_os = "windows")]
 fn adoptable_process(
     agent_id: &AgentID,
     exec_id: &str,
@@ -216,11 +230,10 @@ fn adoptable_process(
     })
 }
 
-/// PoC, Linux and Windows only: persists the bookkeeping for a process this run just
-/// spawned, so a future Agent Control restart can recognize it. Best-effort: a failure to
-/// persist only means a future restart won't be able to adopt this process, not that this
-/// run's spawn itself failed.
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+/// Windows only: persists the bookkeeping for a process this run just spawned, so a future
+/// Agent Control restart can recognize it. Best-effort: a failure to persist only means a future
+/// restart won't be able to adopt this process, not that this run's spawn itself failed.
+#[cfg(target_os = "windows")]
 fn record_spawned_process(
     agent_id: &AgentID,
     exec_id: &str,
@@ -228,7 +241,7 @@ fn record_spawned_process(
     storer: &dyn process_record::ProcessRecordStorer,
 ) {
     let Some(start_time_marker) = process_record::read_process_creation_marker(pid) else {
-        warn!(%agent_id, %exec_id, pid, "PoC: could not read start-time marker for freshly spawned process, adoption bookkeeping skipped");
+        warn!(%agent_id, %exec_id, pid, "Could not read start-time marker for freshly spawned process, adoption bookkeeping skipped");
         return;
     };
     let record = process_record::ProcessRecord {
@@ -236,7 +249,7 @@ fn record_spawned_process(
         start_time_marker,
     };
     if let Err(err) = storer.set(agent_id, exec_id, &record) {
-        warn!(%agent_id, %exec_id, pid, "PoC: failed to persist process record: {err}");
+        warn!(%agent_id, %exec_id, pid, "Failed to persist process record: {err}");
     }
 }
 
@@ -244,18 +257,15 @@ fn record_spawned_process(
 // Not Started Command OS
 ////////////////////////////////////////////////////////////////////////////////////
 impl CommandOSNotStarted {
-    /// Creates a not-started command for the given executable, configuring stdio pipes and
-    /// logging.
+    /// Creates a not-started command for the given executable.
     ///
-    /// `remote_dir` roots the `runtime-state` process-record storer used for adoption, the
-    /// same `BasePaths::remote_dir` every other piece of Agent Control's runtime state
-    /// (OpAMP instance IDs, remote config, etc.) is already rooted at. PoC fix: this used to
-    /// hardcode the real `AGENT_CONTROL_DATA_DIR` constant directly, which meant every
-    /// on-host integration test shared the *same real* bookkeeping file across unrelated
-    /// test runs reusing the same agent/exec ids (several already do) — a genuinely alive
-    /// leftover process from one test could get adopted by a completely different test.
-    /// Threading the real, already-test-isolated `remote_dir` through here instead fixes it
-    /// the same way every other test-isolated piece of state already is.
+    /// On Linux the process is spawned with null stdio, so it doesn't depend on Agent Control
+    /// to survive a crash. Elsewhere stdout and stderr are piped and logged.
+    ///
+    /// `remote_dir` roots the Windows `runtime-state` process-record storer used for adoption,
+    /// the same `BasePaths::remote_dir` every other piece of Agent Control's runtime state
+    /// (OpAMP instance IDs, remote config, etc.) is already rooted at. It is unused on Linux,
+    /// where adoption relies on cgroups.
     pub fn new(
         agent_id: AgentID,
         executable_data: &ExecutableData,
@@ -263,12 +273,21 @@ impl CommandOSNotStarted {
         remote_dir: &std::path::Path,
     ) -> Self {
         let mut cmd = Command::new(&executable_data.bin);
-        cmd.args(&executable_data.args)
-            .envs(&executable_data.env)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
+        cmd.args(&executable_data.args).envs(&executable_data.env);
 
-        #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+        #[cfg(target_os = "linux")]
+        {
+            use std::os::unix::process::CommandExt;
+            // The process leads its own group, which identifies it among the cgroup members.
+            cmd.process_group(0)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null());
+        }
+        #[cfg(not(target_os = "linux"))]
+        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+
+        #[cfg(not(target_os = "windows"))]
         let _ = remote_dir;
 
         Self {
@@ -277,7 +296,7 @@ impl CommandOSNotStarted {
             cmd,
             file_logging_config,
             shutdown_timeout: executable_data.shutdown_timeout,
-            #[cfg(any(target_os = "linux", target_os = "windows"))]
+            #[cfg(target_os = "windows")]
             process_record_storer: Arc::new(process_record::FileProcessRecordStorer::new(
                 fs::file::LocalFile,
                 fs::directory_manager::DirectoryManagerFs,
@@ -286,10 +305,9 @@ impl CommandOSNotStarted {
         }
     }
 
-    /// PoC, Linux and Windows only, test-only: overrides the process-record storer used for
-    /// adoption, so tests can drive it against a temp directory instead of Agent Control's
-    /// real dynamic data dir.
-    #[cfg(all(test, any(target_os = "linux", target_os = "windows")))]
+    /// Windows only, test-only: overrides the process-record storer used for adoption, so tests
+    /// can drive it against a temp directory instead of Agent Control's real dynamic data dir.
+    #[cfg(all(test, target_os = "windows"))]
     fn with_process_record_storer(
         mut self,
         storer: Arc<dyn process_record::ProcessRecordStorer + Send + Sync>,
@@ -300,26 +318,48 @@ impl CommandOSNotStarted {
 
     /// Spawns the process, setting up file loggers and (on Windows) a job object.
     ///
-    /// PoC, Linux and Windows only: before spawning, checks whether a previous Agent
-    /// Control instance's bookkeeping points at a still-running process for this
-    /// `agent_id`; if so, adopts it instead of spawning a duplicate. See the on-host
-    /// crash-survival CDD.
+    /// Linux and Windows: before spawning, checks whether a previous Agent Control instance left
+    /// a still-running process for this executable; if so, adopts it instead of spawning a
+    /// duplicate. On Linux the process is found through the executable's cgroup, which fails if
+    /// cgroups cannot be used.
     pub fn start(mut self) -> Result<CommandOSStarted, CommandError> {
-        #[cfg(any(target_os = "linux", target_os = "windows"))]
+        #[cfg(target_os = "linux")]
+        let cgroup = {
+            // detect and populate CgroupTracker with the base path for the AC's proc cgroup
+            // then executable_cgroup() returns ExecutableCgroup with the path to the new subAgent's
+            // proc cgroup
+            let cgroup = CgroupTracker::detect()?
+                .executable_cgroup(&self.agent_id.to_string(), &self.exec_id);
+            // This will get or create the sub-agent cgroup with the given path
+            cgroup.create()?;
+            // if it was already running there is a group leader
+            if let Some(pid) = cgroup.leader()? {
+                info!(agent_id = %self.agent_id, exec_id = %self.exec_id, pid, "Adopted a still-running process from a previous Agent Control instance instead of respawning it");
+                return Ok(CommandOSStarted {
+                    agent_id: self.agent_id,
+                    process: ManagedProcess::Adopted(AdoptedProcess {
+                        pid,
+                        cgroup: cgroup.clone(),
+                    }),
+                    loggers: None,
+                    shutdown_timeout: self.shutdown_timeout,
+                    cgroup,
+                });
+            }
+            // Members without a leader are leftovers of a previous run, e.g. workers that
+            // outlived their master: don't leave them running next to the new process.
+            cgroup.kill_all()?;
+            cgroup.attach(&mut self.cmd)?;
+            cgroup
+        };
+
+        #[cfg(target_os = "windows")]
         if let Some(adopted) = adoptable_process(
             &self.agent_id,
             &self.exec_id,
             self.process_record_storer.as_ref(),
         ) {
-            info!(agent_id = %self.agent_id, exec_id = %self.exec_id, pid = adopted.pid, "PoC: adopted a still-running process from a previous Agent Control instance instead of respawning it");
-            #[cfg(target_family = "unix")]
-            return Ok(CommandOSStarted {
-                agent_id: self.agent_id,
-                process: ManagedProcess::Adopted(adopted),
-                loggers: None,
-                shutdown_timeout: self.shutdown_timeout,
-            });
-            #[cfg(target_family = "windows")]
+            info!(agent_id = %self.agent_id, exec_id = %self.exec_id, pid = adopted.pid, "Adopted a still-running process from a previous Agent Control instance instead of respawning it");
             return Ok(CommandOSStarted {
                 agent_id: self.agent_id,
                 process: ManagedProcess::Adopted(adopted),
@@ -329,6 +369,7 @@ impl CommandOSNotStarted {
             });
         }
 
+        #[cfg(not(target_os = "linux"))]
         let loggers = if self.file_logging_config.enabled {
             Some(FileSystemLoggers::new(
                 file_logger(
@@ -345,14 +386,15 @@ impl CommandOSNotStarted {
         } else {
             None
         };
+        #[cfg(target_os = "linux")]
+        let loggers = None;
         let child = self.cmd.spawn()?;
 
-        // Assign to a JobObject immediately after spawn, before any other work — including
+        // Assign to a JobObject immediately after spawn, before any other work, including
         // the bookkeeping below. Minimizing the window between process creation and
-        // assignment matters: widening it (bookkeeping now does real file I/O plus
+        // assignment matters: widening it (bookkeeping does real file I/O plus
         // `OpenProcess`/`GetProcessTimes` on this very pid) is what surfaced an
-        // intermittent `AssignProcessToJobObject: Access is denied` on real Windows CI once
-        // adoption bookkeeping started running on every Windows spawn too.
+        // intermittent `AssignProcessToJobObject: Access is denied` on real Windows CI.
         #[cfg(target_family = "windows")]
         let job_object = {
             let job_object = JobObject::new()?;
@@ -360,7 +402,7 @@ impl CommandOSNotStarted {
             job_object
         };
 
-        #[cfg(any(target_os = "linux", target_os = "windows"))]
+        #[cfg(target_os = "windows")]
         record_spawned_process(
             &self.agent_id,
             &self.exec_id,
@@ -368,25 +410,16 @@ impl CommandOSNotStarted {
             self.process_record_storer.as_ref(),
         );
 
-        #[cfg(target_family = "unix")]
-        {
-            Ok(CommandOSStarted {
-                agent_id: self.agent_id,
-                process: ManagedProcess::Spawned(child),
-                loggers,
-                shutdown_timeout: self.shutdown_timeout,
-            })
-        }
-        #[cfg(target_family = "windows")]
-        {
-            Ok(CommandOSStarted {
-                agent_id: self.agent_id,
-                process: ManagedProcess::Spawned(child),
-                job_object: Some(job_object),
-                loggers,
-                shutdown_timeout: self.shutdown_timeout,
-            })
-        }
+        Ok(CommandOSStarted {
+            agent_id: self.agent_id,
+            process: ManagedProcess::Spawned(child),
+            loggers,
+            shutdown_timeout: self.shutdown_timeout,
+            #[cfg(target_os = "linux")]
+            cgroup,
+            #[cfg(target_family = "windows")]
+            job_object: Some(job_object),
+        })
     }
 }
 
@@ -406,7 +439,26 @@ impl CommandOSStarted {
     }
 
     pub(crate) fn wait(mut self) -> Result<ExitStatus, CommandError> {
-        self.process.wait().map_err(CommandError::from)
+        let exit_status = self.process.wait().map_err(CommandError::from)?;
+        #[cfg(target_os = "linux")]
+        self.cleanup_cgroup();
+        Ok(exit_status)
+    }
+
+    /// Kills whatever is left in the executable's cgroup (e.g. workers that outlived their
+    /// master), reaps the spawned process if any, and removes the cgroup.
+    #[cfg(target_os = "linux")]
+    fn cleanup_cgroup(&mut self) {
+        if let Err(err) = self.cgroup.kill_all() {
+            warn!(agent_id = %self.agent_id, "Failed to kill the processes left in the cgroup: {err}");
+            return;
+        }
+        if let ManagedProcess::Spawned(child) = &mut self.process {
+            let _ = child.wait();
+        }
+        if let Err(err) = self.cgroup.remove() {
+            warn!(agent_id = %self.agent_id, "Failed to remove the cgroup: {err}");
+        }
     }
 
     /// Drains piped stdout/stderr into AC's own log stream. A no-op for a process whose
@@ -461,6 +513,9 @@ impl CommandOSStarted {
         {
             self.process.kill().map_err(CommandError::from)?;
         }
+
+        #[cfg(target_os = "linux")]
+        self.cleanup_cgroup();
 
         Ok(())
     }
@@ -692,20 +747,15 @@ mod file_stdio_poc {
     }
 }
 
-/// PoC: drives the adoption feature itself, answering "is this testable at all" concretely
-/// rather than leaving it as an unexercised code path. Two levels: the bookkeeping-matching
-/// logic directly (`adoptable_process`/`record_spawned_process`), and the real call site
+/// Windows adoption tests. Two levels: the bookkeeping-matching logic directly
+/// (`adoptable_process`/`record_spawned_process`), and the real call site
 /// (`CommandOSNotStarted::start`). Both use a real spawned OS process (never mocked) with a
 /// temp-dir storer standing in for Agent Control's real dynamic data dir, via the test-only
 /// [`CommandOSNotStarted::with_process_record_storer`].
 ///
 /// What this deliberately does not cover: Agent Control's own process actually crashing and
-/// a second, independent OS process restarting and adopting across that crash. That needs a
-/// real spawned binary and (to be faithful to `KillMode=process` on Linux, or the dropped
-/// `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` on Windows) a real service manager, which this
-/// in-process test harness can't provide; see `scripts/poc-validate-crash-survival.sh` for
-/// that level on Linux (no Windows equivalent script exists yet).
-#[cfg(all(test, any(target_os = "linux", target_os = "windows")))]
+/// a second, independent OS process restarting and adopting across that crash.
+#[cfg(all(test, target_os = "windows"))]
 mod adoption_poc {
     use super::*;
     use crate::sub_agent::on_host::command::executable_data::ExecutableData;
@@ -721,44 +771,27 @@ mod adoption_poc {
         FileProcessRecordStorer::new(LocalFile, DirectoryManagerFs, dir.to_path_buf())
     }
 
-    /// Spawns a real, long-lived process to adopt across these tests: `sleep 30` on Unix,
-    /// PowerShell's `Start-Sleep -Seconds 30` on Windows. Not `cmd /C timeout`: that requires
+    /// Spawns a real, long-lived process to adopt across these tests: PowerShell's
+    /// `Start-Sleep -Seconds 30`. Not `cmd /C timeout`: that requires
     /// an interactive console and exits almost immediately with an error when stdin is
     /// redirected, as it is under a test harness — the same primitive
     /// `custom_agent_type.rs`'s own Windows test fixture already relies on instead.
     fn spawn_sleeper() -> Child {
-        #[cfg(target_family = "unix")]
-        {
-            StdCommand::new("sleep")
-                .arg("30")
-                .spawn()
-                .expect("failed to spawn `sleep`")
-        }
-        #[cfg(target_family = "windows")]
-        {
-            StdCommand::new("powershell")
-                .args(["-NoProfile", "-Command", "Start-Sleep -Seconds 30"])
-                .spawn()
-                .expect("failed to spawn `powershell -Command Start-Sleep`")
-        }
+        StdCommand::new("powershell")
+            .args(["-NoProfile", "-Command", "Start-Sleep -Seconds 30"])
+            .spawn()
+            .expect("failed to spawn `powershell -Command Start-Sleep`")
     }
 
     /// A trivially fast, short-lived executable, deliberately distinguishable from
     /// `spawn_sleeper`'s long-lived one: used by `start_adopts_instead_of_spawning_a_duplicate`
     /// to prove `start()` adopted instead of actually running this.
     fn short_lived_executable_data(id: &str) -> ExecutableData {
-        #[cfg(target_family = "unix")]
-        {
-            ExecutableData::new(id.to_owned(), "true".to_owned())
-        }
-        #[cfg(target_family = "windows")]
-        {
-            ExecutableData::new(id.to_owned(), "cmd".to_owned()).with_args(vec![
-                "/C".to_owned(),
-                "exit".to_owned(),
-                "0".to_owned(),
-            ])
-        }
+        ExecutableData::new(id.to_owned(), "cmd".to_owned()).with_args(vec![
+            "/C".to_owned(),
+            "exit".to_owned(),
+            "0".to_owned(),
+        ])
     }
 
     const EXEC_ID: &str = "exec-1";
@@ -919,5 +952,85 @@ mod adoption_poc {
 
         pre_existing.kill().unwrap();
         pre_existing.wait().unwrap();
+    }
+}
+
+/// Linux adoption through cgroups. They need write access to the cgroup hierarchy (root or a
+/// delegated cgroup), hence `#[ignore]`.
+#[cfg(all(test, target_os = "linux"))]
+mod cgroup_adoption {
+    use super::*;
+    use crate::utils::retry::retry;
+
+    fn sleeper(id: &str) -> ExecutableData {
+        ExecutableData::new(id.to_owned(), "sleep".to_owned()).with_args(vec!["30".to_owned()])
+    }
+
+    fn not_started(agent_id: &str, executable_data: &ExecutableData) -> CommandOSNotStarted {
+        CommandOSNotStarted::new(
+            AgentID::try_from(agent_id).unwrap(),
+            executable_data,
+            SubAgentFileLoggingConfig::default(),
+            std::path::Path::new("/unused"),
+        )
+    }
+
+    #[test]
+    #[ignore = "needs write access to the cgroup hierarchy"]
+    fn start_adopts_a_process_that_outlived_a_previous_instance() {
+        let executable_data = sleeper("adopt");
+        let first = not_started("cgroup-adopt", &executable_data)
+            .start()
+            .unwrap();
+        let pid = first.get_pid();
+        // Dropping without `shutdown` leaves the process running in its cgroup, as an Agent
+        // Control crash would.
+        drop(first);
+
+        let mut second = not_started("cgroup-adopt", &executable_data)
+            .start()
+            .unwrap();
+
+        assert_eq!(
+            second.get_pid(),
+            pid,
+            "expected the running process to be adopted"
+        );
+        assert!(second.is_running());
+
+        second.shutdown().unwrap();
+        retry(50, Duration::from_millis(100), || {
+            if second.is_running() {
+                Err("adopted process still running")
+            } else {
+                Ok::<(), &str>(())
+            }
+        })
+        .expect("adopted process was not killed");
+    }
+
+    #[test]
+    #[ignore = "needs write access to the cgroup hierarchy"]
+    fn shutdown_kills_the_whole_tree_and_removes_the_cgroup() {
+        let executable_data = ExecutableData::new("tree".to_owned(), "sh".to_owned())
+            .with_args(vec!["-c".to_owned(), "sleep 30 & wait".to_owned()]);
+        let cgroup = CgroupTracker::detect()
+            .unwrap()
+            .executable_cgroup("cgroup-tree", "tree");
+        let mut started = not_started("cgroup-tree", &executable_data)
+            .start()
+            .unwrap();
+        retry(50, Duration::from_millis(100), || {
+            match cgroup.live_pids() {
+                Ok(pids) if pids.len() == 2 => Ok(()),
+                _ => Err("shell and sleep not both in the cgroup yet"),
+            }
+        })
+        .unwrap();
+
+        started.shutdown().unwrap();
+
+        assert!(cgroup.live_pids().unwrap().is_empty());
+        assert!(!cgroup.exists(), "the cgroup should have been removed");
     }
 }

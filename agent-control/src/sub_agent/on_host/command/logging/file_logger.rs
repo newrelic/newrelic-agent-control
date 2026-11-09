@@ -68,6 +68,7 @@ pub(crate) struct FileSystemLoggers {
 }
 
 impl FileSystemLoggers {
+    #[cfg_attr(target_os = "linux", allow(dead_code))]
     pub(crate) fn new(out: FileLogger, err: FileLogger) -> Self {
         Self { out, err }
     }

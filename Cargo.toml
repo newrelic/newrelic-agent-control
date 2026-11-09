@@ -32,6 +32,7 @@ clap = "4.6.7"
 flate2 = "1.1.10"
 tar = "0.4.46"
 nix = "0.31.3"
+procfs = { version = "0.18.0", default-features = false }
 tracing-subscriber = { version = "0.3.23", features = ["json"] }
 tracing-test = "0.2.6"
 assert_cmd = "2.2.2"

@@ -4,6 +4,8 @@
 
 pub mod backoff_gate;
 pub mod binary_metadata;
+#[cfg(target_os = "linux")]
+pub mod cgroup;
 pub mod env_var;
 pub mod extract;
 pub mod is_elevated;

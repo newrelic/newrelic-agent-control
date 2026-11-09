@@ -4,6 +4,8 @@ use std::fmt::Debug;
 use thiserror::Error;
 
 use crate::sub_agent::on_host::command::logging::file_logger::FileLoggerError;
+#[cfg(target_os = "linux")]
+use crate::utils::cgroup::CgroupError;
 #[cfg(target_family = "windows")]
 use crate::utils::job_object::JobObjectError;
 
@@ -21,6 +23,11 @@ pub enum CommandError {
     /// The file logger could not be built.
     #[error("building file logger: {0}")]
     FileLoggerError(#[from] FileLoggerError),
+
+    /// The cgroup tracking the process tree could not be located.
+    #[cfg(target_os = "linux")]
+    #[error("{0}")]
+    CgroupError(#[from] CgroupError),
 
     /// The process's Windows Job Object could not be created, assigned, or terminated.
     #[cfg(target_family = "windows")]
