@@ -12,11 +12,11 @@ use super::{
 };
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{STDERR_LOG_FILE_NAME_SUFFIX, STDOUT_LOG_FILE_NAME_SUFFIX};
+#[cfg(target_family = "windows")]
+use std::os::windows::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 #[cfg(target_family = "unix")]
 use std::time::Duration;
-#[cfg(target_family = "windows")]
-use std::os::windows::process::CommandExt;
 #[cfg(target_family = "windows")]
 use windows::Win32::System::Threading::CREATE_NEW_PROCESS_GROUP;
 
