@@ -2,7 +2,6 @@
 
 use std::{fs::File, io::BufReader, path::Path};
 
-use http::uri::Scheme;
 use oci_client::client::{Certificate, CertificateEncoding, ClientConfig};
 use rustls_pki_types::pem::PemObject;
 
@@ -19,12 +18,10 @@ pub(super) fn setup_proxy(
     proxy_config: ProxyConfig,
 ) -> Result<ClientConfig, OciClientError> {
     let mut config = client_config;
-    if let Some(uri) = proxy_config.url() {
-        if uri.scheme() == Some(&Scheme::HTTP) {
-            config.http_proxy = Some(proxy_config.url_as_string());
-        } else {
-            config.https_proxy = Some(proxy_config.url_as_string());
-        }
+    // Consistent with the `HttpClient` constructor, the proxy url is applied to all destinations.
+    if proxy_config.url().is_some() {
+        config.http_proxy = Some(proxy_config.url_as_string());
+        config.https_proxy = Some(proxy_config.url_as_string());
 
         config.extra_root_certificates =
             certs_from_paths(proxy_config.ca_bundle_file(), proxy_config.ca_bundle_dir())
@@ -73,9 +70,11 @@ mod tests {
     use std::path::PathBuf;
 
     use assert_matches::assert_matches;
+    use rstest::rstest;
     use tempfile::tempdir;
 
     use super::*;
+
     #[test]
     fn test_with_empty_proxy_url() {
         let proxy_config = ProxyConfig::from_url("".to_string());
@@ -86,21 +85,24 @@ mod tests {
         assert_eq!(client_config.http_proxy, None);
     }
 
-    #[test]
-    fn test_valid_http_proxy_url() {
-        let proxy_config = ProxyConfig::from_url("http://valid.proxy.url".to_string());
+    #[rstest]
+    #[case::http("http://valid.proxy.url", "http://valid.proxy.url/")]
+    #[case::https("https://valid.proxy.url", "https://valid.proxy.url/")]
+    #[case::without_scheme("valid.proxy.url", "valid.proxy.url")]
+    fn test_proxy_applies_to_http_and_https_destinations(
+        #[case] url: &str,
+        #[case] expected_url: &str,
+    ) {
+        let proxy_config = ProxyConfig::from_url(url.to_string());
 
         let client_config = setup_proxy(ClientConfig::default(), proxy_config).unwrap();
 
-        assert_eq!(client_config.https_proxy, None);
-        assert_eq!(
-            client_config.http_proxy,
-            Some("http://valid.proxy.url/".to_string())
-        );
+        assert_eq!(client_config.https_proxy, Some(expected_url.to_string()));
+        assert_eq!(client_config.http_proxy, Some(expected_url.to_string()));
     }
 
     #[test]
-    fn test_proxy_url_without_scheme_with_certs() {
+    fn test_proxy_with_certs_from_dir() {
         let dir = tempdir().unwrap();
         let ca_bundle_dir = dir.path();
 
@@ -133,21 +135,11 @@ mod tests {
             client_config.https_proxy,
             Some("valid.proxy.url".to_string())
         );
-        assert_eq!(client_config.http_proxy, None);
-        assert_eq!(client_config.extra_root_certificates.len(), 1);
-    }
-
-    #[test]
-    fn test_try_new_with_https_proxy_url() {
-        let proxy_config = ProxyConfig::from_url("https://valid.proxy.url".to_string());
-
-        let client_config = setup_proxy(ClientConfig::default(), proxy_config).unwrap();
-
         assert_eq!(
-            client_config.https_proxy,
-            Some("https://valid.proxy.url/".to_string())
+            client_config.http_proxy,
+            Some("valid.proxy.url".to_string())
         );
-        assert_eq!(client_config.http_proxy, None);
+        assert_eq!(client_config.extra_root_certificates.len(), 1);
     }
 
     #[test]
