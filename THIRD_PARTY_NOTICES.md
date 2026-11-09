@@ -173,6 +173,12 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## ar_archive_writer <https://crates.io/crates/ar_archive_writer>
+
+Distributed under the following license(s):
+
+* Apache-2.0 WITH LLVM-exception
+
 ## arraydeque <https://crates.io/crates/arraydeque>
 
 Distributed under the following license(s):
@@ -404,6 +410,13 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 
 * MIT
+
+## chacha20 <https://crates.io/crates/chacha20>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
 
 ## chrono <https://crates.io/crates/chrono>
 
@@ -1001,12 +1014,6 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
-
-## generic-array <https://crates.io/crates/generic-array>
-
-Distributed under the following license(s):
-
-* MIT
 
 ## getrandom <https://crates.io/crates/getrandom>
 
@@ -1863,6 +1870,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 ## pest_meta <https://crates.io/crates/pest_meta>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## pest_stack_guard <https://crates.io/crates/pest_stack_guard>
 
 Distributed under the following license(s):
 
@@ -2866,6 +2880,13 @@ Distributed under the following license(s):
 * MIT
 
 ## utf8parse <https://crates.io/crates/utf8parse>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+* MIT
+
+## utf_types <https://crates.io/crates/utf_types>
 
 Distributed under the following license(s):
 

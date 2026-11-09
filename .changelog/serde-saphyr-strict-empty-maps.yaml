@@ -1,2 +1,0 @@
-type: enhancement
-message: "YAML parsing is now stricter about empty maps: a null value (an empty value, `~` or `null`) where a map is expected, such as a bare `config:` in a stored remote config, is rejected instead of being treated as an empty map. Use `{}` for an empty map. Empty documents are still accepted."
