@@ -1,10 +1,9 @@
 use super::super::spawned_process::{error::CommandError, os_process::OsProcess};
-use windows::Win32::Foundation::{CloseHandle, HANDLE, STILL_ACTIVE as STILL_ACTIVE_NTSTATUS};
+use tracing::warn;
+use windows::Win32::Foundation::{CloseHandle, HANDLE, STILL_ACTIVE};
 use windows::Win32::System::Threading::{
     GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
 };
-
-pub(super) const STILL_ACTIVE: u32 = STILL_ACTIVE_NTSTATUS.0 as u32;
 
 /// Owns a Windows process HANDLE and closes it on drop, keeping the process object alive long
 /// enough to reliably retrieve the exit code even for very short-lived processes.
@@ -29,11 +28,21 @@ impl ProcessHandle {
         }
     }
 
-    /// Returns the current exit code, or `None` if the handle is no longer accessible.
-    /// `Some(STILL_ACTIVE)` means the process is still running.
+    /// Returns the exit code once the process has exited, or `None` if it is still running.
+    ///
+    /// Returns `Some(1)` if the handle is no longer accessible — this should not happen since
+    /// `ProcessHandle` keeps the kernel object alive until dropped, but is safer than panicking.
     pub(crate) fn exit_code(&self) -> Option<u32> {
         let mut code = 0u32;
-        unsafe { GetExitCodeProcess(self.0, &mut code).ok().map(|_| code) }
+        match unsafe { GetExitCodeProcess(self.0, &mut code) } {
+            Ok(_) if code == STILL_ACTIVE.0 as u32 => None,
+            Ok(_) => Some(code),
+            Err(e) => {
+                // ERROR_INVALID_HANDLE: the retained handle became invalid unexpectedly.
+                warn!(error = %e, "GetExitCodeProcess failed on retained handle; reporting exit code 1");
+                Some(1)
+            }
+        }
     }
 }
 
