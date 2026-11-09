@@ -4,11 +4,12 @@ use super::spawned_process::error::CommandError;
 use super::{POLL_INTERVAL, ProcessState, SupervisedProcess};
 use std::os::windows::process::ExitStatusExt;
 use std::process::ExitStatus;
+use process_handle::STILL_ACTIVE;
 
 impl SupervisedProcess {
     pub fn try_wait(self) -> ProcessState {
         match self.process_handle.exit_code() {
-            Some(259) => ProcessState::Running(self),
+            Some(STILL_ACTIVE) => ProcessState::Running(self),
             Some(code) => ProcessState::Exited(self.into_exit_status(ExitStatus::from_raw(code))),
             None => ProcessState::Exited(self.into_exit_status(ExitStatus::from_raw(1))),
         }
@@ -28,7 +29,7 @@ impl SupervisedProcess {
         // Spin-poll using the retained handle until the process reports a final exit code.
         loop {
             match process_handle.exit_code() {
-                Some(259) => std::thread::sleep(POLL_INTERVAL),
+                Some(STILL_ACTIVE) => std::thread::sleep(POLL_INTERVAL),
                 Some(code) => return Ok(ExitStatus::from_raw(code)),
                 None => return Ok(ExitStatus::from_raw(1)),
             }

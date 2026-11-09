@@ -1,8 +1,10 @@
 use super::super::spawned_process::{error::CommandError, os_process::OsProcess};
-use windows::Win32::Foundation::{CloseHandle, HANDLE};
+use windows::Win32::Foundation::{CloseHandle, HANDLE, STILL_ACTIVE as STILL_ACTIVE_NTSTATUS};
 use windows::Win32::System::Threading::{
     GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
 };
+
+pub(super) const STILL_ACTIVE: u32 = STILL_ACTIVE_NTSTATUS.0 as u32;
 
 /// Owns a Windows process HANDLE and closes it on drop, keeping the process object alive long
 /// enough to reliably retrieve the exit code even for very short-lived processes.
@@ -28,7 +30,7 @@ impl ProcessHandle {
     }
 
     /// Returns the current exit code, or `None` if the handle is no longer accessible.
-    /// `Some(259)` means the process is still running (STILL_ACTIVE).
+    /// `Some(STILL_ACTIVE)` means the process is still running.
     pub(crate) fn exit_code(&self) -> Option<u32> {
         let mut code = 0u32;
         unsafe { GetExitCodeProcess(self.0, &mut code).ok().map(|_| code) }
