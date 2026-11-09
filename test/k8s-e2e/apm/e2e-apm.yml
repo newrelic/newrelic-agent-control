@@ -69,7 +69,7 @@ scenarios:
               exit 1
           fi
           echo "pod found $POD_NAME"
-          for agent in java-agent dotnet-agent; do
+          for agent in dotnet-agent java-agent node-agent python-agent ruby-agent; do
             for i in $(seq 1 10); do
               kubectl logs $POD_NAME | grep -E "AgentDescription.*KeyValue\ \{\ key\: \\\\\"supervisor\.key\\\\\"\,\ value\: Some\(\\\\\"${agent}\\\\\"\)\ \}" | grep -E "AgentDescription.*KeyValue\ \{\ key\: \\\\\"apm\.application\.id\\\\\"\,\ value\: Some\(\\\\\".*\\\\\"\)\ \}" > /dev/null
               if [ $? -ne 0 ]; then
