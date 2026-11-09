@@ -12,11 +12,11 @@ use super::{
 };
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{STDERR_LOG_FILE_NAME_SUFFIX, STDOUT_LOG_FILE_NAME_SUFFIX};
+#[cfg(target_family = "unix")]
+use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 #[cfg(target_family = "unix")]
 use std::time::Duration;
-#[cfg(target_family = "unix")]
-use std::os::unix::process::CommandExt;
 
 ////////////////////////////////////////////////////////////////////////////////////
 // States for Started/Not Started/Sync Command
