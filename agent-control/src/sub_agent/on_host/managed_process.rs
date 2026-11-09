@@ -46,8 +46,8 @@ impl ProcessOrigin {
                 // pinning the process object so the exit code stays retrievable after detach.
                 #[cfg(target_family = "windows")]
                 let process_handle = ProcessHandle::from_os_process(&os_process)?;
-                // Detach: drop OsProcess (and its Child handle). The spawned process continues
-                // running; from here on both spawned and adopted processes are managed by PID.
+                // Note: os_process is dropped here, closing the Child handle. The spawned
+                // process keeps running; from this point it is managed by PID alone.
                 Ok(SupervisedProcess {
                     pid,
                     agent_id,
