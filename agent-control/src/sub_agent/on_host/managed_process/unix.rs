@@ -10,6 +10,9 @@ use std::{io, thread};
 use tracing::warn;
 
 impl SupervisedProcess {
+    /// Non-blocking check of whether the process has exited. Uses `WNOHANG` so `waitpid` returns
+    /// immediately; any status that isn't a clean exit or signal termination is treated as still
+    /// running, including ptrace stops and `ECHILD` (adopted/re-parented processes).
     pub fn try_wait(self) -> ProcessState {
         let pid = Pid::from_raw(self.pid as i32);
         match waitpid(pid, Some(WaitPidFlag::WNOHANG)) {
@@ -30,6 +33,8 @@ impl SupervisedProcess {
         }
     }
 
+    /// Blocks until the process exits. `EINTR` (signal interrupted the syscall) restarts the wait
+    /// rather than surfacing an error, matching the POSIX idiom for restartable waits.
     pub(super) fn wait(self) -> Result<ExitStatus, CommandError> {
         let pid = Pid::from_raw(self.pid as i32);
         loop {
