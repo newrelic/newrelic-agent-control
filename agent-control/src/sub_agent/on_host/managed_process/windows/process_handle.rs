@@ -37,6 +37,11 @@ impl ProcessHandle {
 
 impl Drop for ProcessHandle {
     fn drop(&mut self) {
+        // Closing the handle releases our reference to the kernel process object. Once all
+        // handles to the object are closed (including the OS-managed one held by the process
+        // itself after exit), Windows frees the object and its exit code becomes unavailable.
+        // This is safe to call after the process exits because the object persists as long as
+        // at least one handle remains open.
         unsafe {
             let _ = CloseHandle(self.0);
         }
