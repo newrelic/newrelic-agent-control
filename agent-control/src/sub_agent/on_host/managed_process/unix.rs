@@ -3,9 +3,9 @@ use super::{ProcessState, SupervisedProcess};
 use nix::sys::signal::{Signal, kill};
 use nix::sys::wait::{WaitPidFlag, WaitStatus, waitpid};
 use nix::unistd::Pid;
+use std::io;
 use std::os::unix::process::ExitStatusExt;
 use std::process::ExitStatus;
-use std::io;
 
 impl SupervisedProcess {
     /// Non-blocking check of whether the process has exited. Uses `WNOHANG` so `waitpid` returns
@@ -51,7 +51,7 @@ impl SupervisedProcess {
 
     /// Blocks until the process exits. `EINTR` (signal interrupted the syscall) restarts the wait
     /// rather than surfacing an error, matching the POSIX idiom for restartable waits.
-    fn wait(self) -> Result<ExitStatus, CommandError> {
+    pub(super) fn wait(self) -> Result<ExitStatus, CommandError> {
         let pid = Pid::from_raw(self.pid as i32);
         loop {
             match waitpid(pid, None) {
