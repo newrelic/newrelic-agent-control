@@ -201,10 +201,7 @@ fn setup_mitmproxy() {
 
 /// Checks the mitmproxy logs to check if expected domains where reached
 fn verify_proxy_usage(expected_domains: &[&str]) {
-    let check_logs_cmd = format!(
-        "docker logs {} 2>&1 | grep -i 'newrelic' || echo 'No New Relic traffic found'",
-        PROXY_CONTAINER_NAME
-    );
+    let check_logs_cmd = format!("docker logs {} 2>&1", PROXY_CONTAINER_NAME);
 
     let logs = exec_bash_command(&check_logs_cmd)
         .unwrap_or_else(|err| panic!("Failed to check proxy logs: {err}"));
