@@ -448,7 +448,7 @@ where
 
             let exec_id = exec_data.id.clone();
             // Consumed on the first iteration; every subsequent restart always spawns.
-            let mut initial_origin_opt = Some(initial_origin);
+            let mut process_supervision_operation = Some(initial_origin);
 
             let mut i = 0;
             let mut last_error: Option<String>;
@@ -469,7 +469,7 @@ where
                     .map(|hp| HealthHandler::new(exec_id.clone(), hp));
 
                 info!(%agent_id, %exec_id, "Starting executable");
-                let origin = initial_origin_opt.take().unwrap_or_else(|| {
+                let origin = process_supervision_operation.take().unwrap_or_else(|| {
                     ProcessOrigin::Spawn(OsProcessConfig::new(
                         agent_id.clone(),
                         &exec_data,
