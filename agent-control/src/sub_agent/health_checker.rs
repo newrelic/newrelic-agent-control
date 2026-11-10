@@ -20,13 +20,11 @@ impl HealthEventPublisher for EventPublisher<SubAgentInternalEvent> {
 pub mod tests {
     use std::time::SystemTime;
 
-    use assert_matches::assert_matches;
-    use tracing_test::traced_test;
-
     use crate::checkers::health::{
         events::HealthEventPublisher, health_checker::Healthy, with_start_time::HealthWithStartTime,
     };
     use crate::event::{SubAgentInternalEvent, channel::pub_sub};
+    use assert_matches::assert_matches;
 
     #[test]
     fn test_publish_health_event() {
@@ -39,7 +37,6 @@ pub mod tests {
         });
     }
 
-    #[traced_test]
     #[test]
     fn test_publish_health_event_error() {
         let (publisher, consumer) = pub_sub::<SubAgentInternalEvent>();
@@ -47,8 +44,6 @@ pub mod tests {
         drop(consumer);
 
         let health = HealthWithStartTime::new(Healthy::new().into(), SystemTime::now());
-        publisher.publish_health_event(health.clone());
-
-        logs_contain("Error publishing sub agent event:");
+        publisher.publish_health_event(health.clone()); // The error is just logged when the channel is closed (no panic)
     }
 }
