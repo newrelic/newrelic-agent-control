@@ -107,6 +107,10 @@ pub struct InstallationArgs {
     /// Version of the Ruby APM agent gem to download from rubygems.org in tests
     #[arg(long)]
     pub ruby_agent_version: Option<String>,
+
+    /// Version of the Node.js APM agent package to download from npm in tests
+    #[arg(long)]
+    pub node_agent_version: Option<String>,
 }
 
 impl InstallationArgs {
