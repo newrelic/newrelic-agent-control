@@ -464,23 +464,28 @@ where
                     .map(|hp| HealthHandler::new(exec_id.clone(), hp));
 
                 info!(%agent_id, %exec_id, "Starting executable");
-                let origin = process_supervision_operation.take().unwrap_or_else(|| {
+                let process_origin = process_supervision_operation.take().unwrap_or_else(|| {
                     ProcessOrigin::Spawn(OsProcessConfig::new(
                         agent_id.clone(),
                         &exec_data,
                         logging_config.clone(),
                     ))
                 });
-                let executable_result = origin.try_into_supervised().and_then(|cmd| {
-                    wait_exit(
-                        cmd,
-                        &stop_consumer,
-                        HEALTHY_DELAY,
-                        health_handler.as_ref(),
-                        &agent_id,
-                        &exec_id,
+                let executable_result = process_origin
+                    .try_into_supervised()
+                    .inspect_err(
+                        |err| warn!(%agent_id, %exec_id, "Failed to start executable: {err}"),
                     )
-                });
+                    .and_then(|cmd| {
+                        wait_exit(
+                            cmd,
+                            &stop_consumer,
+                            HEALTHY_DELAY,
+                            health_handler.as_ref(),
+                            &agent_id,
+                            &exec_id,
+                        )
+                    });
 
                 match executable_result {
                     Ok((exit_status, was_cancelled)) => {
@@ -496,9 +501,9 @@ where
                         }
                     }
                     Err(err) => {
-                        warn!(%agent_id, %exec_id, "Launching executable: {err}");
-                        debug!(%agent_id, %exec_id, "Error launching executable, marking as unhealthy");
-                        let error = format!("Error launching process: {err}");
+                        warn!(%agent_id, %exec_id, "Running executable: {err}");
+                        debug!(%agent_id, %exec_id, "Error running executable, marking as unhealthy");
+                        let error = format!("Error running process: {err}");
                         health_handler
                             .as_ref()
                             .inspect(|h| h.publish_unhealthy(error.clone()));
@@ -607,7 +612,9 @@ fn wait_exit(
             ProcessState::Running(running) => {
                 if stop_consumer.is_cancelled_with_timeout(WAIT_FOR_EXIT_TIMEOUT) {
                     info!(%agent_id, %exec_id, "Stopping executable");
-                    let exit_status = running.shutdown()?;
+                    let exit_status = running.shutdown().inspect_err(
+                        |err| error!(%agent_id, %exec_id, "Failed to terminate executable: {err}"),
+                    )?;
                     info!(%agent_id, %exec_id, "Executable terminated");
                     break Ok((exit_status, true));
                 }
