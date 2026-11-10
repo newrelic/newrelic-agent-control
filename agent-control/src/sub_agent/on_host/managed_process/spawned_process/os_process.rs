@@ -15,7 +15,6 @@ use crate::agent_control::defaults::{STDERR_LOG_FILE_NAME_SUFFIX, STDOUT_LOG_FIL
 #[cfg(target_family = "windows")]
 use std::os::windows::process::CommandExt;
 use std::process::{Child, Command, Stdio};
-#[cfg(target_family = "unix")]
 use std::time::Duration;
 #[cfg(target_family = "windows")]
 use windows::Win32::System::Threading::CREATE_NEW_PROCESS_GROUP;
@@ -28,7 +27,6 @@ pub struct OsProcessConfig {
     cmd: Command,
     agent_id: AgentID,
     file_logging_config: SubAgentFileLoggingConfig,
-    #[cfg(target_family = "unix")]
     shutdown_timeout: Duration,
 }
 
@@ -37,7 +35,6 @@ pub struct OsProcess {
     agent_id: AgentID,
     process: Child,
     loggers: Option<FileSystemLoggers>,
-    #[cfg(target_family = "unix")]
     shutdown_timeout: Duration,
 }
 
@@ -65,7 +62,6 @@ impl OsProcessConfig {
             agent_id,
             cmd,
             file_logging_config,
-            #[cfg(target_family = "unix")]
             shutdown_timeout: executable_data.shutdown_timeout,
         }
     }
@@ -93,7 +89,6 @@ impl OsProcessConfig {
             agent_id: self.agent_id,
             process: child,
             loggers,
-            #[cfg(target_family = "unix")]
             shutdown_timeout: self.shutdown_timeout,
         })
     }
@@ -146,7 +141,6 @@ impl OsProcess {
     }
 
     /// Returns how long to wait after a graceful shutdown before forcing a kill.
-    #[cfg(target_family = "unix")]
     pub(crate) fn shutdown_timeout(&self) -> Duration {
         self.shutdown_timeout
     }
