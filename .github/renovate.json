@@ -97,7 +97,7 @@
         "/^\\.github/workflows/.+\\.ya?ml$/"
       ],
       "matchStrings": [
-        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n\\s*run: cargo install[^\\n]+--version (?<currentValue>\\S+)"
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n\\s*(?:run: )?cargo install[^\\n]+--version (?<currentValue>\\S+)"
       ]
     },
     {
