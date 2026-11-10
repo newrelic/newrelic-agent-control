@@ -11,8 +11,11 @@ mod windows;
 use crate::agent_control::agent_id::AgentID;
 use spawned_process::{error::CommandError, os_process::OsProcessConfig};
 use std::process::ExitStatus;
+#[cfg(target_family = "unix")]
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+#[cfg(target_family = "unix")]
+use std::time::Instant;
 use tracing::warn;
 
 #[cfg(target_family = "windows")]
@@ -41,6 +44,7 @@ impl ProcessOrigin {
                 let os_process = config.start()?.stream()?;
                 let pid = os_process.get_pid();
                 let agent_id = os_process.agent_id().clone();
+                #[cfg(target_family = "unix")]
                 let shutdown_timeout = os_process.shutdown_timeout();
                 #[cfg(target_family = "windows")]
                 let job_object = os_process.create_job_object()?;
@@ -53,6 +57,7 @@ impl ProcessOrigin {
                 Ok(SupervisedProcess {
                     pid,
                     agent_id,
+                    #[cfg(target_family = "unix")]
                     shutdown_timeout,
                     #[cfg(target_family = "windows")]
                     job_object,
@@ -71,6 +76,7 @@ impl ProcessOrigin {
 pub struct SupervisedProcess {
     pid: u32,
     agent_id: AgentID,
+    #[cfg(target_family = "unix")]
     shutdown_timeout: Duration,
     /// Job Object used to terminate the entire process tree on Windows.
     #[cfg(target_family = "windows")]
@@ -91,28 +97,40 @@ pub enum ProcessState {
 
 impl SupervisedProcess {
     pub fn shutdown(self) -> Result<ExitStatus, CommandError> {
-        let agent_id = self.agent_id.clone();
-        let pid = self.pid;
-        let shutdown_timeout = self.shutdown_timeout;
+        cfg_select! {
+            target_family = "windows" => {
+                // On Windows there is no direct equivalent to sending SIGTERM. Applications that run as
+                // services handle stop signals via Service Control Manager (SCM), and console applications
+                // can handle Ctrl-C or Ctrl-Break events via attached consoles.
+                // The current implementation uses Job Objects to manage process groups, and there is no
+                // graceful shutdown signal sent to the processes.
+                warn!(agent_id = %self.agent_id, pid = self.pid, "No graceful shutdown on Windows, stopping forcefully");
+                self.force_kill()
+            }
+            _ => {
+                let agent_id = self.agent_id.clone();
+                let pid = self.pid;
+                let shutdown_timeout = self.shutdown_timeout;
 
-        #[cfg(target_family = "unix")]
-        if let Err(e) = self.graceful_signal() {
-            warn!(agent_id = %agent_id, pid, %e, "Graceful shutdown failed, stopping forcefully");
-            return self.force_kill();
-        }
+                if let Err(e) = self.graceful_signal() {
+                    warn!(agent_id = %agent_id, pid, %e, "Graceful shutdown failed, stopping forcefully");
+                    return self.force_kill();
+                }
 
-        let deadline = Instant::now() + shutdown_timeout;
-        let mut current = self;
-        loop {
-            match current.try_wait() {
-                ProcessState::Exited(exit_status) => break Ok(exit_status),
-                ProcessState::Running(running) => {
-                    if Instant::now() >= deadline {
-                        warn!(agent_id = %agent_id, pid, "Graceful shutdown timeout exceeded, stopping forcefully");
-                        break running.force_kill();
+                let deadline = Instant::now() + shutdown_timeout;
+                let mut current = self;
+                loop {
+                    match current.try_wait() {
+                        ProcessState::Exited(exit_status) => break Ok(exit_status),
+                        ProcessState::Running(running) => {
+                            if Instant::now() >= deadline {
+                                warn!(agent_id = %agent_id, pid, "Graceful shutdown timeout exceeded, stopping forcefully");
+                                break running.force_kill();
+                            }
+                            thread::sleep(POLL_INTERVAL);
+                            current = running;
+                        }
                     }
-                    thread::sleep(POLL_INTERVAL);
-                    current = running;
                 }
             }
         }
