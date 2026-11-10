@@ -6,6 +6,7 @@ use nix::unistd::Pid;
 use std::io;
 use std::os::unix::process::ExitStatusExt;
 use std::process::ExitStatus;
+use tracing::warn;
 
 impl SupervisedProcess {
     /// Non-blocking check of whether the process has exited. Uses `WNOHANG` so `waitpid` returns
@@ -13,6 +14,8 @@ impl SupervisedProcess {
     /// running, including ptrace stops and `ECHILD` (adopted/re-parented processes).
     pub fn try_wait(self) -> ProcessState {
         let pid = Pid::from_raw(self.pid as i32);
+        // waitpid(2) with WNOHANG can return ECHILD, EINTR, or EINVAL; see
+        // <https://linux.die.net/man/2/waitpid>
         match waitpid(pid, Some(WaitPidFlag::WNOHANG)) {
             Ok(WaitStatus::StillAlive)
             | Ok(WaitStatus::Stopped(..))
@@ -27,7 +30,23 @@ impl SupervisedProcess {
             // Not our child: adopted process. Full liveness check will be wired up
             // when ProcessOrigin::Adopt is implemented.
             Err(nix::errno::Errno::ECHILD) => ProcessState::Running(self),
-            Err(_) => ProcessState::Running(self),
+            // Remaining errors evaluate to considering the process to be still running,
+            // a safer outcome than risking having orphan processes around treated as
+            // stopped, incurring in re-spawn, double-handling, resource leaks and other
+            // problems that are hard to troubleshoot.
+            Err(nix::errno::Errno::EINTR) => {
+                warn!(pid = self.pid, agent_id = %self.agent_id, "EINTR: WNOHANG is not set when it should and an unblocked signal or a SIGCHLD was caught");
+                ProcessState::Running(self)
+            }
+            Err(nix::errno::Errno::EINVAL) => {
+                warn!(pid = self.pid, agent_id = %self.agent_id, "EINVAL: The options argument was invalid");
+                ProcessState::Running(self)
+            }
+            // other `Errno`s that are not expected to occur according to `waitpid`'s spec
+            Err(e) => {
+                warn!(pid = self.pid, agent_id = %self.agent_id, "Unexpected error on call to waitpid: {e}; treating process as running");
+                ProcessState::Running(self)
+            }
         }
     }
 
