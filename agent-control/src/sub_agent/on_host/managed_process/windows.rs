@@ -16,15 +16,18 @@ impl SupervisedProcess {
 
     /// Forcefully terminates the entire process tree via the Job Object and waits for exit.
     pub(super) fn force_kill(self) -> Result<ExitStatus, CommandError> {
-        self.job_object.kill().map_err(CommandError::from)?;
-        let mut current = self;
+        // Destructure to take job_object and process_handle independently: kill(self) consumes
+        // job_object, after which the remaining fields no longer form a SupervisedProcess.
+        let SupervisedProcess {
+            job_object,
+            process_handle,
+            ..
+        } = self;
+        job_object.kill().map_err(CommandError::from)?;
         loop {
-            match current.try_wait() {
-                ProcessState::Exited(exit_status) => break Ok(exit_status),
-                ProcessState::Running(running) => {
-                    thread::sleep(POLL_INTERVAL);
-                    current = running;
-                }
+            match process_handle.exit_code() {
+                None => thread::sleep(POLL_INTERVAL),
+                Some(code) => break Ok(ExitStatus::from_raw(code)),
             }
         }
     }
