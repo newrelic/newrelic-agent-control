@@ -15,6 +15,7 @@ pub struct AgentAttributes {
     agent_filesystem_dir: PathBuf,
     shared_filesystem_dir: PathBuf,
     remote_dir: PathBuf,
+    log_dir: PathBuf,
 }
 
 /// Error returned when [`AgentAttributes`] cannot be created.
@@ -34,12 +35,15 @@ impl AgentAttributes {
 
     /// Variable name holding the sub-agent's dedicated filesystem directory under nr-path namespace.
     pub const NR_PATH_AGENT_DIR: &'static str = "agent_dir";
+    /// Variable name holding the sub-agent's logs directory under nr-path namespace.
+    pub const NR_PATH_LOG_DIR: &'static str = "log_dir";
 
     /// Builds [`AgentAttributes`] for a sub-agent. Returns an error if the given id is a reserved
     /// (non sub-agent) id.
     pub fn try_new(
         agent_id: AgentID,
         remote_dir: PathBuf,
+        log_dir: PathBuf,
     ) -> Result<Self, AgentAttributesCreateError> {
         if let AgentID::SubAgent(agent_id) = agent_id {
             let agent_filesystem_dir = remote_dir
@@ -53,6 +57,7 @@ impl AgentAttributes {
                 agent_filesystem_dir,
                 shared_filesystem_dir,
                 remote_dir,
+                log_dir,
             })
         } else {
             Err(AgentAttributesCreateError("Used reserved Agent ID".into()))
@@ -83,17 +88,23 @@ impl AgentAttributes {
 
     /// Returns the variables from agent attributes to be exposed as `nr-path`
     pub fn nr_path_variables(&self) -> VariableValues {
-        HashMap::from([(
-            VariableName::new(Namespace::Path, Self::NR_PATH_AGENT_DIR),
-            VariableValue::String(self.agent_filesystem_dir.to_string_lossy().into_owned()),
-        )])
+        HashMap::from([
+            (
+                VariableName::new(Namespace::Path, Self::NR_PATH_AGENT_DIR),
+                VariableValue::String(self.agent_filesystem_dir.to_string_lossy().into_owned()),
+            ),
+            (
+                VariableName::new(Namespace::Path, Self::NR_PATH_LOG_DIR),
+                VariableValue::String(self.log_dir.to_string_lossy().into_owned()),
+            ),
+        ])
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_control::defaults::AGENT_CONTROL_DATA_DIR;
+    use crate::agent_control::defaults::{AGENT_CONTROL_DATA_DIR, AGENT_CONTROL_LOG_DIR};
     use crate::agent_type::variable::value::VariableValue;
 
     fn final_string(vars: &VariableValues, namespace: Namespace, name: &str) -> String {
@@ -111,7 +122,9 @@ mod tests {
     fn filesystems_are_available() {
         let remote_dir = PathBuf::from(AGENT_CONTROL_DATA_DIR);
         let agent_id = AgentID::try_from("my-agent").unwrap();
-        let attributes = AgentAttributes::try_new(agent_id, remote_dir.clone()).unwrap();
+        let log_dir = PathBuf::from(AGENT_CONTROL_LOG_DIR).join("my-agent");
+        let attributes =
+            AgentAttributes::try_new(agent_id, remote_dir.clone(), log_dir.clone()).unwrap();
 
         let nr_sub_vars = attributes.nr_sub_variables();
         // Build expected paths via `join` so separators match the platform (e.g. `\` on Windows).
@@ -152,17 +165,33 @@ mod tests {
             ),
             expected_agent,
         );
+        assert_eq!(
+            final_string(
+                &nr_paths_vars,
+                Namespace::Path,
+                AgentAttributes::NR_PATH_LOG_DIR
+            ),
+            log_dir.to_string_lossy().to_string(),
+        );
     }
 
     #[test]
     fn shared_filesystem_dir_is_identical_across_agents() {
         let remote_dir = PathBuf::from(AGENT_CONTROL_DATA_DIR);
-        let a = AgentAttributes::try_new(AgentID::try_from("agent-a").unwrap(), remote_dir.clone())
-            .unwrap()
-            .nr_sub_variables();
-        let b = AgentAttributes::try_new(AgentID::try_from("agent-b").unwrap(), remote_dir)
-            .unwrap()
-            .nr_sub_variables();
+        let a = AgentAttributes::try_new(
+            AgentID::try_from("agent-a").unwrap(),
+            remote_dir.clone(),
+            PathBuf::new(),
+        )
+        .unwrap()
+        .nr_sub_variables();
+        let b = AgentAttributes::try_new(
+            AgentID::try_from("agent-b").unwrap(),
+            remote_dir,
+            PathBuf::new(),
+        )
+        .unwrap()
+        .nr_sub_variables();
 
         let key = AgentAttributes::NR_SUB_SHARED_FILESYSTEM_DIR;
         assert_eq!(

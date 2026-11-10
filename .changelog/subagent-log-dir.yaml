@@ -1,0 +1,2 @@
+type: enhancement
+message: "On-host: add the `nr-path:log_dir` variable, a per-agent log directory that Agent Control creates before starting the sub-agent."

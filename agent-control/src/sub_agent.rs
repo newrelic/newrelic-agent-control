@@ -1127,6 +1127,7 @@ deployment:
             HashMap::new(),
             ValueProviders::default(),
             PathBuf::default().as_path(),
+            PathBuf::default().as_path(),
         ));
 
         let mut validator = MockRemoteConfigValidator::new();
@@ -1262,6 +1263,7 @@ deployment:
             agent_type_registry.clone(),
             HashMap::new(),
             ValueProviders::default(),
+            PathBuf::default().as_path(),
             PathBuf::default().as_path(),
         ));
 
@@ -1947,6 +1949,7 @@ deployment:
             Arc::new(TestAgent::agent_type_definition_with_required_var().into()),
             HashMap::new(),
             ValueProviders::default(),
+            PathBuf::default().as_path(),
             PathBuf::default().as_path(),
         ));
 

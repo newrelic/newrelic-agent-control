@@ -27,13 +27,15 @@ use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::command::command_os::{CommandOSNotStarted, CommandOSStarted};
 use crate::sub_agent::on_host::command::error::CommandError;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
-use crate::sub_agent::on_host::command::logging::file_logger::SubAgentFileLoggingConfig;
+use crate::sub_agent::on_host::command::logging::file_logger::{
+    SubAgentFileLoggingConfig, agent_log_dir,
+};
 use crate::sub_agent::on_host::command::restart_policy::RestartPolicy;
 use crate::sub_agent::supervisor::{Supervisor, SupervisorStarter};
 use crate::utils::thread_context::{
     NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
 };
-use fs::directory_manager::DirectoryManagerFs;
+use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use fs::file::LocalFile;
 use opamp_client::operation::settings::AgentDescription;
 use std::collections::HashMap;
@@ -59,6 +61,12 @@ pub enum SupervisorError {
     /// The sub-agent filesystem entries could not be written.
     #[error("failed to write sub-agent files: {0}")]
     FileSystem(FileSystemEntriesError),
+    /// The sub-agent log directory could not be created.
+    #[error("failed to create the log directory '{}': {source}", path.display())]
+    LogDir {
+        path: PathBuf,
+        source: std::io::Error,
+    },
     /// Package installation failed.
     #[error("package installation failed: {0}")]
     Install(InstallPackageError),
@@ -226,6 +234,19 @@ impl<PM> NotStartedSupervisorOnHost<PM>
 where
     PM: PackageManager,
 {
+    /// Creates the directory where the sub-agent writes its logs (`${nr-path:log_dir}`). It is only
+    /// created when missing: on Windows, creating an existing directory resets its ACL to
+    /// Administrators-only.
+    fn create_log_dir(&self) -> Result<(), SupervisorError> {
+        let path = agent_log_dir(&self.file_logging_config.base_path, &self.agent_identity.id);
+        if path.is_dir() {
+            return Ok(());
+        }
+        DirectoryManagerFs
+            .create(&path)
+            .map_err(|source| SupervisorError::LogDir { path, source })
+    }
+
     /// Creates a not-started on-host supervisor from the agent identity, executables, health,
     /// version and packages configuration, package manager, and file-logging settings.
     #[allow(clippy::too_many_arguments)]
@@ -367,6 +388,8 @@ where
         self.shared_filesystem
             .write(&LocalFile, &DirectoryManagerFs)
             .map_err(SupervisorError::FileSystem)?;
+
+        self.create_log_dir()?;
 
         let maybe_health_checker =
             self.start_health_check(sub_agent_internal_publisher.clone(), &self.health_config)?;
@@ -1682,6 +1705,73 @@ declared-dir:
             all_contents.contains(unique_str_2),
             "Second run log not found (post-apply)"
         );
+    }
+
+    fn build_supervisor_with_logging_path(
+        logging_path: PathBuf,
+    ) -> NotStartedSupervisorOnHost<MockPackageManager> {
+        let agent_identity = AgentIdentity::from((
+            AgentID::try_from("test-agent".to_string()).unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
+        ));
+        NotStartedSupervisorOnHost::new(
+            agent_identity,
+            vec![],
+            None,
+            get_empty_packages(),
+            None,
+            Arc::new(MockPackageManager::new()),
+            SubAgentFileLoggingConfig {
+                enabled: false,
+                base_path: logging_path,
+            },
+            FileSystem::test_empty(),
+            SharedFileSystem::test_empty(),
+        )
+    }
+
+    #[test]
+    fn test_spin_up_creates_log_dir() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let (pub_internal, _sub_internal) = pub_sub();
+        let started = build_supervisor_with_logging_path(dir.path().to_path_buf())
+            .spin_up(pub_internal)
+            .expect("failed to start");
+        started.stop().expect("failed to stop");
+
+        assert!(dir.path().join("test-agent").is_dir());
+    }
+
+    #[test]
+    fn test_spin_up_keeps_existing_log_dir_content() {
+        let dir = tempfile::tempdir().unwrap();
+        let log_dir = dir.path().join("test-agent");
+        std::fs::create_dir(&log_dir).unwrap();
+
+        let log_file = log_dir.join("agent.log");
+        std::fs::write(&log_file, "log").unwrap();
+
+        let (pub_internal, _sub_internal) = pub_sub();
+        let started = build_supervisor_with_logging_path(dir.path().to_path_buf())
+            .spin_up(pub_internal)
+            .expect("failed to start");
+        started.stop().expect("failed to stop");
+
+        assert_eq!(std::fs::read_to_string(log_file).unwrap(), "log");
+    }
+
+    #[test]
+    fn test_spin_up_fails_if_log_dir_cannot_be_created() {
+        let dir = tempfile::tempdir().unwrap();
+        // A file where the logging base directory should be makes the creation fail.
+        let base_path = dir.path().join("not-a-dir");
+        std::fs::write(&base_path, "").unwrap();
+
+        let (pub_internal, _sub_internal) = pub_sub();
+        let result = build_supervisor_with_logging_path(base_path).spin_up(pub_internal);
+
+        assert!(matches!(result, Err(SupervisorError::LogDir { .. })));
     }
 
     #[test]

@@ -8,6 +8,7 @@ use crate::common::on_drop::CleanUp;
 use crate::common::test::{retry, retry_panic};
 use crate::common::{InstallationArgs, RecipeData, nrql};
 use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe, tear_down_test};
+use crate::windows::powershell::test_file_exists;
 use crate::windows::scenarios::DEFAULT_STATUS_PORT;
 use crate::windows::service::STATUS_RUNNING;
 use crate::windows::{self};
@@ -57,6 +58,7 @@ config_agent:
   license_key: '{{{{NEW_RELIC_LICENSE_KEY}}}}'
   log:
     level: debug
+    file: '${{nr-path:log_dir}}\newrelic-infra.log'
 config_logging:
   logging.yaml:
     logs:
@@ -88,6 +90,15 @@ version: {infra_agent_version}
     let status_json = serde_json::to_string_pretty(&status)
         .unwrap_or_else(|err| panic!("Failed to serialize status to JSON: {err}"));
     info!(response = status_json, "Agent Control is healthy");
+
+    let log_file = windows::sub_agent_log_path(infra_sub_agent_id, "newrelic-infra.log");
+    info!(
+        path = log_file,
+        "Checking the infra-agent log file is created"
+    );
+    retry_panic(30, Duration::from_secs(2), "infra-agent log file", || {
+        test_file_exists(&log_file)
+    });
 
     let nrql_query = format!(r#"SELECT * FROM SystemSample WHERE `host.id` = '{test_id}' LIMIT 1"#);
     info!(

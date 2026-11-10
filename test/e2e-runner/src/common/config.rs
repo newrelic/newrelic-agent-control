@@ -326,4 +326,8 @@ config:
         exporters: [otlphttp]
   
     extensions: [health_check]
+    telemetry:
+      logs:
+        level: info
+        output_paths: [stderr, '${nr-path:log_dir}/nrdot-collector.log']
 "#;

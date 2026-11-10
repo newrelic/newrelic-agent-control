@@ -218,7 +218,7 @@ fn test_file_logging_reload(
 }
 
 /// File logging is disabled initially and stays disabled after reload.
-/// No log directory should be created for the agent.
+/// The log directory is created by Agent Control, but no log file is written to it.
 #[test]
 fn onhost_supervisor_reloading_keeps_file_logging_disabled() {
     let unique_str_1 = "keeps_disabled_run1";
@@ -228,11 +228,13 @@ fn onhost_supervisor_reloading_keeps_file_logging_disabled() {
     let (dirs, _agent_control, _opamp_server) =
         run_file_logging_scenario(agent_id, false, unique_str_1, false, unique_str_2);
 
-    let log_dir_path = dirs.log_dir();
-    let agent_logs_dir = log_dir_path.join(agent_id);
+    let agent_logs_dir = dirs.log_dir().join(agent_id);
+    let log_files: Vec<_> = fs::read_dir(&agent_logs_dir)
+        .expect("the log directory should be created by Agent Control")
+        .map(|entry| entry.unwrap().path())
+        .collect();
     assert!(
-        !agent_logs_dir.exists(),
-        "Log directory {:?} should NOT exist (logging was never enabled)",
-        agent_logs_dir
+        log_files.is_empty(),
+        "No log files expected in {agent_logs_dir:?} (logging was never enabled), found {log_files:?}"
     );
 }
