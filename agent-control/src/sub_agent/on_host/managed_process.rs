@@ -29,7 +29,7 @@ const POLL_INTERVAL: Duration = Duration::from_millis(100);
 ///
 /// Once [`ProcessOrigin::try_into_supervised`] is called, the result is a [`SupervisedProcess`]
 /// ready to be managed regardless of how it was acquired.
-// An `Adopt { pid, agent_id, shutdown_timeout }` variant will be added here once per-instance
+// An `Adopt { pid, agent_id, shutdown_timeout }` variant will be added once per-instance
 // bookkeeping (PID files, cgroup inspection) is in place.
 pub enum ProcessOrigin {
     /// Start a new process from the given config.
