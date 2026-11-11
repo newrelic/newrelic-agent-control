@@ -16,7 +16,8 @@ use windows::Wdk::Foundation::{
 use windows::Wdk::System::Threading::{NtQueryInformationProcess, PROCESSINFOCLASS};
 use windows::Win32::Foundation::{
     CloseHandle, ERROR_INVALID_PARAMETER, ERROR_NOT_ALL_ASSIGNED, GetLastError, HANDLE, LUID,
-    OBJ_CASE_INSENSITIVE, OBJ_PERMANENT, OBJECT_ATTRIBUTE_FLAGS, UNICODE_STRING, WAIT_OBJECT_0,
+    OBJ_CASE_INSENSITIVE, OBJ_OPENIF, OBJ_PERMANENT, OBJECT_ATTRIBUTE_FLAGS, UNICODE_STRING,
+    WAIT_OBJECT_0,
 };
 use windows::Win32::Security::{
     AdjustTokenPrivileges, GetTokenInformation, LUID_AND_ATTRIBUTES, LookupPrivilegeValueW,
@@ -1116,6 +1117,49 @@ impl Job {
 
 /// `READ_CONTROL` standard access right: read the security descriptor.
 pub const READ_CONTROL: u32 = 0x0002_0000;
+
+/// `STATUS_OBJECT_NAME_EXISTS`: returned by `NtCreateJobObject` when a job with that name already
+/// existed. Not an error — the handle is valid and points to the existing object. Distinct from
+/// `STATUS_SUCCESS` (0), which signals a freshly created object.
+const STATUS_OBJECT_NAME_EXISTS: i32 = 0x40000000u32 as i32;
+
+/// Result of [`Job::create_or_open_native`].
+pub struct JobCreation {
+    pub job: Job,
+    /// `true` if the job was just created; `false` if a job with that name already existed
+    /// (`STATUS_OBJECT_NAME_EXISTS`). A pre-existing job must be verified with [`Job::security`]
+    /// before it is trusted: the SDDL passed to `create_or_open_native` was ignored by the
+    /// kernel and the object keeps its original DACL.
+    pub was_existing: bool,
+}
+
+impl Job {
+    /// Creates a **permanent** job at the object manager path `nt_path`, or opens it if one with
+    /// that name already exists.
+    ///
+    /// This is the "open or create" primitive for the deterministic-name restart path. On a fresh
+    /// start `was_existing` is `false` and the job was created with `sddl`. On a restart where
+    /// the previous run left a permanent job behind, `was_existing` is `true` and the caller must
+    /// verify owner and DACL before adopting its members.
+    pub fn create_or_open_native(nt_path: &str, sddl: &str) -> Result<JobCreation, PocError> {
+        security::with_sddl(sddl, |descriptor| {
+            let mut handle = HANDLE::default();
+            let status = with_security(nt_path, OBJ_PERMANENT.0 | OBJ_OPENIF.0, descriptor, |attrs| unsafe {
+                nt::NtCreateJobObject(&mut handle, JOB_OBJECT_ALL_ACCESS, attrs)
+            });
+            if status < 0 {
+                return Err(status_err(
+                    &format!("creating or opening job {nt_path}"),
+                    status,
+                ));
+            }
+            Ok(JobCreation {
+                job: Self(Handle(handle)),
+                was_existing: status == STATUS_OBJECT_NAME_EXISTS,
+            })
+        })
+    }
+}
 
 #[cfg(test)]
 mod tests {

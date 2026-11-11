@@ -53,3 +53,11 @@ test = false
 [[example]]
 name = "list_jobs"
 test = false
+
+[[example]]
+name = "leftover_and_restart_probe"
+test = false
+
+[[example]]
+name = "name_squatting_probe"
+test = false
