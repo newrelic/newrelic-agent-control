@@ -4,6 +4,10 @@ name: ⏯️ Promote Version to Release Channel (all platforms)
 # channel (e.g. REGULAR) in instrumentation metadata for HOST/LINUX, HOST/WINDOWS
 # and KUBERNETESCLUSTER in one run. This does not publish metadata itself - the
 # version must already exist (see post-release-agent-metadata.yml).
+# Platforms are promoted in order (Linux, Windows, Kubernetes), each in its own job
+# chained with `needs`. If one fails, the following ones are skipped; "Re-run failed
+# jobs" in the GitHub UI then re-runs only the failed and skipped jobs, not the ones
+# that already succeeded.
 # To promote a single platform use on_demand_promote_release_channel.yml.
 
 on:
@@ -27,12 +31,11 @@ permissions:
   contents: read
 
 jobs:
-  promote:
-    name: Promote Release Channel
+  promote-linux:
+    name: Promote HOST / LINUX
     runs-on: ubuntu-latest
-
     steps:
-      - name: Promote version to release channel (HOST / LINUX)
+      - name: Promote version to release channel
         uses: newrelic/agent-metadata-action/promote-release-channel@39a73d441e2787d13d4de26b1f437025cc34dcc7 # v1.7.1
         with:
           agent-type: NRAgentControl
@@ -44,7 +47,12 @@ jobs:
           newrelic-private-key: ${{ secrets.AC_NEWRELIC_PRIVATE_KEY }}
           newrelic-license-key: ${{ secrets.AGENT_METADATA_ACTION_LICENSE_KEY }}
 
-      - name: Promote version to release channel (HOST / WINDOWS)
+  promote-windows:
+    name: Promote HOST / WINDOWS
+    runs-on: ubuntu-latest
+    needs: promote-linux
+    steps:
+      - name: Promote version to release channel
         uses: newrelic/agent-metadata-action/promote-release-channel@39a73d441e2787d13d4de26b1f437025cc34dcc7 # v1.7.1
         with:
           agent-type: NRAgentControl
@@ -56,13 +64,19 @@ jobs:
           newrelic-private-key: ${{ secrets.AC_NEWRELIC_PRIVATE_KEY }}
           newrelic-license-key: ${{ secrets.AGENT_METADATA_ACTION_LICENSE_KEY }}
 
-      - name: Promote version to release channel (KUBERNETESCLUSTER)
+  promote-k8s:
+    name: Promote KUBERNETESCLUSTER
+    runs-on: ubuntu-latest
+    needs: promote-windows
+    steps:
+      - name: Promote version to release channel
         uses: newrelic/agent-metadata-action/promote-release-channel@39a73d441e2787d13d4de26b1f437025cc34dcc7 # v1.7.1
         with:
           agent-type: NRAgentControl
           version: ${{ inputs.version }}
           channel: ${{ inputs.channel }}
           platform: KUBERNETESCLUSTER
+          operating-system: ''
           newrelic-client-id: ${{ secrets.AC_NEWRELIC_CLIENT_ID }}
           newrelic-private-key: ${{ secrets.AC_NEWRELIC_PRIVATE_KEY }}
           newrelic-license-key: ${{ secrets.AGENT_METADATA_ACTION_LICENSE_KEY }}
