@@ -246,7 +246,7 @@ jobs:
 
       - if: ${{ matrix.command == 'xwin build' }}
         name: Install cargo-xwin
-        run: cargo install --locked cargo-xwin --version 0.22.0 --force
+        run: cargo install --locked cargo-xwin --version 0.23.1 --force
 
       - name: Build release binaries for ${{ matrix.target }}
         run: |
