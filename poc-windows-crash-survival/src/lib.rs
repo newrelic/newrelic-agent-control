@@ -30,8 +30,9 @@ use windows::Win32::System::Diagnostics::ToolHelp::{
 };
 use windows::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, JOBOBJECT_BASIC_ACCOUNTING_INFORMATION,
-    JobObjectBasicAccountingInformation, JobObjectBasicProcessIdList, OpenJobObjectW,
-    QueryInformationJobObject,
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_BREAKAWAY_OK,
+    JobObjectBasicAccountingInformation, JobObjectBasicProcessIdList, JobObjectExtendedLimitInformation,
+    OpenJobObjectW, QueryInformationJobObject, SetInformationJobObject, TerminateJobObject,
 };
 use windows::Win32::System::SystemServices::JOB_OBJECT_QUERY;
 use windows::Win32::System::Threading::{
@@ -1158,6 +1159,33 @@ impl Job {
                 was_existing: status == STATUS_OBJECT_NAME_EXISTS,
             })
         })
+    }
+
+    /// Terminates all processes currently in the job with the given exit code.
+    pub fn terminate_all(&self, exit_code: u32) -> Result<(), PocError> {
+        unsafe { TerminateJobObject(self.0 .0, exit_code) }
+            .map_err(|e| err("TerminateJobObject", e))
+    }
+
+    /// Sets or clears `JOB_OBJECT_LIMIT_BREAKAWAY_OK` on the job.
+    ///
+    /// When set, a member process may spawn children outside the job by passing
+    /// `CREATE_BREAKAWAY_FROM_JOB` to `CreateProcess`. When clear (the default for a job with
+    /// no limits), that flag causes `CreateProcess` to fail with `ERROR_ACCESS_DENIED`.
+    pub fn allow_breakaway(&self, allow: bool) -> Result<(), PocError> {
+        let mut info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+        if allow {
+            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_BREAKAWAY_OK;
+        }
+        unsafe {
+            SetInformationJobObject(
+                self.0 .0,
+                JobObjectExtendedLimitInformation,
+                std::ptr::addr_of!(info).cast(),
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            )
+        }
+        .map_err(|e| err(&format!("SetInformationJobObject(breakaway={allow})"), e))
     }
 }
 

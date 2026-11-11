@@ -59,5 +59,9 @@ name = "leftover_and_restart_probe"
 test = false
 
 [[example]]
+name = "sub_process_tree_probe"
+test = false
+
+[[example]]
 name = "name_squatting_probe"
 test = false

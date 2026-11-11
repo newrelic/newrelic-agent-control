@@ -174,16 +174,73 @@ PASS 4
 
 ## Q6 — Does killing the Job work when the sub-agent spawns its own sub-processes?
 
-**Status: ⬜ pending validation**
+**Status: ✅**
 
-The existing probes use `ping.exe` which does not spawn children. The question is whether
-terminating the job (or just the top-level process) also cleans up any grandchildren.
+Verified by `sub_process_tree_probe` (all four parts pass as SYSTEM). The sub-agent mode of the
+example spawns two `ping -n 300` children; the orchestrator verifies membership and tests kill
+strategies.
 
-Things to check:
-- Does `TerminateProcess` on the adopted top-level handle also kill its descendants?
-- Alternatively, does assigning a process to a job that has `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`
-  clear cause descendants to also join the job (if `CREATE_BREAKAWAY_FROM_JOB` is not set)?
-- What happens if a grandchild sets `CREATE_BREAKAWAY_FROM_JOB` at spawn?
+### Part A — Children auto-join the job
+
+A process's children inherit job membership by default (Windows 8+, with nested job support).
+No explicit assignment is needed; the kernel adds them automatically.
+
+```
+job has 3 active processes: [6664, 8932, 9936]
+active_processes=3 (sub-agent + 2 children), all in job
+PASS A
+```
+
+### Part B — `TerminateProcess` on the top-level leaves children alive
+
+Killing only the sub-agent drops `active_processes` from 3 to 2. The two grandchildren stay
+in the job as orphans. **AC must not use `TerminateProcess` alone to clean up a sub-agent whose
+children matter.**
+
+```
+before=3 active, after TerminateProcess on top-level: 2 (children alive)
+PASS B
+```
+
+### Part C — `job.terminate_all()` (`TerminateJobObject`) kills the entire tree
+
+All members are terminated atomically; `active_processes` goes to 0.
+
+```
+before=3, after terminate_all: 0
+PASS C
+```
+
+`TerminateJobObject` is the correct primitive for AC to use when decommissioning a sub-agent
+or force-killing after a graceful-shutdown timeout.
+
+### Part D — `CREATE_BREAKAWAY_FROM_JOB` requires `JOB_OBJECT_LIMIT_BREAKAWAY_OK`
+
+The test is proxied through a `sub-agent-breakaway` sub-command (the orchestrator is not in
+the job, so only a job member can test the flag):
+
+- **Without `JOB_OBJECT_LIMIT_BREAKAWAY_OK`** (the default for a job with no limits):
+  `CreateProcess` with `CREATE_BREAKAWAY_FROM_JOB` from inside the job returns
+  `ERROR_ACCESS_DENIED`. Exit code 5.
+- **After `job.allow_breakaway(true)`** (sets `JOB_OBJECT_LIMIT_BREAKAWAY_OK` via
+  `SetInformationJobObject` / `JobObjectExtendedLimitInformation`):
+  the spawn succeeds. Exit code 0.
+
+```
+without BREAKAWAY_OK: sub-agent-breakaway exit code: Some(5)
+with BREAKAWAY_OK:    sub-agent-breakaway exit code: Some(0)
+PASS D
+```
+
+**Implication for AC**: as long as AC does not set `JOB_OBJECT_LIMIT_BREAKAWAY_OK`, the
+sub-agent cannot escape the job with `CREATE_BREAKAWAY_FROM_JOB`. A well-behaved sub-agent
+that needs to spawn outside the job would require AC to explicitly opt in. A misbehaving
+sub-agent that calls `CreateProcess` with `CREATE_BREAKAWAY_FROM_JOB` will get
+`ERROR_ACCESS_DENIED` and fail to do so.
+
+Note: `SetInformationJobObject` with `JobObjectBasicLimitInformation` rejects the
+`BREAKAWAY_OK` flag on Windows 11 with `ERROR_INVALID_PARAMETER`; the extended info class
+(`JobObjectExtendedLimitInformation` / `JOBOBJECT_EXTENDED_LIMIT_INFORMATION`) must be used.
 
 ---
 
