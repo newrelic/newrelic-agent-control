@@ -26,7 +26,9 @@ use crate::sub_agent::agent_renderer::{AgentRendererError, RenderedAgent};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::managed_process::spawned_process::error::CommandError;
 use crate::sub_agent::on_host::managed_process::spawned_process::executable_data::ExecutableData;
-use crate::sub_agent::on_host::managed_process::spawned_process::log_files::agent_log_dir;
+use crate::sub_agent::on_host::managed_process::spawned_process::log_files::{
+    SubAgentFileLoggingConfig, agent_log_dir,
+};
 use crate::sub_agent::on_host::managed_process::spawned_process::os_process::OsProcessConfig;
 use crate::sub_agent::on_host::managed_process::spawned_process::restart_policy::RestartPolicy;
 use crate::sub_agent::on_host::managed_process::{ProcessOrigin, ProcessState, SupervisedProcess};
@@ -117,8 +119,7 @@ where
 {
     agent_identity: AgentIdentity,
     executables: Vec<ExecutableData>,
-    enable_file_logging: bool,
-    logging_base_path: PathBuf,
+    file_logging_config: SubAgentFileLoggingConfig,
     health_config: Option<OnHostHealthConfig>,
     package_manager: Arc<PM>,
     packages_config: RenderedPackages,
@@ -210,8 +211,10 @@ where
             onhost_config.packages,
             onhost_config.reported_version_package,
             package_manager,
-            onhost_config.enable_file_logging,
-            logging_base_path,
+            SubAgentFileLoggingConfig {
+                enabled: onhost_config.enable_file_logging,
+                base_path: logging_base_path,
+            },
             onhost_config.filesystem,
             onhost_config.shared_filesystem,
         );
@@ -236,7 +239,7 @@ where
     /// created when missing: on Windows, creating an existing directory resets its ACL to
     /// Administrators-only.
     fn create_log_dir(&self) -> Result<(), SupervisorError> {
-        let path = agent_log_dir(&self.logging_base_path, &self.agent_identity.id);
+        let path = agent_log_dir(&self.file_logging_config.base_path, &self.agent_identity.id);
         if path.is_dir() {
             return Ok(());
         }
@@ -255,16 +258,14 @@ where
         packages_config: RenderedPackages,
         reported_version_package: Option<PackageID>,
         package_manager: Arc<PM>,
-        enable_file_logging: bool,
-        logging_base_path: PathBuf,
+        file_logging_config: SubAgentFileLoggingConfig,
         filesystem: FileSystem,
         shared_filesystem: SharedFileSystem,
     ) -> Self {
         NotStartedSupervisorOnHost {
             agent_identity,
             executables,
-            enable_file_logging,
-            logging_base_path,
+            file_logging_config,
             health_config,
             package_manager,
             packages_config,
@@ -420,7 +421,7 @@ where
             package_manager: self.package_manager,
             agent_identity: self.agent_identity,
             internal_publisher: sub_agent_internal_publisher,
-            logging_base_path: self.logging_base_path,
+            logging_base_path: self.file_logging_config.base_path,
             filesystem: self.filesystem,
         })
     }
@@ -434,9 +435,7 @@ where
         let mut restart_policy = executable_data.restart_policy.clone();
         let exec_data = executable_data.clone();
         let agent_id = self.agent_identity.id.clone();
-        let log_dir = self
-            .enable_file_logging
-            .then(|| agent_log_dir(&self.logging_base_path, &agent_id));
+        let log_dir = self.file_logging_config.log_dir_for(&agent_id);
         let dispatch = dispatcher::get_default(|d: &Dispatch| d.clone());
 
         let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
@@ -813,8 +812,7 @@ pub mod tests {
             packages,
             Some("core".to_string()),
             MockPackageManager::new_arc(),
-            false,
-            PathBuf::default(),
+            SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         );
@@ -915,8 +913,7 @@ pub mod tests {
             get_empty_packages(),
             None,
             MockPackageManager::new_arc(),
-            false,
-            PathBuf::default(),
+            SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         );
@@ -963,8 +960,7 @@ pub mod tests {
             get_empty_packages(),
             None,
             MockPackageManager::new_arc(),
-            false,
-            PathBuf::default(),
+            SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         );
@@ -1030,8 +1026,7 @@ declared-dir:
             get_empty_packages(),
             None,
             MockPackageManager::new_arc(),
-            false,
-            PathBuf::default(),
+            SubAgentFileLoggingConfig::disabled(),
             filesystem,
             SharedFileSystem::test_empty(),
         );
@@ -1079,8 +1074,7 @@ declared-dir:
             get_empty_packages(),
             None,
             MockPackageManager::new_arc(),
-            false,
-            PathBuf::default(),
+            SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         );
@@ -1134,8 +1128,10 @@ declared-dir:
             get_empty_packages(),
             None,
             MockPackageManager::new_arc(),
-            true,
-            logging_dir.path().to_path_buf(),
+            SubAgentFileLoggingConfig {
+                enabled: true,
+                base_path: logging_dir.path().to_path_buf(),
+            },
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         );
@@ -1185,8 +1181,7 @@ declared-dir:
             get_empty_packages(),
             None,
             MockPackageManager::new_arc(),
-            false,
-            PathBuf::default(),
+            SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         );
@@ -1232,8 +1227,7 @@ declared-dir:
             get_empty_packages(),
             None,
             MockPackageManager::new_arc(),
-            false,
-            PathBuf::default(),
+            SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         );
@@ -1293,8 +1287,7 @@ declared-dir:
             get_empty_packages(),
             None,
             MockPackageManager::new_arc(),
-            false,
-            PathBuf::default(),
+            SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         );
@@ -1389,8 +1382,7 @@ declared-dir:
             get_empty_packages(),
             None,
             MockPackageManager::new_arc(),
-            false,
-            PathBuf::default(),
+            SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         );
@@ -1520,8 +1512,7 @@ declared-dir:
             get_empty_packages(),
             None,
             MockPackageManager::new_arc(),
-            false,
-            PathBuf::default(),
+            SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         )
@@ -1631,8 +1622,10 @@ declared-dir:
             get_empty_packages(),
             None,
             Arc::new(MockPackageManager::new()),
-            true,
-            logging_path.clone(),
+            SubAgentFileLoggingConfig {
+                enabled: true,
+                base_path: logging_path.clone(),
+            },
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         );
@@ -1735,8 +1728,10 @@ declared-dir:
             get_empty_packages(),
             None,
             Arc::new(MockPackageManager::new()),
-            false,
-            logging_path,
+            SubAgentFileLoggingConfig {
+                enabled: false,
+                base_path: logging_path,
+            },
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         )
@@ -1825,8 +1820,10 @@ declared-dir:
             get_empty_packages(),
             None,
             Arc::new(MockPackageManager::new()),
-            false,
-            logging_path.clone(),
+            SubAgentFileLoggingConfig {
+                enabled: false,
+                base_path: logging_path.clone(),
+            },
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         );
@@ -1952,8 +1949,10 @@ declared-dir:
             get_empty_packages(),
             None,
             Arc::new(MockPackageManager::new()),
-            true,
-            logging_path.clone(),
+            SubAgentFileLoggingConfig {
+                enabled: true,
+                base_path: logging_path.clone(),
+            },
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         );
@@ -2064,8 +2063,7 @@ declared-dir:
             get_empty_packages(),
             None,
             MockPackageManager::new_arc(),
-            false,
-            PathBuf::default(),
+            SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         );
@@ -2138,8 +2136,7 @@ declared-dir:
             get_empty_packages(),
             None,
             Arc::new(MockPackageManager::new()),
-            false,
-            PathBuf::default(),
+            SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         );

@@ -18,6 +18,7 @@ use crate::sub_agent::SubAgent;
 use crate::sub_agent::agent_renderer::{RenderedAgent, Renderer};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::managed_process::spawned_process::executable_data::ExecutableData;
+use crate::sub_agent::on_host::managed_process::spawned_process::log_files::SubAgentFileLoggingConfig;
 use crate::sub_agent::on_host::supervisor::{NotStartedSupervisorOnHost, SupervisorError};
 use crate::sub_agent::remote_config_parser::RemoteConfigParser;
 use crate::sub_agent::supervisor::SupervisorBuilder;
@@ -182,8 +183,10 @@ where
             on_host.packages,
             on_host.reported_version_package,
             self.package_manager.clone(),
-            on_host.enable_file_logging,
-            self.logging_base_path.clone(),
+            SubAgentFileLoggingConfig {
+                enabled: on_host.enable_file_logging,
+                base_path: self.logging_base_path.clone(),
+            },
             on_host.filesystem,
             on_host.shared_filesystem,
         ))

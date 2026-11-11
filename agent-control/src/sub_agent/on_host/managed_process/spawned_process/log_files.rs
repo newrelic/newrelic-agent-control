@@ -7,6 +7,22 @@ use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use std::fs::{File, OpenOptions};
 use std::path::{Path, PathBuf};
 
+/// Whether sub-agents write their stdout/stderr to log files, and the directory holding the
+/// per-agent log directories.
+#[derive(Debug, PartialEq, Clone)]
+pub struct SubAgentFileLoggingConfig {
+    pub enabled: bool,
+    pub base_path: PathBuf,
+}
+
+impl SubAgentFileLoggingConfig {
+    /// Returns the agent's log directory when file logging is enabled.
+    pub fn log_dir_for(&self, agent_id: &AgentID) -> Option<PathBuf> {
+        self.enabled
+            .then(|| agent_log_dir(&self.base_path, agent_id))
+    }
+}
+
 /// Per-agent log directory: `base_path/<agent_id>`. Shared with `OnHostCleaner` so the path a
 /// sub-agent's log files are written to and the path deleted on agent removal never drift apart.
 pub fn agent_log_dir(base_path: &Path, agent_id: &AgentID) -> PathBuf {
@@ -32,4 +48,19 @@ fn open_append(path: &Path) -> Result<File, CommandError> {
         .append(true)
         .open(path)
         .map_err(|e| CommandError::LogFile(format!("opening {}: {e}", path.display())))
+}
+
+#[cfg(test)]
+pub mod test {
+    use crate::sub_agent::on_host::managed_process::spawned_process::log_files::SubAgentFileLoggingConfig;
+    use std::path::PathBuf;
+
+    impl SubAgentFileLoggingConfig {
+        pub fn disabled() -> Self {
+            Self {
+                enabled: false,
+                base_path: PathBuf::default(),
+            }
+        }
+    }
 }
