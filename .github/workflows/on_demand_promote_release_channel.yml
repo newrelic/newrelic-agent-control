@@ -16,7 +16,9 @@ on:
         required: true
         type: choice
         options:
+          - RAPID
           - REGULAR
+          - STABLE
         default: REGULAR
       platform:
         description: 'Target platform for the promotion.'
