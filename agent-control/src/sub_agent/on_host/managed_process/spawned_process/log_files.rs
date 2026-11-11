@@ -14,15 +14,6 @@ pub struct SubAgentFileLoggingConfig {
     pub enabled: bool,
     pub base_path: PathBuf,
 }
-
-impl SubAgentFileLoggingConfig {
-    /// Returns the agent's log directory when file logging is enabled.
-    pub fn log_dir_for(&self, agent_id: &AgentID) -> Option<PathBuf> {
-        self.enabled
-            .then(|| agent_log_dir(&self.base_path, agent_id))
-    }
-}
-
 /// Per-agent log directory: `base_path/<agent_id>`. Shared with `OnHostCleaner` so the path a
 /// sub-agent's log files are written to and the path deleted on agent removal never drift apart.
 pub fn agent_log_dir(base_path: &Path, agent_id: &AgentID) -> PathBuf {

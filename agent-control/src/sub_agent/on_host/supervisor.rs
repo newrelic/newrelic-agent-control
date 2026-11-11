@@ -435,7 +435,11 @@ where
         let mut restart_policy = executable_data.restart_policy.clone();
         let exec_data = executable_data.clone();
         let agent_id = self.agent_identity.id.clone();
-        let log_dir = self.file_logging_config.log_dir_for(&agent_id);
+        let maybe_log_dir = self
+            .file_logging_config
+            .enabled
+            .then(|| agent_log_dir(&self.file_logging_config.base_path, &agent_id));
+
         let dispatch = dispatcher::get_default(|d: &Dispatch| d.clone());
 
         let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
@@ -468,7 +472,7 @@ where
                     ProcessOrigin::Spawn(OsProcessConfig::new(
                         agent_id.clone(),
                         &exec_data,
-                        log_dir.clone(),
+                        maybe_log_dir.clone(),
                     ))
                 });
                 let executable_result = process_origin
