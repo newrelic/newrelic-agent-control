@@ -92,7 +92,8 @@ jobs:
 
       - name: Install cargo-xwin and go-winres
         run: |
-          cargo install --locked cargo-xwin --version 0.22.0 --force
+          # renovate: datasource=crate depName=cargo-xwin
+          cargo install --locked cargo-xwin --version 0.23.1 --force
           go install github.com/tc-hib/go-winres@v0.3.3
 
       - name: Warm up cargo-xwin MSVC CRT/SDK cache
