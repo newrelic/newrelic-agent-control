@@ -12,7 +12,7 @@ use crate::agent_type::templates::Templateable;
 use crate::agent_type::variable::dynamic_variables::{DynamicVariables, DynamicVariablesError};
 use crate::agent_type::variable::value::VariableValues;
 use crate::sub_agent::identity::AgentIdentity;
-use crate::sub_agent::on_host::command::logging::file_logger::agent_log_dir;
+use crate::sub_agent::on_host::managed_process::spawned_process::logging::file_logger::agent_log_dir;
 use crate::value_provider::{Registry, ValueProvider, ValueProviderType};
 use crate::values::yaml_config::{YAMLConfig, YAMLConfigError};
 use std::collections::HashMap;

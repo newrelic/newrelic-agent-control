@@ -24,13 +24,14 @@ use crate::opamp::attributes::publish_update_attributes_event;
 use crate::package::manager::{PackageData, PackageManager};
 use crate::sub_agent::agent_renderer::{AgentRendererError, RenderedAgent};
 use crate::sub_agent::identity::AgentIdentity;
-use crate::sub_agent::on_host::command::command_os::{CommandOSNotStarted, CommandOSStarted};
-use crate::sub_agent::on_host::command::error::CommandError;
-use crate::sub_agent::on_host::command::executable_data::ExecutableData;
-use crate::sub_agent::on_host::command::logging::file_logger::{
+use crate::sub_agent::on_host::managed_process::spawned_process::error::CommandError;
+use crate::sub_agent::on_host::managed_process::spawned_process::executable_data::ExecutableData;
+use crate::sub_agent::on_host::managed_process::spawned_process::logging::file_logger::{
     SubAgentFileLoggingConfig, agent_log_dir,
 };
-use crate::sub_agent::on_host::command::restart_policy::RestartPolicy;
+use crate::sub_agent::on_host::managed_process::spawned_process::os_process::OsProcessConfig;
+use crate::sub_agent::on_host::managed_process::spawned_process::restart_policy::RestartPolicy;
+use crate::sub_agent::on_host::managed_process::{ProcessOrigin, ProcessState, SupervisedProcess};
 use crate::sub_agent::supervisor::{Supervisor, SupervisorStarter};
 use crate::utils::thread_context::{
     NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
@@ -405,7 +406,10 @@ where
                 let maybe_health_publisher = maybe_health_checker
                     .as_ref()
                     .map(|hc| hc.health_publisher.clone());
-                self.start_process_thread(e, maybe_health_publisher)
+                // TODO: once PID-file / cgroup inspection is in place, pass
+                // Some(ProcessOrigin::Adopt(...)) when a process from a previous AC run is
+                // still alive; None otherwise always spawns fresh.
+                self.start_process_thread(e, maybe_health_publisher, None)
             })
             .collect();
         // Track the health checker thread alongside the executable ones, so that stopping or
@@ -426,6 +430,7 @@ where
         &self,
         executable_data: &ExecutableData,
         health_publisher: Option<EventPublisher<(String, HealthWithStartTime)>>,
+        process_supervision_operation: Option<ProcessOrigin>,
     ) -> StartedThreadContext {
         let mut restart_policy = executable_data.restart_policy.clone();
         let exec_data = executable_data.clone();
@@ -437,6 +442,8 @@ where
             let _guard = dispatcher::set_default(&dispatch);
 
             let exec_id = exec_data.id.clone();
+            // Consumed on the first iteration; every subsequent restart always spawns.
+            let mut process_supervision_operation = process_supervision_operation;
 
             let mut i = 0;
             let mut last_error: Option<String>;
@@ -457,21 +464,28 @@ where
                     .map(|hp| HealthHandler::new(exec_id.clone(), hp));
 
                 info!(%agent_id, %exec_id, "Starting executable");
-                let command =
-                    CommandOSNotStarted::new(agent_id.clone(), &exec_data, logging_config.clone());
-
-                let started = command.start().and_then(|cmd| cmd.stream());
-
-                let executable_result = started.and_then(|cmd| {
-                    wait_exit(
-                        cmd,
-                        &stop_consumer,
-                        HEALTHY_DELAY,
-                        health_handler.as_ref(),
-                        &agent_id,
-                        &exec_id,
-                    )
+                let process_origin = process_supervision_operation.take().unwrap_or_else(|| {
+                    ProcessOrigin::Spawn(OsProcessConfig::new(
+                        agent_id.clone(),
+                        &exec_data,
+                        logging_config.clone(),
+                    ))
                 });
+                let executable_result = process_origin
+                    .try_into_supervised()
+                    .inspect_err(
+                        |err| warn!(%agent_id, %exec_id, "Failed to start executable: {err}"),
+                    )
+                    .and_then(|cmd| {
+                        wait_exit(
+                            cmd,
+                            &stop_consumer,
+                            HEALTHY_DELAY,
+                            health_handler.as_ref(),
+                            &agent_id,
+                            &exec_id,
+                        )
+                    });
 
                 match executable_result {
                     Ok((exit_status, was_cancelled)) => {
@@ -487,9 +501,9 @@ where
                         }
                     }
                     Err(err) => {
-                        warn!(%agent_id, %exec_id, "Launching executable: {err}");
-                        debug!(%agent_id, %exec_id, "Error launching executable, marking as unhealthy");
-                        let error = format!("Error launching process: {err}");
+                        warn!(%agent_id, %exec_id, "Running executable: {err}");
+                        debug!(%agent_id, %exec_id, "Error running executable, marking as unhealthy");
+                        let error = format!("Error running process: {err}");
                         health_handler
                             .as_ref()
                             .inspect(|h| h.publish_unhealthy(error.clone()));
@@ -573,7 +587,7 @@ fn stop_supervisor_threads(
 
 /// Waits for the command to complete or be cancelled
 fn wait_exit(
-    mut command: CommandOSStarted,
+    command: SupervisedProcess,
     stop_consumer: &EventConsumer<CancellationMessage>,
     healthy_publish_delay: Duration,
     health_handler: Option<&HealthHandler>,
@@ -581,44 +595,40 @@ fn wait_exit(
     exec_id: &str,
 ) -> Result<(ExitStatus, bool), CommandError> {
     info!(%agent_id, %exec_id, "Waiting for executable to complete or be cancelled");
-    let mut was_cancelled = false;
     let deadline = Instant::now() + healthy_publish_delay;
     let mut healthy_already_published = false;
+    let mut process = command;
 
-    // Busy waiting is avoided with `is_cancelled_with_timeout`
-    while command.is_running() {
-        // Shutdown the spawned process when the cancel signal is received.
-        // This ensures the thread stops in time.
-        if stop_consumer.is_cancelled_with_timeout(WAIT_FOR_EXIT_TIMEOUT) {
-            info!(%agent_id, %exec_id, "Stopping executable");
-            if let Err(err) = command.shutdown() {
-                error!(%agent_id, %exec_id, "Failed to stop executable: {err}");
+    loop {
+        match process.try_wait() {
+            ProcessState::Exited(exit_status) => {
+                if !healthy_already_published && exit_status.success() {
+                    debug!(%agent_id, %exec_id, "Informing executable as healthy after terminating successfully");
+                    health_handler.inspect(|h| h.publish_healthy());
+                }
+                break Ok((exit_status, false));
             }
-            info!(%agent_id, %exec_id, "Executable terminated");
-            was_cancelled = true;
-        }
-
-        // Publish healthy status once after the process has been running
-        // for an arbitrary long time without issues.
-        if !healthy_already_published && Instant::now() > deadline {
-            debug!(%agent_id, %exec_id, "{}", format!("Informing executable as healthy after running for {} seconds", healthy_publish_delay.as_secs()));
-            health_handler.inspect(|h| h.publish_healthy());
-            healthy_already_published = true;
+            // Busy waiting is avoided with `is_cancelled_with_timeout`
+            ProcessState::Running(running) => {
+                if stop_consumer.is_cancelled_with_timeout(WAIT_FOR_EXIT_TIMEOUT) {
+                    info!(%agent_id, %exec_id, "Stopping executable");
+                    let exit_status = running.shutdown().inspect_err(
+                        |err| error!(%agent_id, %exec_id, "Failed to terminate executable: {err}"),
+                    )?;
+                    info!(%agent_id, %exec_id, "Executable terminated");
+                    break Ok((exit_status, true));
+                }
+                // Publish healthy status once after the process has been running
+                // for an arbitrary long time without issues.
+                if !healthy_already_published && Instant::now() > deadline {
+                    debug!(%agent_id, %exec_id, "{}", format!("Informing executable as healthy after running for {} seconds", healthy_publish_delay.as_secs()));
+                    health_handler.inspect(|h| h.publish_healthy());
+                    healthy_already_published = true;
+                }
+                process = running;
+            }
         }
     }
-
-    // At this point, the command is already dead. However, we call `wait` to
-    // release resources.
-    // Reference - https://doc.rust-lang.org/std/process/struct.Child.html#warning
-    command
-        .wait()
-        .inspect(|exit_status| {
-            if !healthy_already_published && exit_status.success() {
-                debug!(%agent_id, %exec_id, "Informing executable as healthy after terminating successfully");
-                health_handler.inspect(|h| h.publish_healthy());
-            }
-        })
-        .map(|exit_status| (exit_status, was_cancelled))
 }
 
 /// Waits for the restart policy backoff timeout and returns whether it was cancelled or not
@@ -749,8 +759,10 @@ pub mod tests {
     use crate::event::channel::pub_sub;
     use crate::package::manager::tests::MockPackageManager;
     use crate::sub_agent::agent_renderer::RenderedAgent;
-    use crate::sub_agent::on_host::command::restart_policy::BackoffStrategy;
-    use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
+    use crate::sub_agent::on_host::managed_process::spawned_process::restart_policy::BackoffStrategy;
+    use crate::sub_agent::on_host::managed_process::spawned_process::restart_policy::{
+        Backoff, RestartPolicy,
+    };
     use crate::sub_agent::on_host::test_utils::global_logs_lines;
     use crate::sub_agent::supervisor::Supervisor;
     use crate::utils::retry::retry;
@@ -1284,7 +1296,7 @@ declared-dir:
 
         let executable_thread_contexts = executables_clone
             .iter()
-            .map(|e| agent.start_process_thread(e, Some(health_publisher.clone())));
+            .map(|e| agent.start_process_thread(e, Some(health_publisher.clone()), None));
 
         for thread_context in executable_thread_contexts {
             while !thread_context.is_thread_finished() {
@@ -1379,7 +1391,7 @@ declared-dir:
 
         let executable_thread_contexts = executables_clone
             .iter()
-            .map(|e| agent.start_process_thread(e, Some(health_publisher.clone())));
+            .map(|e| agent.start_process_thread(e, Some(health_publisher.clone()), None));
 
         for thread_context in executable_thread_contexts {
             while !thread_context.is_thread_finished() {
@@ -1423,12 +1435,12 @@ declared-dir:
             .with_args(vec!["/T".to_owned(), "3".to_owned(), "/NOBREAK".to_owned()]);
 
         let agent_id = AgentID::AgentControl;
-        let command = CommandOSNotStarted::new(
+        let command = ProcessOrigin::Spawn(OsProcessConfig::new(
             agent_id.clone(),
             &exec_data,
             SubAgentFileLoggingConfig::default(),
-        )
-        .start()
+        ))
+        .try_into_supervised()
         .unwrap();
 
         let (health_publisher, health_consumer) = pub_sub();
@@ -1552,12 +1564,12 @@ declared-dir:
         ]);
 
         let agent_id = AgentID::AgentControl;
-        let command = CommandOSNotStarted::new(
+        let command = ProcessOrigin::Spawn(OsProcessConfig::new(
             agent_id.clone(),
             &exec_data,
             SubAgentFileLoggingConfig::default(),
-        )
-        .start()
+        ))
+        .try_into_supervised()
         .unwrap();
 
         let (health_publisher, health_consumer) = pub_sub();
