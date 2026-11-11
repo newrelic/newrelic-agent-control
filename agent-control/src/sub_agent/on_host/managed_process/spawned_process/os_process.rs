@@ -1,10 +1,11 @@
 //! OS-level command wrapper with not-started/started states, output redirection, and shutdown handling.
 
+use super::error::CommandError;
 use super::executable_data::ExecutableData;
-use super::{error::CommandError, log_files::open_std_log_files};
 use crate::agent_control::agent_id::AgentID;
+use crate::sub_agent::on_host::managed_process::spawned_process::log_files::std_streams;
 use std::path::PathBuf;
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Command};
 #[cfg(target_family = "unix")]
 use std::time::Duration;
 
@@ -15,7 +16,7 @@ use std::time::Duration;
 pub struct OsProcessConfig {
     cmd: Command,
     agent_id: AgentID,
-    log_dir: Option<PathBuf>,
+    maybe_log_dir: Option<PathBuf>,
     #[cfg(target_family = "unix")]
     shutdown_timeout: Duration,
 }
@@ -37,7 +38,7 @@ impl OsProcessConfig {
     pub fn new(
         agent_id: AgentID,
         executable_data: &ExecutableData,
-        log_dir: Option<PathBuf>,
+        maybe_log_dir: Option<PathBuf>,
     ) -> Self {
         let mut cmd = Command::new(&executable_data.bin);
         cmd.args(&executable_data.args).envs(&executable_data.env);
@@ -45,7 +46,7 @@ impl OsProcessConfig {
         Self {
             agent_id,
             cmd,
-            log_dir,
+            maybe_log_dir,
             #[cfg(target_family = "unix")]
             shutdown_timeout: executable_data.shutdown_timeout,
         }
@@ -53,7 +54,7 @@ impl OsProcessConfig {
 
     /// Spawns the process with its stdout/stderr set up.
     pub fn start(mut self) -> Result<OsProcess, CommandError> {
-        let (stdout, stderr) = self.std_streams()?;
+        let (stdout, stderr) = std_streams(&self.maybe_log_dir)?;
         let child = self.cmd.stdout(stdout).stderr(stderr).spawn()?;
         Ok(OsProcess {
             agent_id: self.agent_id,
@@ -61,17 +62,6 @@ impl OsProcessConfig {
             #[cfg(target_family = "unix")]
             shutdown_timeout: self.shutdown_timeout,
         })
-    }
-
-    /// Returns the process stdout/stderr: the log files in `log_dir` when set, discarded otherwise.
-    /// The process owns its handles to them, so its output does not depend on Agent Control being
-    /// alive.
-    fn std_streams(&self) -> Result<(Stdio, Stdio), CommandError> {
-        let Some(log_dir) = &self.log_dir else {
-            return Ok((Stdio::null(), Stdio::null()));
-        };
-        let (stdout, stderr) = open_std_log_files(log_dir)?;
-        Ok((stdout.into(), stderr.into()))
     }
 }
 
