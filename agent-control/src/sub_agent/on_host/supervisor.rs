@@ -778,7 +778,6 @@ pub mod tests {
         fs, thread,
         time::{Duration, Instant},
     };
-    use tracing_test::traced_test;
 
     fn get_empty_packages() -> RenderedPackages {
         HashMap::new()
@@ -1228,7 +1227,6 @@ declared-dir:
     }
 
     #[test]
-    #[traced_test]
     fn test_supervisor_one_wrong_command_one_correct_command() {
         let backoff = Backoff::default()
             .with_initial_delay(Duration::new(0, 100))
@@ -1288,7 +1286,6 @@ declared-dir:
     }
 
     #[test]
-    #[traced_test]
     fn test_supervisor_restart_policy_early_exit() {
         let timer = Instant::now();
 
