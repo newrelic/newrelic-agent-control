@@ -574,7 +574,7 @@ mod tests {
         };
 
         tracing::subscriber::with_default(subscriber, || {
-            Command::run_main(run_context, |_ctx| Err("boom".into()));
+            let _ = Command::run_main(run_context, |_ctx| Err("boom".into()));
             drop(guard);
         });
 
