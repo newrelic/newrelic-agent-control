@@ -62,3 +62,9 @@ coverage/
 
 # manifest written by Agent Control's filesystem rendering.
 .ac-managed-paths.json
+
+# Nix
+result
+result-*
+.direnv/
+.pre-commit-config.yaml
