@@ -5,12 +5,23 @@ use super::{POLL_INTERVAL, ProcessState, SupervisedProcess};
 use std::os::windows::process::ExitStatusExt;
 use std::process::ExitStatus;
 use std::thread;
+use windows::Win32::System::Console::{CTRL_BREAK_EVENT, GenerateConsoleCtrlEvent};
 
 impl SupervisedProcess {
     pub fn try_wait(self) -> ProcessState {
         match self.process_handle.exit_code() {
             None => ProcessState::Running(self),
             Some(code) => ProcessState::Exited(ExitStatus::from_raw(code)),
+        }
+    }
+
+    /// Sends `CTRL_BREAK_EVENT` to the process's console group. Requires the process to have
+    /// been spawned with `CREATE_NEW_PROCESS_GROUP` so it is its own group leader.
+    pub(super) fn graceful_signal(&self) -> Result<(), CommandError> {
+        unsafe {
+            GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, self.pid)
+                .map_err(std::io::Error::from)
+                .map_err(CommandError::from)
         }
     }
 

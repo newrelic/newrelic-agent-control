@@ -12,9 +12,12 @@ use super::{
 };
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{STDERR_LOG_FILE_NAME_SUFFIX, STDOUT_LOG_FILE_NAME_SUFFIX};
+#[cfg(target_family = "windows")]
+use std::os::windows::process::CommandExt;
 use std::process::{Child, Command, Stdio};
-#[cfg(target_family = "unix")]
 use std::time::Duration;
+#[cfg(target_family = "windows")]
+use windows::Win32::System::Threading::CREATE_NEW_PROCESS_GROUP;
 
 ////////////////////////////////////////////////////////////////////////////////////
 // States for Started/Not Started/Sync Command
@@ -24,7 +27,6 @@ pub struct OsProcessConfig {
     cmd: Command,
     agent_id: AgentID,
     file_logging_config: SubAgentFileLoggingConfig,
-    #[cfg(target_family = "unix")]
     shutdown_timeout: Duration,
 }
 
@@ -33,7 +35,6 @@ pub struct OsProcess {
     agent_id: AgentID,
     process: Child,
     loggers: Option<FileSystemLoggers>,
-    #[cfg(target_family = "unix")]
     shutdown_timeout: Duration,
 }
 
@@ -52,12 +53,15 @@ impl OsProcessConfig {
             .envs(&executable_data.env)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        // Assign the child its own console process group so GenerateConsoleCtrlEvent can
+        // target it by PID without affecting Agent Control's own process group.
+        #[cfg(target_family = "windows")]
+        cmd.creation_flags(CREATE_NEW_PROCESS_GROUP.0);
 
         Self {
             agent_id,
             cmd,
             file_logging_config,
-            #[cfg(target_family = "unix")]
             shutdown_timeout: executable_data.shutdown_timeout,
         }
     }
@@ -85,7 +89,6 @@ impl OsProcessConfig {
             agent_id: self.agent_id,
             process: child,
             loggers,
-            #[cfg(target_family = "unix")]
             shutdown_timeout: self.shutdown_timeout,
         })
     }
@@ -138,7 +141,6 @@ impl OsProcess {
     }
 
     /// Returns how long to wait after a graceful shutdown before forcing a kill.
-    #[cfg(target_family = "unix")]
     pub(crate) fn shutdown_timeout(&self) -> Duration {
         self.shutdown_timeout
     }
