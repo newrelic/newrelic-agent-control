@@ -32,12 +32,21 @@ fn build_example_binary() -> PathBuf {
         );
     }
 
-    String::from_utf8_lossy(&output.stdout)
-        .lines()
-        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
-        .filter(|message| message["reason"] == "compiler-artifact")
-        .filter(|message| message["target"]["name"] == "self_replacing_binary")
-        .find_map(|message| message["executable"].as_str().map(PathBuf::from))
+    serde_json::Deserializer::from_slice(&output.stdout)
+        .into_iter::<serde_json::Value>()
+        .flatten()
+        .find_map(|message| {
+            match (
+                message["reason"].as_str(),
+                message["target"]["name"].as_str(),
+                message["executable"].as_str(),
+            ) {
+                (Some("compiler-artifact"), Some("self_replacing_binary"), Some(executable)) => {
+                    Some(PathBuf::from(executable))
+                }
+                _ => None,
+            }
+        })
         .expect("cargo did not report the self_replacing_binary executable")
 }
 
