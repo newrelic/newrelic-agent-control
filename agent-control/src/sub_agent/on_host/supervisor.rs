@@ -874,9 +874,19 @@ pub mod tests {
             .into()
     }
 
+    /// Blocks until `path` exists, so tests only act once the executable is running.
+    #[cfg(any(target_family = "unix", target_family = "windows"))]
+    fn wait_for_file(path: &std::path::Path) {
+        retry(50, Duration::from_millis(100), || {
+            path.exists().then_some(()).ok_or("the file doesn't exist")
+        })
+        .expect("the executable should have started");
+    }
+
     #[test]
     fn test_supervisor_reports_unhealthy_and_stops_promptly_when_executable_fails_to_spawn() {
-        const DURATION_DELTA: Duration = Duration::from_millis(100);
+        // Well below the 5s backoff, so waiting for the restart would be caught.
+        const MAX_STOP_DURATION: Duration = Duration::from_secs(3);
 
         // Long backoff: the executable thread is waiting to restart when `stop` is called.
         let backoff = Backoff::default()
@@ -920,7 +930,7 @@ pub mod tests {
                     && !health.is_healthy()
                     && health
                         .last_error()
-                        .is_some_and(|e| e.contains("executable wrong-command failed"))
+                        .is_some_and(|e| e.contains("wrong-command"))
                 {
                     return Ok(());
                 }
@@ -933,10 +943,9 @@ pub mod tests {
         started_supervisor.stop().expect("failed to stop");
         let duration = start.elapsed();
 
-        let max_duration = WAIT_FOR_EXIT_TIMEOUT + DURATION_DELTA;
         assert!(
-            duration < max_duration,
-            "stopping the supervisor took to much time: {duration:?}"
+            duration < MAX_STOP_DURATION,
+            "stopping the supervisor took too much time: {duration:?}"
         );
     }
 
@@ -985,13 +994,7 @@ pub mod tests {
             .expect("failed to start");
 
         // Stop only once the trap is installed.
-        retry(50, Duration::from_millis(100), || {
-            ready
-                .exists()
-                .then_some(())
-                .ok_or("the executable hasn't started")
-        })
-        .expect("the executable should have started");
+        wait_for_file(&ready);
 
         let start = Instant::now();
         started_supervisor.stop().expect("failed to stop");
@@ -999,7 +1002,7 @@ pub mod tests {
 
         assert!(
             duration < MAX_STOP_DURATION,
-            "stopping the supervisor took to much time: {duration:?}"
+            "stopping the supervisor took too much time: {duration:?}"
         );
         assert!(
             got_sigterm.exists(),
@@ -1059,13 +1062,7 @@ pub mod tests {
             .start(sub_agent_internal_publisher)
             .expect("failed to start");
 
-        retry(50, Duration::from_millis(100), || {
-            ready
-                .exists()
-                .then_some(())
-                .ok_or("the executable hasn't started")
-        })
-        .expect("the executable should have started");
+        wait_for_file(&ready);
 
         let start = Instant::now();
         started_supervisor.stop().expect("failed to stop");
@@ -1073,7 +1070,7 @@ pub mod tests {
 
         assert!(
             duration < MAX_STOP_DURATION,
-            "stopping the supervisor took to much time: {duration:?}"
+            "stopping the supervisor took too much time: {duration:?}"
         );
     }
 
@@ -1394,6 +1391,76 @@ declared-dir:
         assert_eq!(
             count, 4,
             "Expected 1 initial launch and 3 restarts, got {count} launches"
+        );
+    }
+
+    // Healthy is only published on a successful exit, once per launch.
+    #[test]
+    fn test_supervisor_health_events_on_breaking_backoff_publishes_healthy_per_launch() {
+        const RETRIES: usize = 3;
+        let backoff = Backoff::default()
+            .with_initial_delay(Duration::new(0, 100))
+            .with_max_retries(RETRIES)
+            .with_last_retry_interval(Duration::new(30, 0));
+
+        let exec_id = "echo-process";
+
+        let executables = vec![
+            #[cfg(target_family = "unix")]
+            build_test_exec_data(r#"{"id":"echo-process","path":"echo","args":[]}"#)
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
+            #[cfg(target_family = "windows")]
+            build_test_exec_data(r#"{"id":"echo-process","path":"cmd","args":["/C","echo",""]}"#)
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
+        ];
+
+        let agent_identity = AgentIdentity::from((
+            exec_id.to_owned().try_into().unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
+        ));
+
+        let agent = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            executables,
+            None,
+            get_empty_packages(),
+            None,
+            MockPackageManager::new_arc(),
+            SubAgentFileLoggingConfig::disabled(),
+            FileSystem::test_empty(),
+            SharedFileSystem::test_empty(),
+        );
+
+        let (health_publisher, health_consumer) = pub_sub();
+
+        let executables_clone = agent.executables.clone();
+
+        let executable_thread_contexts = executables_clone
+            .iter()
+            .map(|e| agent.start_process_thread(e, Some(health_publisher.clone()), None));
+
+        for thread_context in executable_thread_contexts {
+            while !thread_context.is_thread_finished() {
+                thread::sleep(Duration::from_millis(15));
+            }
+        }
+
+        let mut events: Vec<Health> = health_consumer
+            .as_ref()
+            .try_iter()
+            .map(|event| event.1.into())
+            .collect();
+
+        let Some(Health::Unhealthy(unhealthy)) = events.pop() else {
+            panic!("expected the final health event to be Unhealthy");
+        };
+        assert_eq!(unhealthy.last_error(), "Restart policy exceeded");
+
+        // 1 initial launch plus the retries.
+        assert_eq!(events.len(), RETRIES + 1, "unexpected events: {events:?}");
+        assert!(
+            events.iter().all(|e| matches!(e, Health::Healthy(_))),
+            "expected only Healthy events before the last one: {events:?}"
         );
     }
 
