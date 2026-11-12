@@ -50,10 +50,12 @@ impl SupervisedProcess {
         }
     }
 
-    /// Sends SIGTERM. ESRCH (already gone) is treated as success since the goal —
-    /// process is not running — is already achieved.
+    /// Sends SIGTERM to the entire process group. ESRCH (already gone) is treated as success.
+    ///
+    /// The sub-agent is spawned as its own process group leader (pgid = pid), so negating the
+    /// pid targets every process it has spawned, not just the root process.
     pub(super) fn graceful_signal(&self) -> Result<(), CommandError> {
-        match kill(Pid::from_raw(self.pid as i32), Signal::SIGTERM) {
+        match kill(Pid::from_raw(-(self.pid as i32)), Signal::SIGTERM) {
             Ok(()) | Err(nix::errno::Errno::ESRCH) => Ok(()),
             Err(e) => Err(CommandError::IOError(io::Error::from(e))),
         }

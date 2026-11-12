@@ -12,6 +12,8 @@ use super::{
 };
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{STDERR_LOG_FILE_NAME_SUFFIX, STDOUT_LOG_FILE_NAME_SUFFIX};
+#[cfg(target_family = "unix")]
+use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, Stdio};
 #[cfg(target_family = "unix")]
 use std::time::Duration;
@@ -52,6 +54,10 @@ impl OsProcessConfig {
             .envs(&executable_data.env)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        // Start the child in its own process group (pgid = child pid) so SIGTERM can be
+        // delivered to the entire group without affecting Agent Control's own group.
+        #[cfg(target_family = "unix")]
+        cmd.process_group(0);
 
         Self {
             agent_id,
