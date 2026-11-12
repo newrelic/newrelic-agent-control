@@ -65,3 +65,7 @@ test = false
 [[example]]
 name = "name_squatting_probe"
 test = false
+
+[[example]]
+name = "adversarial_spawn_probe"
+test = false

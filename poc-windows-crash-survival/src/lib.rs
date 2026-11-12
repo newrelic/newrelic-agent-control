@@ -30,9 +30,10 @@ use windows::Win32::System::Diagnostics::ToolHelp::{
 };
 use windows::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, JOBOBJECT_BASIC_ACCOUNTING_INFORMATION,
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_BREAKAWAY_OK,
-    JobObjectBasicAccountingInformation, JobObjectBasicProcessIdList, JobObjectExtendedLimitInformation,
-    OpenJobObjectW, QueryInformationJobObject, SetInformationJobObject, TerminateJobObject,
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_ACTIVE_PROCESS,
+    JOB_OBJECT_LIMIT_BREAKAWAY_OK, JobObjectBasicAccountingInformation,
+    JobObjectBasicProcessIdList, JobObjectExtendedLimitInformation, OpenJobObjectW,
+    QueryInformationJobObject, SetInformationJobObject, TerminateJobObject,
 };
 use windows::Win32::System::SystemServices::JOB_OBJECT_QUERY;
 use windows::Win32::System::Threading::{
@@ -1165,6 +1166,41 @@ impl Job {
     pub fn terminate_all(&self, exit_code: u32) -> Result<(), PocError> {
         unsafe { TerminateJobObject(self.0 .0, exit_code) }
             .map_err(|e| err("TerminateJobObject", e))
+    }
+
+    /// Gates new process creation: once `active_processes` reaches `max`, any further
+    /// `CreateProcess` inside the job fails with `ERROR_NOT_ENOUGH_QUOTA`.
+    ///
+    /// Does not affect processes already in the job. Call this before [`Job::terminate_all`] to
+    /// close the spawn race: a dying process that tries to spawn a child in the window between
+    /// `TerminateProcess` delivery and actual thread termination will hit the limit and fail.
+    pub fn limit_active_processes(&self, max: u32) -> Result<(), PocError> {
+        let mut info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+        info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_ACTIVE_PROCESS;
+        info.BasicLimitInformation.ActiveProcessLimit = max;
+        unsafe {
+            SetInformationJobObject(
+                self.0 .0,
+                JobObjectExtendedLimitInformation,
+                std::ptr::addr_of!(info).cast(),
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            )
+        }
+        .map_err(|e| err(&format!("SetInformationJobObject(active_process_limit={max})"), e))
+    }
+
+    /// Clears all limits on the job by writing a zeroed `JOBOBJECT_EXTENDED_LIMIT_INFORMATION`.
+    pub fn clear_limits(&self) -> Result<(), PocError> {
+        let info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+        unsafe {
+            SetInformationJobObject(
+                self.0 .0,
+                JobObjectExtendedLimitInformation,
+                std::ptr::addr_of!(info).cast(),
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            )
+        }
+        .map_err(|e| err("SetInformationJobObject(clear_limits)", e))
     }
 
     /// Sets or clears `JOB_OBJECT_LIMIT_BREAKAWAY_OK` on the job.
