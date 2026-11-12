@@ -4,13 +4,14 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
+static EXAMPLE_BINARY: OnceLock<PathBuf> = OnceLock::new();
+
 /// Returns path to the `self_replacing_binary` example, building it if needed.
 ///
 /// The executable path is taken from cargo's JSON build output, so it does not depend on where
 /// cargo places test executables or build artifacts.
-pub fn get_example_binary() -> PathBuf {
-    static EXAMPLE_BINARY: OnceLock<PathBuf> = OnceLock::new();
-    EXAMPLE_BINARY.get_or_init(build_example_binary).clone()
+pub fn get_example_binary() -> &'static Path {
+    EXAMPLE_BINARY.get_or_init(build_example_binary)
 }
 
 fn build_example_binary() -> PathBuf {
@@ -53,7 +54,7 @@ fn build_example_binary() -> PathBuf {
 /// Creates a copy of the example binary at the specified location.
 pub fn copy_example_binary(dest: &Path) -> PathBuf {
     let source = get_example_binary();
-    fs::copy(&source, dest).unwrap();
+    fs::copy(source, dest).unwrap();
 
     #[cfg(unix)]
     {
@@ -80,7 +81,7 @@ pub fn create_modified_binary(dir: &Path, name: &str) -> PathBuf {
 
     // Copy binary and append a null byte to change the hash
     // The binary still works because the OS ignores trailing data
-    let mut content = fs::read(&source).unwrap();
+    let mut content = fs::read(source).unwrap();
     content.push(0);
     fs::write(&dest, content).unwrap();
 
