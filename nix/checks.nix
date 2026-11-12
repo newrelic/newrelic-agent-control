@@ -6,7 +6,9 @@ _: {
     let
       inherit (ac) craneLib;
       workspaceArgs = ac.commonArgs // {
-        cargoExtraArgs = "--workspace --all-targets";
+        cargoExtraArgs = "--workspace";
+        # Tests rely on debug assertions, as in CI.
+        CARGO_PROFILE = "dev";
       };
     in
     {
@@ -15,7 +17,7 @@ _: {
           workspaceArgs
           // {
             cargoArtifacts = craneLib.buildDepsOnly workspaceArgs;
-            cargoClippyExtraArgs = "-- -D warnings -D clippy::all";
+            cargoClippyExtraArgs = "--all-targets -- -D warnings -D clippy::all";
           }
         );
 
