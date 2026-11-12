@@ -9,14 +9,12 @@ on:
       - ".github/workflows/test_ohi_agent_action.yml"
       - "test/e2e-runner/**"
       - "test/crates/oci-test-utils/**"
-      - "agent-control/agent-type-registry/**"
   pull_request:
     paths:
       - ".github/actions/test-ohi-agent/**"
       - ".github/workflows/test_ohi_agent_action.yml"
       - "test/e2e-runner/**"
       - "test/crates/oci-test-utils/**"
-      - "agent-control/agent-type-registry/**"
 
 permissions:
   contents: read
@@ -60,7 +58,7 @@ jobs:
 
       - uses: ./.github/actions/test-ohi-agent
         with:
-          agent-type-file: agent-control/agent-type-registry/newrelic/host-${{ steps.flex.outputs.os }}-com.newrelic.infrastructure.nri_flex-0.1.0.yaml
+          agent-type-file: .github/actions/test-ohi-agent/selftest/agent-type-${{ steps.flex.outputs.os }}.yaml
           package-file: ${{ steps.flex.outputs.package }}
           config-file: .github/actions/test-ohi-agent/selftest/config.yaml
           nrql-assertion: "SELECT * FROM OhiActionSelfTestSample WHERE `test.id` = '{{test_id}}' LIMIT 1"
