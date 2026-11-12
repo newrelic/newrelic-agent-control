@@ -941,6 +941,8 @@ pub mod tests {
         );
     }
 
+    // Unix only: it relies on SIGTERM, and Windows has no graceful termination signal. See
+    // `test_supervisor_stop_kills_running_executable` for the Windows counterpart.
     #[cfg(target_family = "unix")]
     #[test]
     fn test_supervisor_stop_terminates_running_executable_gracefully() {
@@ -1003,6 +1005,76 @@ pub mod tests {
         assert!(
             got_sigterm.exists(),
             "the executable should have been terminated gracefully with SIGTERM"
+        );
+    }
+
+    // Windows has no graceful signal: the process tree is killed through its Job Object.
+    #[cfg(target_family = "windows")]
+    #[test]
+    fn test_supervisor_stop_kills_running_executable() {
+        // Well below the 10s the executable would run on its own.
+        const MAX_STOP_DURATION: Duration = Duration::from_secs(5);
+
+        let dir = tempfile::tempdir().unwrap();
+        let ready = dir.path().join("ready");
+
+        // Each token is a separate arg so `cmd` parses the redirections and `&` itself.
+        let args = [
+            "/C",
+            "echo",
+            "ready",
+            ">",
+            ready.to_str().unwrap(),
+            "&",
+            "ping",
+            "-n",
+            "11",
+            "127.0.0.1",
+            ">",
+            "nul",
+        ]
+        .map(String::from)
+        .to_vec();
+        let executable_data = vec![
+            ExecutableData::new("long-running".to_string(), "cmd".to_string()).with_args(args),
+        ];
+
+        let agent_identity = AgentIdentity::from((
+            AgentID::try_from("kill-stop-agent").unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
+        ));
+        let supervisor = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            executable_data,
+            None,
+            get_empty_packages(),
+            None,
+            MockPackageManager::new_arc(),
+            SubAgentFileLoggingConfig::disabled(),
+            FileSystem::test_empty(),
+            SharedFileSystem::test_empty(),
+        );
+
+        let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
+        let started_supervisor = supervisor
+            .start(sub_agent_internal_publisher)
+            .expect("failed to start");
+
+        retry(50, Duration::from_millis(100), || {
+            ready
+                .exists()
+                .then_some(())
+                .ok_or("the executable hasn't started")
+        })
+        .expect("the executable should have started");
+
+        let start = Instant::now();
+        started_supervisor.stop().expect("failed to stop");
+        let duration = start.elapsed();
+
+        assert!(
+            duration < MAX_STOP_DURATION,
+            "stopping the supervisor took to much time: {duration:?}"
         );
     }
 
@@ -1259,7 +1331,6 @@ declared-dir:
         assert!(timer.elapsed() < Duration::from_secs(10));
     }
 
-    #[cfg(target_family = "unix")]
     #[test]
     fn test_supervisor_fixed_backoff_retry_3_times() {
         let backoff = Backoff::default()
@@ -1270,10 +1341,25 @@ declared-dir:
         // Each launch appends a line, so the line count is the number of launches.
         let dir = tempfile::tempdir().unwrap();
         let launches = dir.path().join("launches");
-        let script = format!(r#"echo run >> "{}""#, launches.display());
+        #[cfg(target_family = "unix")]
+        let (bin, args) = (
+            "sh",
+            vec![
+                "-c".to_string(),
+                format!(r#"echo run >> "{}""#, launches.display()),
+            ],
+        );
+        // Separate args so `cmd` parses the redirection itself.
+        #[cfg(target_family = "windows")]
+        let (bin, args) = (
+            "cmd",
+            ["/C", "echo", "run", ">>", launches.to_str().unwrap()]
+                .map(String::from)
+                .to_vec(),
+        );
         let executables = vec![
-            ExecutableData::new("counter".to_string(), "sh".to_string())
-                .with_args(vec!["-c".to_string(), script])
+            ExecutableData::new("counter".to_string(), bin.to_string())
+                .with_args(args)
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
@@ -1439,6 +1525,8 @@ declared-dir:
         assert_eq!(actual_ordered_events, expected_ordered_events);
     }
 
+    // Unix only: on Windows an `ExitStatus` always carries an exit code, so the
+    // "terminated by signal" branch of `handle_exit` can't be reached.
     #[cfg(target_family = "unix")]
     #[test]
     fn test_handle_exit_reports_signal_of_killed_process() {
