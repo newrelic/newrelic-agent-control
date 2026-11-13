@@ -8,6 +8,7 @@ members = [
   "fs",
   "wrapper_with_default",
   "self-replacer",
+  "cgroup-tracker",
   "test/e2e-runner",
   "test/crates/oci-test-utils",
 ]
