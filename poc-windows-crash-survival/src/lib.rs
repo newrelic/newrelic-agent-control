@@ -29,20 +29,19 @@ use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS,
 };
 use windows::Win32::System::JobObjects::{
-    AssignProcessToJobObject, CreateJobObjectW, JOBOBJECT_BASIC_ACCOUNTING_INFORMATION,
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_ACTIVE_PROCESS,
-    JOB_OBJECT_LIMIT_BREAKAWAY_OK, JobObjectBasicAccountingInformation,
-    JobObjectBasicProcessIdList, JobObjectExtendedLimitInformation, OpenJobObjectW,
-    QueryInformationJobObject, SetInformationJobObject, TerminateJobObject,
+    AssignProcessToJobObject, CreateJobObjectW,
+    JOBOBJECT_BASIC_ACCOUNTING_INFORMATION, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+    JOB_OBJECT_LIMIT_ACTIVE_PROCESS, JOB_OBJECT_LIMIT_BREAKAWAY_OK,
+    JobObjectBasicAccountingInformation, JobObjectBasicProcessIdList,
+    JobObjectExtendedLimitInformation, OpenJobObjectW, QueryInformationJobObject,
+    SetInformationJobObject, TerminateJobObject,
 };
 use windows::Win32::System::SystemServices::JOB_OBJECT_QUERY;
 use windows::Win32::System::Threading::{
-    CreateProcessW, DeleteProcThreadAttributeList, GetCurrentProcess, GetExitCodeProcess,
-    GetProcessTimes, InitializeProcThreadAttributeList, OpenProcess, OpenProcessToken,
-    EXTENDED_STARTUPINFO_PRESENT, LPPROC_THREAD_ATTRIBUTE_LIST, PROC_THREAD_ATTRIBUTE_JOB_LIST,
-    PROCESS_BASIC_INFORMATION, PROCESS_INFORMATION,
+    CREATE_SUSPENDED, CreateProcessW, GetCurrentProcess, GetExitCodeProcess, GetProcessTimes,
+    OpenProcess, OpenProcessToken, PROCESS_BASIC_INFORMATION, PROCESS_INFORMATION,
     PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE, PROCESS_VM_READ,
-    STARTUPINFOEXW, STARTUPINFOW, TerminateProcess, UpdateProcThreadAttribute, WaitForSingleObject,
+    ResumeThread, STARTUPINFOW, TerminateProcess, WaitForSingleObject,
 };
 use windows::core::{HRESULT, HSTRING, PCWSTR, PWSTR};
 
@@ -1227,59 +1226,31 @@ impl Job {
         .map_err(|e| err(&format!("SetInformationJobObject(breakaway={allow})"), e))
     }
 
-    /// Spawns `exe args` and places the new process atomically into this job using
-    /// `PROC_THREAD_ATTRIBUTE_JOB_LIST`.  The process is inside the job from its very first
-    /// instruction — there is no spawn→assign race.
+    /// Spawns `exe` with `args` and places it atomically into this job before its first
+    /// instruction runs. Uses `CREATE_SUSPENDED`: the child is created suspended, assigned to the
+    /// job, then resumed — zero spawn→assign race window.
     ///
-    /// Returns the child PID and a handle that can be used to kill or wait on the process.
+    /// Requires the caller not to be inside a constraining job. AC running as a Windows service
+    /// is not placed in any job, so this is always satisfied in production. The prlctl test
+    /// environment is non-representative: prlctl wraps each `prlctl exec` command in its own job,
+    /// which makes `AssignProcessToJobObject` fail because prlctl's process-creation callback adds
+    /// the new process to prlctl's incompatible job before this call runs.
     pub fn spawn(
         &self,
         exe: &std::path::Path,
         args: &[&str],
     ) -> Result<(u32, AdoptedProcess), PocError> {
-        // Step 1: measure the attribute-list buffer size (first call always returns
-        // ERROR_INSUFFICIENT_BUFFER and fills `attr_size`).
-        let mut attr_size: usize = 0;
-        let _ = unsafe { InitializeProcThreadAttributeList(None, 1, None, &mut attr_size) };
-
-        // Step 2: allocate and initialise the attribute list.
-        let mut attr_buf = vec![0u8; attr_size];
-        let attr_list = LPPROC_THREAD_ATTRIBUTE_LIST(attr_buf.as_mut_ptr().cast());
-        unsafe { InitializeProcThreadAttributeList(Some(attr_list), 1, None, &mut attr_size) }
-            .map_err(|e| err("InitializeProcThreadAttributeList", e))?;
-
-        // Step 3: register this job's handle in the attribute list.
-        // PROC_THREAD_ATTRIBUTE_JOB_LIST accepts a contiguous array of HANDLE values.
-        let job_handle = self.0.0;
-        unsafe {
-            UpdateProcThreadAttribute(
-                attr_list,
-                0,
-                PROC_THREAD_ATTRIBUTE_JOB_LIST as usize,
-                Some(std::ptr::addr_of!(job_handle).cast()),
-                size_of::<HANDLE>(),
-                None,
-                None,
-            )
-        }
-        .map_err(|e| err("UpdateProcThreadAttribute(JOB_LIST)", e))?;
-
-        // Step 4: build the command-line and application-name strings.
         let mut cmdline = build_cmdline(exe, args);
         let exe_wide: Vec<u16> = {
             use std::os::windows::ffi::OsStrExt;
             exe.as_os_str().encode_wide().chain(Some(0)).collect()
         };
-
-        // Step 5: spawn with extended startup info pointing at the attribute list.
-        let mut si = STARTUPINFOEXW {
-            StartupInfo: STARTUPINFOW {
-                cb: size_of::<STARTUPINFOEXW>() as u32,
-                ..Default::default()
-            },
-            lpAttributeList: attr_list,
+        let si = STARTUPINFOW {
+            cb: size_of::<STARTUPINFOW>() as u32,
+            ..Default::default()
         };
         let mut pi = PROCESS_INFORMATION::default();
+
         unsafe {
             CreateProcessW(
                 PCWSTR(exe_wide.as_ptr()),
@@ -1287,19 +1258,23 @@ impl Job {
                 None,
                 None,
                 false,
-                EXTENDED_STARTUPINFO_PRESENT,
+                CREATE_SUSPENDED,
                 None,
                 PCWSTR::null(),
-                std::ptr::addr_of!(si).cast::<STARTUPINFOW>(),
+                &si,
                 &mut pi,
             )
         }
-        .map_err(|e| err("CreateProcessW", e))?;
+        .map_err(|e| err("CreateProcessW(CREATE_SUSPENDED)", e))?;
 
-        // The thread handle is not needed; the process started normally (not suspended).
+        if let Err(e) = unsafe { AssignProcessToJobObject(self.0.0, pi.hProcess) } {
+            let _ = unsafe { TerminateProcess(pi.hProcess, 1) };
+            let _ = unsafe { CloseHandle(pi.hProcess) };
+            let _ = unsafe { CloseHandle(pi.hThread) };
+            return Err(err("AssignProcessToJobObject", e));
+        }
+        let _ = unsafe { ResumeThread(pi.hThread) };
         let _ = unsafe { CloseHandle(pi.hThread) };
-        unsafe { DeleteProcThreadAttributeList(attr_list) };
-
         Ok((pi.dwProcessId, AdoptedProcess(Handle(pi.hProcess))))
     }
 }
