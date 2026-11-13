@@ -745,6 +745,7 @@ pub mod tests {
     use crate::agent_type::agent_attributes::AgentAttributes;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::runtime_config::health_config::HealthCheckTimeout;
+    use crate::agent_type::runtime_config::health_config::rendered::OnHostHealthCheckDefinition;
     use crate::agent_type::runtime_config::on_host::executable::rendered::{Args, Env, Executable};
     use crate::agent_type::runtime_config::on_host::filesystem::FileSystem as ParsedFileSystem;
     use crate::agent_type::runtime_config::on_host::package::rendered::{
@@ -767,7 +768,6 @@ pub mod tests {
     use crate::sub_agent::on_host::managed_process::spawned_process::restart_policy::{
         Backoff, RestartPolicy,
     };
-    use crate::sub_agent::on_host::test_utils::global_logs_lines;
     use crate::sub_agent::supervisor::Supervisor;
     use crate::utils::retry::retry;
     use opamp_client::operation::settings::DescriptionValueType;
@@ -778,7 +778,6 @@ pub mod tests {
         fs, thread,
         time::{Duration, Instant},
     };
-    use tracing_test::traced_test;
 
     fn get_empty_packages() -> RenderedPackages {
         HashMap::new()
@@ -875,41 +874,108 @@ pub mod tests {
             .into()
     }
 
-    #[cfg(target_family = "unix")]
-    #[traced_test]
-    #[rstest::rstest]
-    #[cfg_attr(target_family = "unix", case::long_running_process_shutdown_after_start(
-        build_test_exec_data(r#"{"id":"sleep","path":"sleep","args":["10"]}"#),
-        Some(Duration::from_secs(1)),
-        vec!["Stopping executable", "Executable terminated"]))]
-    #[cfg_attr(target_family = "windows", case::long_running_process_shutdown_after_start(
-        build_test_exec_data(r#"{"id":"cmd","path":"cmd","args":["/C","timeout","/T","10","/NOBREAK"]}"#),
-        Some(Duration::from_secs(1)),
-        vec!["Stopping executable", "Executable terminated"]))]
-    #[case::fail_process_shutdown_after_start(
-        build_test_exec_data(r#"{"id":"wrong-command","path":"wrong-command"}"#),
-        Some(Duration::from_secs(1)),
-        vec!["Executable not running"])]
-    fn test_supervisor_gracefully_shutdown(
-        #[case] executable: ExecutableData,
-        #[case] run_warmup_time: Option<Duration>,
-        #[case] contain_logs: Vec<&'static str>,
-    ) {
-        const DURATION_DELTA: Duration = Duration::from_millis(100);
+    /// Blocks until `path` exists, so tests only act once the executable is running.
+    #[cfg(any(target_family = "unix", target_family = "windows"))]
+    fn wait_for_file(path: &std::path::Path) {
+        retry(50, Duration::from_millis(100), || {
+            path.exists().then_some(()).ok_or("the file doesn't exist")
+        })
+        .expect("the executable should have started");
+    }
 
+    #[test]
+    fn test_supervisor_reports_unhealthy_and_stops_promptly_when_executable_fails_to_spawn() {
+        // Well below the 5s backoff, so waiting for the restart would be caught.
+        const MAX_STOP_DURATION: Duration = Duration::from_secs(3);
+
+        // Long backoff: the executable thread is waiting to restart when `stop` is called.
         let backoff = Backoff::default()
             .with_initial_delay(Duration::from_secs(5))
             .with_max_retries(1);
         let executable_data = vec![
-            executable.with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
+            build_test_exec_data(r#"{"id":"wrong-command","path":"wrong-command"}"#)
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
+        let health_config = OnHostHealthConfig {
+            interval: HealthCheckInterval::from(Duration::from_millis(50)),
+            initial_delay: InitialDelay::from(Duration::ZERO),
+            timeout: HealthCheckTimeout::from(Duration::from_secs(1)),
+            checks: vec![OnHostHealthCheckDefinition::Process],
+        };
 
-        let agent_id = UniqueAgentID::build();
         let agent_identity = AgentIdentity::from((
-            agent_id.clone().into(),
+            AgentID::try_from("spawn-failure-agent").unwrap(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
+        let supervisor = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            executable_data,
+            Some(health_config),
+            get_empty_packages(),
+            None,
+            MockPackageManager::new_arc(),
+            SubAgentFileLoggingConfig::disabled(),
+            FileSystem::test_empty(),
+            SharedFileSystem::test_empty(),
+        );
 
+        let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
+        let started_supervisor = supervisor
+            .start(sub_agent_internal_publisher)
+            .expect("failed to start");
+
+        retry(30, Duration::from_millis(100), || {
+            while let Ok(event) = sub_agent_internal_consumer.as_ref().try_recv() {
+                if let SubAgentInternalEvent::AgentHealthInfo(health) = event
+                    && !health.is_healthy()
+                    && health
+                        .last_error()
+                        .is_some_and(|e| e.contains("wrong-command"))
+                {
+                    return Ok(());
+                }
+            }
+            Err(())
+        })
+        .expect("expected an unhealthy event for the executable that failed to spawn");
+
+        let start = Instant::now();
+        started_supervisor.stop().expect("failed to stop");
+        let duration = start.elapsed();
+
+        assert!(
+            duration < MAX_STOP_DURATION,
+            "stopping the supervisor took too much time: {duration:?}"
+        );
+    }
+
+    // Unix only: it relies on SIGTERM, and Windows has no graceful termination signal. See
+    // `test_supervisor_stop_kills_running_executable` for the Windows counterpart.
+    #[cfg(target_family = "unix")]
+    #[test]
+    fn test_supervisor_stop_terminates_running_executable_gracefully() {
+        // Well below the executable's shutdown timeout, so a forced kill would be caught.
+        const MAX_STOP_DURATION: Duration = Duration::from_secs(5);
+
+        let dir = tempfile::tempdir().unwrap();
+        let ready = dir.path().join("ready");
+        let got_sigterm = dir.path().join("got-sigterm");
+
+        // The marker is only written if the process receives SIGTERM and exits on its own.
+        let script = format!(
+            r#"trap 'echo done > "{}"; exit 0' TERM; echo ready > "{}"; while :; do sleep 0.05; done"#,
+            got_sigterm.display(),
+            ready.display(),
+        );
+        let executable_data = vec![
+            ExecutableData::new("graceful".to_string(), "sh".to_string())
+                .with_args(vec!["-c".to_string(), script]),
+        ];
+
+        let agent_identity = AgentIdentity::from((
+            AgentID::try_from("graceful-stop-agent").unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
+        ));
         let supervisor = NotStartedSupervisorOnHost::new(
             agent_identity,
             executable_data,
@@ -923,29 +989,89 @@ pub mod tests {
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
-
         let started_supervisor = supervisor
             .start(sub_agent_internal_publisher)
             .expect("failed to start");
 
-        if let Some(duration) = run_warmup_time {
-            thread::sleep(duration)
-        }
+        // Stop only once the trap is installed.
+        wait_for_file(&ready);
 
         let start = Instant::now();
         started_supervisor.stop().expect("failed to stop");
         let duration = start.elapsed();
 
-        let max_duration = WAIT_FOR_EXIT_TIMEOUT + DURATION_DELTA;
         assert!(
-            duration < max_duration,
-            "stopping the supervisor took to much time: {duration:?}"
+            duration < MAX_STOP_DURATION,
+            "stopping the supervisor took too much time: {duration:?}"
+        );
+        assert!(
+            got_sigterm.exists(),
+            "the executable should have been terminated gracefully with SIGTERM"
+        );
+    }
+
+    // Windows has no graceful signal: the process tree is killed through its Job Object.
+    #[cfg(target_family = "windows")]
+    #[test]
+    fn test_supervisor_stop_kills_running_executable() {
+        // Well below the 10s the executable would run on its own.
+        const MAX_STOP_DURATION: Duration = Duration::from_secs(5);
+
+        let dir = tempfile::tempdir().unwrap();
+        let ready = dir.path().join("ready");
+
+        // Each token is a separate arg so `cmd` parses the redirections and `&` itself.
+        let args = [
+            "/C",
+            "echo",
+            "ready",
+            ">",
+            ready.to_str().unwrap(),
+            "&",
+            "ping",
+            "-n",
+            "11",
+            "127.0.0.1",
+            ">",
+            "nul",
+        ]
+        .map(String::from)
+        .to_vec();
+        let executable_data = vec![
+            ExecutableData::new("long-running".to_string(), "cmd".to_string()).with_args(args),
+        ];
+
+        let agent_identity = AgentIdentity::from((
+            AgentID::try_from("kill-stop-agent").unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
+        ));
+        let supervisor = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            executable_data,
+            None,
+            get_empty_packages(),
+            None,
+            MockPackageManager::new_arc(),
+            SubAgentFileLoggingConfig::disabled(),
+            FileSystem::test_empty(),
+            SharedFileSystem::test_empty(),
         );
 
-        let logs = global_logs_lines(agent_id);
-        for log in contain_logs {
-            assert!(logs.iter().any(|l| l.contains(log)), "log not found: {log}");
-        }
+        let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
+        let started_supervisor = supervisor
+            .start(sub_agent_internal_publisher)
+            .expect("failed to start");
+
+        wait_for_file(&ready);
+
+        let start = Instant::now();
+        started_supervisor.stop().expect("failed to stop");
+        let duration = start.elapsed();
+
+        assert!(
+            duration < MAX_STOP_DURATION,
+            "stopping the supervisor took too much time: {duration:?}"
+        );
     }
 
     #[test]
@@ -1098,7 +1224,6 @@ declared-dir:
     }
 
     #[test]
-    #[traced_test]
     fn test_supervisor_one_wrong_command_one_correct_command() {
         let backoff = Backoff::default()
             .with_initial_delay(Duration::new(0, 100))
@@ -1158,7 +1283,6 @@ declared-dir:
     }
 
     #[test]
-    #[traced_test]
     fn test_supervisor_restart_policy_early_exit() {
         let timer = Instant::now();
 
@@ -1202,25 +1326,39 @@ declared-dir:
     }
 
     #[test]
-    #[traced_test]
     fn test_supervisor_fixed_backoff_retry_3_times() {
         let backoff = Backoff::default()
             .with_initial_delay(Duration::new(0, 100))
             .with_max_retries(3)
             .with_last_retry_interval(Duration::new(30, 0));
 
+        // Each launch appends a line, so the line count is the number of launches.
+        let dir = tempfile::tempdir().unwrap();
+        let launches = dir.path().join("launches");
+        #[cfg(target_family = "unix")]
+        let (bin, args) = (
+            "sh",
+            vec![
+                "-c".to_string(),
+                format!(r#"echo run >> "{}""#, launches.display()),
+            ],
+        );
+        // Separate args so `cmd` parses the redirection itself.
+        #[cfg(target_family = "windows")]
+        let (bin, args) = (
+            "cmd",
+            ["/C", "echo", "run", ">>", launches.to_str().unwrap()]
+                .map(String::from)
+                .to_vec(),
+        );
         let executables = vec![
-            #[cfg(target_family = "unix")]
-            build_test_exec_data(r#"{"id":"echo","path":"echo","args":["hello!"]}"#)
-                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
-            #[cfg(target_family = "windows")]
-            build_test_exec_data(r#"{"id":"cmd","path":"cmd","args":["/C","echo","hello!"]}"#)
+            ExecutableData::new("counter".to_string(), bin.to_string())
+                .with_args(args)
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
-        let agent_id = UniqueAgentID::build();
         let agent_identity = AgentIdentity::from((
-            agent_id.clone().into(),
+            AgentID::try_from("retry-agent").unwrap(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
@@ -1249,23 +1387,20 @@ declared-dir:
             }
         }
 
-        thread::sleep(Duration::from_secs(1));
-
-        let count = global_logs_lines(agent_id)
-            .iter()
-            .filter(|l| l.contains("Restarting supervisor"))
-            .count();
+        let count = fs::read_to_string(&launches).unwrap().lines().count();
         assert_eq!(
-            count, 3,
-            "The supervisor should be restarted 3 times. Expected 3 lines, got {count}"
+            count, 4,
+            "Expected 1 initial launch and 3 restarts, got {count} launches"
         );
     }
 
+    // Healthy is only published on a successful exit, once per launch.
     #[test]
-    fn test_supervisor_health_events_on_breaking_backoff() {
+    fn test_supervisor_health_events_on_breaking_backoff_publishes_healthy_per_launch() {
+        const RETRIES: usize = 3;
         let backoff = Backoff::default()
             .with_initial_delay(Duration::new(0, 100))
-            .with_max_retries(3)
+            .with_max_retries(RETRIES)
             .with_last_retry_interval(Duration::new(30, 0));
 
         let exec_id = "echo-process";
@@ -1310,48 +1445,23 @@ declared-dir:
             }
         }
 
-        let start_time = SystemTime::now();
-
-        let expected_ordered_events: Vec<(String, HealthWithStartTime)> = [
-            (
-                exec_id.to_string(),
-                HealthWithStartTime::new(Healthy::new().into(), start_time),
-            ),
-            (
-                exec_id.to_string(),
-                HealthWithStartTime::new(Healthy::new().into(), start_time),
-            ),
-            (
-                exec_id.to_string(),
-                HealthWithStartTime::new(Healthy::new().into(), start_time),
-            ),
-            (
-                exec_id.to_string(),
-                HealthWithStartTime::new(Healthy::new().into(), start_time),
-            ),
-            (
-                exec_id.to_string(),
-                HealthWithStartTime::new(
-                    Unhealthy::new("Restart policy exceeded".to_string()).into(),
-                    start_time,
-                ),
-            ),
-        ]
-        .into_iter()
-        .collect();
-
-        let actual_ordered_events = health_consumer
+        let mut events: Vec<Health> = health_consumer
             .as_ref()
             .try_iter()
-            .map(|event| {
-                (
-                    event.0.clone(),
-                    HealthWithStartTime::new(event.1.into(), start_time),
-                )
-            })
-            .collect::<Vec<_>>();
+            .map(|event| event.1.into())
+            .collect();
 
-        assert_eq!(actual_ordered_events, expected_ordered_events);
+        let Some(Health::Unhealthy(unhealthy)) = events.pop() else {
+            panic!("expected the final health event to be Unhealthy");
+        };
+        assert_eq!(unhealthy.last_error(), "Restart policy exceeded");
+
+        // 1 initial launch plus the retries.
+        assert_eq!(events.len(), RETRIES + 1, "unexpected events: {events:?}");
+        assert!(
+            events.iter().all(|e| matches!(e, Health::Healthy(_))),
+            "expected only Healthy events before the last one: {events:?}"
+        );
     }
 
     #[test]
@@ -1479,6 +1589,8 @@ declared-dir:
         assert_eq!(actual_ordered_events, expected_ordered_events);
     }
 
+    // Unix only: on Windows an `ExitStatus` always carries an exit code, so the
+    // "terminated by signal" branch of `handle_exit` can't be reached.
     #[cfg(target_family = "unix")]
     #[test]
     fn test_handle_exit_reports_signal_of_killed_process() {
