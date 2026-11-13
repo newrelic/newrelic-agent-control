@@ -27,6 +27,14 @@ pub fn sub_agent_log_path(agent_id: &str, file_name: &str) -> String {
     format!(r"C:\ProgramData\New Relic\newrelic-agent-control\log\{agent_id}\{file_name}")
 }
 
+/// Directory where the infra-agent writes its own log file (`NRIA_APP_DATA_DIR` in its agent
+/// type).
+pub fn infra_agent_log_path(agent_id: &str) -> String {
+    format!(
+        r"C:\ProgramData\New Relic\newrelic-agent-control\filesystem\{agent_id}\newrelic-infra\"
+    )
+}
+
 pub fn local_config_path(agent_id: &str) -> String {
     format!(
         r"C:\Program Files\New Relic\newrelic-agent-control\local-data\{agent_id}\local_config.yaml"

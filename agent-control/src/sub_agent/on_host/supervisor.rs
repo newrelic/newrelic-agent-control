@@ -26,7 +26,7 @@ use crate::sub_agent::agent_renderer::{AgentRendererError, RenderedAgent};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::managed_process::spawned_process::error::CommandError;
 use crate::sub_agent::on_host::managed_process::spawned_process::executable_data::ExecutableData;
-use crate::sub_agent::on_host::managed_process::spawned_process::logging::file_logger::{
+use crate::sub_agent::on_host::managed_process::spawned_process::log_files::{
     SubAgentFileLoggingConfig, agent_log_dir,
 };
 use crate::sub_agent::on_host::managed_process::spawned_process::os_process::OsProcessConfig;
@@ -435,7 +435,11 @@ where
         let mut restart_policy = executable_data.restart_policy.clone();
         let exec_data = executable_data.clone();
         let agent_id = self.agent_identity.id.clone();
-        let logging_config = self.file_logging_config.clone();
+        let maybe_log_dir = self
+            .file_logging_config
+            .enabled
+            .then(|| agent_log_dir(&self.file_logging_config.base_path, &agent_id));
+
         let dispatch = dispatcher::get_default(|d: &Dispatch| d.clone());
 
         let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
@@ -468,7 +472,7 @@ where
                     ProcessOrigin::Spawn(OsProcessConfig::new(
                         agent_id.clone(),
                         &exec_data,
-                        logging_config.clone(),
+                        maybe_log_dir.clone(),
                     ))
                 });
                 let executable_result = process_origin
@@ -737,7 +741,7 @@ pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::agent_id::tests::UniqueAgentID;
-    use crate::agent_control::defaults::STDOUT_LOG_FILE_NAME_SUFFIX;
+    use crate::agent_control::defaults::STDOUT_LOG_FILE_NAME;
     use crate::agent_type::agent_attributes::AgentAttributes;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::runtime_config::health_config::HealthCheckTimeout;
@@ -812,7 +816,7 @@ pub mod tests {
             packages,
             Some("core".to_string()),
             MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::default(),
+            SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         );
@@ -913,7 +917,7 @@ pub mod tests {
             get_empty_packages(),
             None,
             MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::default(),
+            SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         );
@@ -960,7 +964,7 @@ pub mod tests {
             get_empty_packages(),
             None,
             MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::default(),
+            SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         );
@@ -1026,7 +1030,7 @@ declared-dir:
             get_empty_packages(),
             None,
             MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::default(),
+            SubAgentFileLoggingConfig::disabled(),
             filesystem,
             SharedFileSystem::test_empty(),
         );
@@ -1074,7 +1078,7 @@ declared-dir:
             get_empty_packages(),
             None,
             MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::default(),
+            SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         );
@@ -1117,6 +1121,9 @@ declared-dir:
             agent_id.clone().into(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
+        let logging_dir = tempfile::tempdir().unwrap();
+        let stdout_log =
+            agent_log_dir(logging_dir.path(), &agent_identity.id).join(STDOUT_LOG_FILE_NAME);
 
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
@@ -1125,7 +1132,10 @@ declared-dir:
             get_empty_packages(),
             None,
             MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::default(),
+            SubAgentFileLoggingConfig {
+                enabled: true,
+                base_path: logging_dir.path().to_path_buf(),
+            },
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         );
@@ -1143,12 +1153,8 @@ declared-dir:
             }
         }
 
-        thread::sleep(Duration::from_secs(1));
-        assert!(
-            global_logs_lines(agent_id)
-                .iter()
-                .any(|l| l.contains("NR-command"))
-        );
+        let stdout = fs::read_to_string(&stdout_log).expect("stdout log should exist");
+        assert!(stdout.contains("NR-command"), "unexpected stdout: {stdout}");
     }
 
     #[test]
@@ -1179,7 +1185,7 @@ declared-dir:
             get_empty_packages(),
             None,
             MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::default(),
+            SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         );
@@ -1225,7 +1231,7 @@ declared-dir:
             get_empty_packages(),
             None,
             MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::default(),
+            SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         );
@@ -1285,7 +1291,7 @@ declared-dir:
             get_empty_packages(),
             None,
             MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::default(),
+            SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         );
@@ -1380,7 +1386,7 @@ declared-dir:
             get_empty_packages(),
             None,
             MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::default(),
+            SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         );
@@ -1435,13 +1441,10 @@ declared-dir:
             .with_args(vec!["/T".to_owned(), "3".to_owned(), "/NOBREAK".to_owned()]);
 
         let agent_id = AgentID::AgentControl;
-        let command = ProcessOrigin::Spawn(OsProcessConfig::new(
-            agent_id.clone(),
-            &exec_data,
-            SubAgentFileLoggingConfig::default(),
-        ))
-        .try_into_supervised()
-        .unwrap();
+        let command =
+            ProcessOrigin::Spawn(OsProcessConfig::new(agent_id.clone(), &exec_data, None))
+                .try_into_supervised()
+                .unwrap();
 
         let (health_publisher, health_consumer) = pub_sub();
         let health_handler = HealthHandler::new(exec_data.id.clone(), health_publisher);
@@ -1513,7 +1516,7 @@ declared-dir:
             get_empty_packages(),
             None,
             MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::default(),
+            SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         )
@@ -1564,13 +1567,10 @@ declared-dir:
         ]);
 
         let agent_id = AgentID::AgentControl;
-        let command = ProcessOrigin::Spawn(OsProcessConfig::new(
-            agent_id.clone(),
-            &exec_data,
-            SubAgentFileLoggingConfig::default(),
-        ))
-        .try_into_supervised()
-        .unwrap();
+        let command =
+            ProcessOrigin::Spawn(OsProcessConfig::new(agent_id.clone(), &exec_data, None))
+                .try_into_supervised()
+                .unwrap();
 
         let (health_publisher, health_consumer) = pub_sub();
         let health_handler = HealthHandler::new(exec_data.id.clone(), health_publisher);
@@ -1699,9 +1699,8 @@ declared-dir:
             .map(|entry| entry.expect("entry").path())
             .filter(|p| {
                 // The `echo` commands should write to stdout, so we look for these files only.
-                // Filtering by prefix because the timestamp is appended to the file name.
                 p.file_name()
-                    .is_some_and(|n| n.to_string_lossy().ends_with(STDOUT_LOG_FILE_NAME_SUFFIX))
+                    .is_some_and(|n| n.to_string_lossy().ends_with(STDOUT_LOG_FILE_NAME))
             })
             .map(|p| fs::read_to_string(p).unwrap_or_default())
             // we just merge all contents
@@ -1896,9 +1895,8 @@ declared-dir:
             .map(|entry| entry.expect("entry").path())
             .filter(|p| {
                 // The `echo` commands should write to stdout, so we look for these files only.
-                // Filtering by prefix because the timestamp is appended to the file name.
                 p.file_name()
-                    .is_some_and(|n| n.to_string_lossy().ends_with(STDOUT_LOG_FILE_NAME_SUFFIX))
+                    .is_some_and(|n| n.to_string_lossy().ends_with(STDOUT_LOG_FILE_NAME))
             })
             .map(|p| fs::read_to_string(p).unwrap_or_default())
             // we just merge all contents
@@ -2026,9 +2024,8 @@ declared-dir:
             .map(|entry| entry.expect("entry").path())
             .filter(|p| {
                 // The `echo` commands should write to stdout, so we look for these files only.
-                // Filtering by prefix because the timestamp is appended to the file name.
                 p.file_name()
-                    .is_some_and(|n| n.to_string_lossy().ends_with(STDOUT_LOG_FILE_NAME_SUFFIX))
+                    .is_some_and(|n| n.to_string_lossy().ends_with(STDOUT_LOG_FILE_NAME))
             })
             .map(|p| fs::read_to_string(p).unwrap_or_default())
             // we just merge all contents to handle the corner case of multiple log files
@@ -2070,7 +2067,7 @@ declared-dir:
             get_empty_packages(),
             None,
             MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::default(),
+            SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         );
@@ -2143,7 +2140,7 @@ declared-dir:
             get_empty_packages(),
             None,
             Arc::new(MockPackageManager::new()),
-            SubAgentFileLoggingConfig::default(),
+            SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
         );
