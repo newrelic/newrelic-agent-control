@@ -2,57 +2,43 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::sync::OnceLock;
 
-/// Returns path to the example binary, building it automatically if needed.
-///
-/// Locates the `self_replacing_binary` example by navigating from the test executable's
-/// location to the examples directory. If the binary doesn't exist, automatically builds
-/// it using `cargo build --example self_replacing_binary`.
-///
-/// This ensures tests work both locally and in CI by handling the build step automatically
-/// on-demand, rather than requiring it to be run manually or as a separate CI step.
+/// Returns path to the `self_replacing_binary` example, building it if needed.
+/// The result is cached so cargo is invoked once per test process.
 pub fn get_example_binary() -> PathBuf {
-    // Get the target directory (usually target/debug or target/release)
-    let mut path = std::env::current_exe().expect("Failed to get current test executable path");
+    static EXAMPLE_BINARY: OnceLock<PathBuf> = OnceLock::new();
+    EXAMPLE_BINARY.get_or_init(build_example_binary).clone()
+}
 
-    // Navigate from test binary location to examples directory
-    // Test is at: target/debug/deps/integration_tests-<hash>
-    // Example is at: target/debug/examples/self_replacing_binary
-    path.pop(); // Remove test binary name
-    path.pop(); // Remove 'deps' directory
-    path.push("examples");
-
-    let binary_name = if cfg!(windows) {
-        "self_replacing_binary.exe"
-    } else {
-        "self_replacing_binary"
-    };
-    path.push(binary_name);
-
-    // Build the example if it doesn't exist.
-    if !path.exists() {
-        eprintln!("Example binary not found, building it...");
-        let output = std::process::Command::new("cargo")
-            .arg("build")
-            .arg("--example")
-            .arg("self_replacing_binary")
-            .output()
-            .expect("Failed to run cargo build");
-
-        if !output.status.success() {
-            panic!(
-                "Failed to build example binary:\n{}",
-                String::from_utf8_lossy(&output.stderr)
-            );
-        }
-    }
+fn build_example_binary() -> PathBuf {
+    let output = Command::new(env!("CARGO"))
+        .args([
+            "build",
+            "--example",
+            "self_replacing_binary",
+            "--message-format=json",
+        ])
+        .output()
+        .expect("Failed to run cargo build");
 
     assert!(
-        path.exists(),
-        "Example binary not found at {:?} even after building",
-        path
+        output.status.success(),
+        "Failed to build example binary:\n{}",
+        String::from_utf8_lossy(&output.stderr)
     );
 
+    let path = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .filter(|msg| {
+            msg["reason"] == "compiler-artifact" && msg["target"]["name"] == "self_replacing_binary"
+        })
+        .find_map(|msg| msg["executable"].as_str().map(PathBuf::from))
+        .expect("cargo did not report the example executable");
+
+    assert!(path.exists(), "Example binary not found at {path:?}");
     path
 }
 
