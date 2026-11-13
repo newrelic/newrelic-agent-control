@@ -4399,6 +4399,7 @@ dependencies = [
  "assert_cmd",
  "assert_matches",
  "predicates",
+ "serde_json",
  "serial_test",
  "tempfile",
  "thiserror",
