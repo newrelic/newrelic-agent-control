@@ -796,9 +796,11 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "mockall",
+ "nix",
  "rstest",
  "tempfile",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]

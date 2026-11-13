@@ -10,7 +10,8 @@ license-file.workspace = true
 
 [dependencies]
 thiserror = { workspace = true }
-# Add when the implementation needs them: tracing, nix (features "signal", "process").
+tracing = { workspace = true }
+nix = { workspace = true, features = ["signal"] }
 
 [dev-dependencies]
 assert_matches = { workspace = true }

@@ -8,7 +8,7 @@ pub enum CgroupError {
     Detect(String),
     /// A cgroupfs operation failed.
     #[error("{operation} cgroup `{path}`: {source}")]
-    Io {
+    IO {
         /// Operation that failed (e.g. `creating`, `removing`).
         operation: &'static str,
         /// Path of the cgroup involved.
