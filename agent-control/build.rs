@@ -17,6 +17,7 @@ const LOGGING_ENABLED_CRATES: &[&str] = &[
     "self_replacer",
     "resource_detection",
     "fs",
+    "cgroup_tracker",
     // External crates (not workspace members) can also be added here freely.
     "opamp_client",
     "nr_auth",
