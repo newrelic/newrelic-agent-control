@@ -1,0 +1,19 @@
+[package]
+name = "cgroup-tracker"
+description = "Linux cgroup based tracking of sub-agent process trees"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+# Add when the implementation needs them: tracing, nix (features "signal", "process").
+
+[dev-dependencies]
+assert_matches = { workspace = true }
+mockall = { workspace = true }
+rstest = { workspace = true }
+tempfile = { workspace = true }
