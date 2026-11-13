@@ -38,7 +38,7 @@ answers eight questions. The table below maps each one to the example that provi
 with the exact `prlctl` command to reproduce it. Run [Setup](#setup-do-once-per-session) first.
 
 | # | Question | Example | Command (run from macOS terminal) |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Q1 | Job name composition; Session 0 = global namespace | `permanent_job_probe` | `prlctl exec "Windows 11" cmd /c "C:\Users\davidsanchez\cargo-target\debug\examples\permanent_job_probe.exe"` — look for `session: 0` and `\BaseNamedObjects\` (not `\Sessions\1\`) in the resolved name |
 | Q2 | `SeCreatePermanentPrivilege` requirement | `permanent_job_probe` | same command; also run `permanent_job_probe.exe disable` to see FAIL with privilege held-but-disabled |
 | Q3 | DACL at creation; squatting risk | `job_dacl_probe` | `prlctl exec "Windows 11" cmd /c "C:\Users\davidsanchez\cargo-target\debug\examples\job_dacl_probe.exe"` |
@@ -174,7 +174,7 @@ prlctl exec "Windows 11" cmd /c "C:\Users\davidsanchez\cargo-target\debug\exampl
 
 Optional argument controls the privilege: `enable` (default), `disable`, `leave`.
 
-**Expected output (SYSTEM, no args):**
+**Expected output (SYSTEM, `enable` — default):**
 
 ```console
 elevated: Ok(false), session: 0
@@ -188,13 +188,56 @@ SeCreatePermanentPrivilege held, after enable: Ok(true)
   permanent: after cleanup, open by name: opening named job Global\nr-ac-perm-probe: The system cannot find the file specified. (os error 2)
 ```
 
+**Expected output (SYSTEM, `disable` — privilege held but disabled):**
+
+```sh
+prlctl exec "Windows 11" cmd /c "C:\Users\davidsanchez\cargo-target\debug\examples\permanent_job_probe.exe disable"
+```
+
+```console
+elevated: Ok(true), session: 0
+SeCreatePermanentPrivilege held, after disable: Ok(true)
+--- global namespace: \BaseNamedObjects\nr-ac-perm-probe
+  temporary: created, assign: Ok(())
+  temporary: last handle closed, open by name: opening named job: The system cannot find the file specified. (0x80070002)
+  permanent: create failed, NTSTATUS 0xC0000061
+```
+
+`Ok(true)` from `set_privilege(..., false)` confirms the privilege was present in the token;
+`0xC0000061` (`STATUS_PRIVILEGE_NOT_HELD`) on the permanent create proves it must be
+*enabled*, not merely present.
+
+**Expected output (interactive user — Session 1, `Local\` namespace):**
+
+```sh
+prlctl exec "Windows 11" --current-user cmd /c "C:\Users\davidsanchez\cargo-target\debug\examples\permanent_job_probe.exe"
+```
+
+```console
+elevated: Ok(false), session: 1
+SeCreatePermanentPrivilege held, after enable: Ok(false)
+--- global namespace: \BaseNamedObjects\nr-ac-perm-probe
+  temporary: created, assign: Ok(())
+  temporary: last handle closed, open by name: opening named job: The system cannot find the file specified. (0x80070002)
+  permanent: create failed, NTSTATUS 0xC0000061
+--- session namespace: \Sessions\1\BaseNamedObjects\nr-ac-perm-probe
+  temporary: created, assign: Ok(())
+  temporary: last handle closed, open by name: opening named job: The system cannot find the file specified. (0x80070002)
+  permanent: create failed, NTSTATUS 0xC0000061
+```
+
+`Ok(false)` from `set_privilege` confirms `SeCreatePermanentPrivilege` is not in the
+interactive user's token (expected — no grant has been made). The session namespace block
+appears only in Session 1 (`session != 0`); `Local\nr-ac-perm-probe` targets
+`\Sessions\1\BaseNamedObjects\` — a distinct object namespace from `\BaseNamedObjects\`
+which AC uses from Session 0.
+
 **What to look for:**
 
 - `session: 0` — SYSTEM always runs in session 0; the session namespace block does not appear.
-- Temporary job: name gone after `CloseHandle`, same as `job_name_probe`.
-- Permanent job: name survives `CloseHandle` and the member is still queryable.
-- After `NtMakeTemporaryObject` + `CloseHandle`: name gone again — cleanup works.
-- Run with `disable` to see that the privilege must be *enabled*, not just present.
+- `enable` run: temporary job name vanishes after `CloseHandle`; permanent job survives and is queryable; `NtMakeTemporaryObject` removes it.
+- `disable` run: `STATUS_PRIVILEGE_NOT_HELD` (`0xC0000061`) even though the privilege is present in the token — it must be *enabled* at call time.
+- `--current-user` run (`session: 1`): session namespace block appears; `Local\` resolves to `\Sessions\1\BaseNamedObjects\`, a separate namespace from AC's `\BaseNamedObjects\`.
 
 ---
 
