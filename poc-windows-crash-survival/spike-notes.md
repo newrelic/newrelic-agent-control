@@ -156,8 +156,11 @@ create_or_open_native(name, sddl)
 | --- | --- | --- | --- |
 | Temporary job (no privilege needed) | `STATUS_OBJECT_NAME_EXISTS` + `was_existing=true` | Yes — owner check runs | Owner check; unguessable name as secondary mitigation |
 | Permanent job (`SeCreatePermanentPrivilege` required) | Same | Yes | Same |
-| Same-user squatter | Owner check passes (same SID) | `was_existing=true` signals job predates this startup | Refuse adoption of any `was_existing=true` job AC did not create in this run |
+| Same-user squatter with wrong/default DACL | Owner check passes (same SID); DACL check fails | `unexpected_grants` returns unexpected ACEs | Refuse adoption |
+| Same-user squatter with correct DACL | Both checks pass | Indistinguishable from legitimate adoption at the kernel-object level | Unguessable name (UUID suffix) closes the pre-emption window; attacker running as the service account has broader access anyway |
 | Cross-user squatter | Owner check catches mismatch | `unexpected_owner` returns the actual SID | Refuse adoption |
+
+Note: `was_existing=true` alone is **not** a squatting signal — it is the normal adoption case (AC restarted, sub-agent still running, job orphaned). The owner+DACL checks are what distinguish a legitimate orphaned job from a hostile one.
 
 From `name_squatting_probe` output (SYSTEM run):
 
