@@ -69,3 +69,7 @@ test = false
 [[example]]
 name = "adversarial_spawn_probe"
 test = false
+
+[[example]]
+name = "job_nesting_probe"
+test = false

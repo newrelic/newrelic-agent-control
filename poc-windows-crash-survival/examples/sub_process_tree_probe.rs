@@ -106,7 +106,6 @@ fn orchestrator() -> Result<(), Box<dyn std::error::Error>> {
     use poc_windows_crash_survival::{
         Job, current_user_sid, make_temporary, restrictive_sddl, set_privilege,
     };
-    use std::process::{Command, Stdio};
     use std::time::Duration;
 
     set_privilege("SeCreatePermanentPrivilege", true)?;
@@ -177,36 +176,24 @@ fn orchestrator() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n── Part D: CREATE_BREAKAWAY_FROM_JOB requires JOB_OBJECT_LIMIT_BREAKAWAY_OK ──");
     {
         // Without BREAKAWAY_OK: sub-agent-breakaway must fail with ERROR_ACCESS_DENIED (exit 5).
+        // Use job.spawn() (CREATE_SUSPENDED) so the assignment is atomic and race-free even in
+        // prlctl's constraining job environment.
         println!("  without BREAKAWAY_OK:");
-        let mut child = Command::new(std::env::current_exe()?)
-            .arg("sub-agent-breakaway")
-            .stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null())
-            .spawn()?;
-        job.assign(&child)?;
-        let status = child.wait()?;
-        println!("    sub-agent-breakaway exit code: {:?}", status.code());
-        assert_eq!(
-            status.code(),
-            Some(5),
-            "expected exit 5 (ERROR_ACCESS_DENIED) without BREAKAWAY_OK"
-        );
+        let (_, child) = spawn_sub_agent(&job, "sub-agent-breakaway")?;
+        let code = child.wait_exit_code(Duration::from_secs(10))?
+            .ok_or("sub-agent-breakaway timed out")?;
+        println!("    sub-agent-breakaway exit code: {code}");
+        assert_eq!(code, 5, "expected exit 5 (ERROR_ACCESS_DENIED) without BREAKAWAY_OK");
         wait_for_empty(&job, Duration::from_secs(5))?;
 
         // With BREAKAWAY_OK: sub-agent-breakaway must succeed (exit 0).
         println!("  with BREAKAWAY_OK:");
         job.allow_breakaway(true)?;
-        let mut child2 = Command::new(std::env::current_exe()?)
-            .arg("sub-agent-breakaway")
-            .stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null())
-            .spawn()?;
-        job.assign(&child2)?;
-        let status2 = child2.wait()?;
-        println!("    sub-agent-breakaway exit code: {:?}", status2.code());
-        assert_eq!(
-            status2.code(),
-            Some(0),
-            "expected exit 0 (breakaway succeeded) with BREAKAWAY_OK"
-        );
+        let (_, child2) = spawn_sub_agent(&job, "sub-agent-breakaway")?;
+        let code2 = child2.wait_exit_code(Duration::from_secs(10))?
+            .ok_or("sub-agent-breakaway timed out")?;
+        println!("    sub-agent-breakaway exit code: {code2}");
+        assert_eq!(code2, 0, "expected exit 0 (breakaway succeeded) with BREAKAWAY_OK");
         wait_for_empty(&job, Duration::from_secs(5))?;
     }
     println!("PASS D");

@@ -30,11 +30,13 @@ use windows::Win32::System::Diagnostics::ToolHelp::{
 };
 use windows::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW,
-    JOBOBJECT_BASIC_ACCOUNTING_INFORMATION, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-    JOB_OBJECT_LIMIT_ACTIVE_PROCESS, JOB_OBJECT_LIMIT_BREAKAWAY_OK,
+    JOBOBJECT_BASIC_ACCOUNTING_INFORMATION, JOBOBJECT_CPU_RATE_CONTROL_INFORMATION,
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_CPU_RATE_CONTROL_ENABLE,
+    JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP, JOB_OBJECT_LIMIT_ACTIVE_PROCESS,
+    JOB_OBJECT_LIMIT_BREAKAWAY_OK, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
     JobObjectBasicAccountingInformation, JobObjectBasicProcessIdList,
-    JobObjectExtendedLimitInformation, OpenJobObjectW, QueryInformationJobObject,
-    SetInformationJobObject, TerminateJobObject,
+    JobObjectCpuRateControlInformation, JobObjectExtendedLimitInformation, OpenJobObjectW,
+    QueryInformationJobObject, SetInformationJobObject, TerminateJobObject,
 };
 use windows::Win32::System::SystemServices::JOB_OBJECT_QUERY;
 use windows::Win32::System::Threading::{
@@ -103,11 +105,17 @@ fn object_name(handle: HANDLE) -> Result<Option<String>, PocError> {
     };
     status.ok().map_err(|e| err("querying job name", e))?;
     // Safety: on success the buffer starts with an `OBJECT_NAME_INFORMATION` whose string
-    // points inside the same buffer.
+    // points inside the same buffer. Anonymous objects return Length=0 / Buffer=null; guard
+    // before calling from_raw_parts, which requires a non-null aligned pointer even for len=0.
     let name = unsafe {
         let info = &*(buf.as_ptr() as *const OBJECT_NAME_INFORMATION);
-        let chars = std::slice::from_raw_parts(info.Name.Buffer.0, info.Name.Length as usize / 2);
-        String::from_utf16_lossy(chars)
+        if info.Name.Length == 0 || info.Name.Buffer.is_null() {
+            String::new()
+        } else {
+            let chars =
+                std::slice::from_raw_parts(info.Name.Buffer.0, info.Name.Length as usize / 2);
+            String::from_utf16_lossy(chars)
+        }
     };
     Ok((!name.is_empty()).then_some(name))
 }
@@ -192,6 +200,48 @@ impl Job {
         unsafe { AssignProcessToJobObject(self.0.0, process) }
             .map_err(|e| err("assigning process to job", e))
     }
+
+    /// Assigns an already-adopted (or spawned) process to this job. Used when the process is
+    /// already in another job and we are testing whether dynamic nesting is compatible.
+    pub fn assign_adopted(&self, proc: &AdoptedProcess) -> Result<(), PocError> {
+        unsafe { AssignProcessToJobObject(self.0.0, proc.0.0) }
+            .map_err(|e| err("assigning adopted process to job", e))
+    }
+
+    /// Sets `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` on the job. All processes in the job are
+    /// terminated when the last handle to the job closes.
+    pub fn set_kill_on_close(&self) -> Result<(), PocError> {
+        let mut info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+        info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        unsafe {
+            SetInformationJobObject(
+                self.0.0,
+                JobObjectExtendedLimitInformation,
+                std::ptr::addr_of!(info).cast(),
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            )
+        }
+        .map_err(|e| err("SetInformationJobObject(kill_on_close)", e))
+    }
+
+    /// Sets a CPU hard-cap on the job: `percent` is 1–100 and maps to a hard-cap rate limit.
+    /// Useful for creating an outer job with incompatible limits to test nesting failure.
+    pub fn limit_cpu_rate(&self, percent: u32) -> Result<(), PocError> {
+        assert!((1..=100).contains(&percent), "percent must be 1–100");
+        let mut info = JOBOBJECT_CPU_RATE_CONTROL_INFORMATION::default();
+        info.ControlFlags = JOB_OBJECT_CPU_RATE_CONTROL_ENABLE | JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP;
+        // CpuRate is in units of 1/100th of a percent (basis points × 100). 50% → 5000.
+        info.Anonymous.CpuRate = percent * 100;
+        unsafe {
+            SetInformationJobObject(
+                self.0.0,
+                JobObjectCpuRateControlInformation,
+                std::ptr::addr_of!(info).cast(),
+                std::mem::size_of::<JOBOBJECT_CPU_RATE_CONTROL_INFORMATION>() as u32,
+            )
+        }
+        .map_err(|e| err(&format!("SetInformationJobObject(cpu_rate={percent}%)"), e))
+    }
 }
 
 /// Wait-able handle to any process (child or not), the Windows analogue of an adopted PID.
@@ -252,6 +302,17 @@ impl AdoptedProcess {
     /// Returns `true` if the process exited within `timeout`.
     pub fn wait(&self, timeout: Duration) -> bool {
         unsafe { WaitForSingleObject(self.0.0, timeout.as_millis() as u32) == WAIT_OBJECT_0 }
+    }
+
+    /// Waits up to `timeout`, then returns the process exit code, or `None` if it timed out.
+    pub fn wait_exit_code(&self, timeout: Duration) -> Result<Option<u32>, PocError> {
+        if !self.wait(timeout) {
+            return Ok(None);
+        }
+        let mut code = 0u32;
+        unsafe { GetExitCodeProcess(self.0.0, &mut code) }
+            .map_err(|e| err("GetExitCodeProcess", e))?;
+        Ok(Some(code))
     }
 }
 
@@ -1228,13 +1289,18 @@ impl Job {
 
     /// Spawns `exe` with `args` and places it atomically into this job before its first
     /// instruction runs. Uses `CREATE_SUSPENDED`: the child is created suspended, assigned to the
-    /// job, then resumed — zero spawn→assign race window.
+    /// job, then resumed — zero spawn→assign race window for the initial assignment.
     ///
-    /// Requires the caller not to be inside a constraining job. AC running as a Windows service
-    /// is not placed in any job, so this is always satisfied in production. The prlctl test
-    /// environment is non-representative: prlctl wraps each `prlctl exec` command in its own job,
-    /// which makes `AssignProcessToJobObject` fail because prlctl's process-creation callback adds
-    /// the new process to prlctl's incompatible job before this call runs.
+    /// **Production note**: `PROC_THREAD_ATTRIBUTE_JOB_LIST` would be the ideal API because it
+    /// bypasses parent-job inheritance on Windows 10 1511+ — no need for CREATE_SUSPENDED, and no
+    /// risk of AssignProcessToJobObject seeing an incompatible ancestor job.  However, on Windows
+    /// 11 (tested on build 26200), `PROC_THREAD_ATTRIBUTE_JOB_LIST` atomically tries to place the
+    /// child in both the parent's jobs AND the specified jobs.  In the prlctl test environment
+    /// prlctl's job interferes with ours; the atomic path produces MORE conflicts than this
+    /// two-step (CREATE_SUSPENDED exploits a window before prlctl's job callback applies updated
+    /// limits, while PROC_THREAD_ATTRIBUTE_JOB_LIST has no such window).  In production AC runs
+    /// as a Windows service with no parent job, so both approaches are equivalent; we keep
+    /// CREATE_SUSPENDED to retain test-environment compatibility.
     pub fn spawn(
         &self,
         exe: &std::path::Path,

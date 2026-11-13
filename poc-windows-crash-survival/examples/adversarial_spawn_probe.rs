@@ -101,7 +101,7 @@ fn chain_spawner(depth: u32) -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(windows)]
 fn orchestrator() -> Result<(), Box<dyn std::error::Error>> {
     use poc_windows_crash_survival::{
-        AdoptedProcess, Job, current_user_sid, make_temporary, restrictive_sddl, set_privilege,
+        Job, current_user_sid, make_temporary, restrictive_sddl, set_privilege,
     };
     use std::process::{Command, Stdio};
     use std::time::Duration;
@@ -148,12 +148,11 @@ fn orchestrator() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n── Part B: chain-spawner(2) tree + kill root + limit=0 + terminate_all ──");
     {
         // depth=2: root(2) → child(1) → grandchild(0), each also looping pings.
-        let child = Command::new(std::env::current_exe()?)
-            .args(["chain-spawner", "2"])
-            .stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null())
-            .spawn()?;
-        let root_pid = child.id();
-        job.assign(&child)?;
+        // Use job.spawn() (CREATE_SUSPENDED) so root is already a job member before its
+        // first instruction runs. Without this, root spawns chain-spawner(1) immediately
+        // on startup and that sub-chain misses job membership if the orchestrator hasn't
+        // called AssignProcessToJobObject yet — making the orphan-subtree scenario untestable.
+        let (root_pid, root) = job.spawn(&std::env::current_exe()?, &["chain-spawner", "2"])?;
 
         // Wait for tree + some pings to settle.
         wait_for_members(&job, 5, Duration::from_secs(10))?;
@@ -161,7 +160,6 @@ fn orchestrator() -> Result<(), Box<dyn std::error::Error>> {
         println!("before killing root: active={before_kill}");
 
         // Step 1: terminate only the root — this is what AC does to a sub-agent main process.
-        let root = AdoptedProcess::open(root_pid)?;
         root.kill()?;
         assert!(root.wait(Duration::from_secs(5)), "root should exit");
         drop(root);
