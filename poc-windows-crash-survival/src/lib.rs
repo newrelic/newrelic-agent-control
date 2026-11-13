@@ -37,9 +37,12 @@ use windows::Win32::System::JobObjects::{
 };
 use windows::Win32::System::SystemServices::JOB_OBJECT_QUERY;
 use windows::Win32::System::Threading::{
-    GetCurrentProcess, GetExitCodeProcess, GetProcessTimes, OpenProcess, OpenProcessToken,
-    PROCESS_BASIC_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE,
-    PROCESS_TERMINATE, PROCESS_VM_READ, TerminateProcess, WaitForSingleObject,
+    CreateProcessW, DeleteProcThreadAttributeList, GetCurrentProcess, GetExitCodeProcess,
+    GetProcessTimes, InitializeProcThreadAttributeList, OpenProcess, OpenProcessToken,
+    EXTENDED_STARTUPINFO_PRESENT, LPPROC_THREAD_ATTRIBUTE_LIST, PROC_THREAD_ATTRIBUTE_JOB_LIST,
+    PROCESS_BASIC_INFORMATION, PROCESS_INFORMATION,
+    PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE, PROCESS_VM_READ,
+    STARTUPINFOEXW, STARTUPINFOW, TerminateProcess, UpdateProcThreadAttribute, WaitForSingleObject,
 };
 use windows::core::{HRESULT, HSTRING, PCWSTR, PWSTR};
 
@@ -1223,6 +1226,98 @@ impl Job {
         }
         .map_err(|e| err(&format!("SetInformationJobObject(breakaway={allow})"), e))
     }
+
+    /// Spawns `exe args` and places the new process atomically into this job using
+    /// `PROC_THREAD_ATTRIBUTE_JOB_LIST`.  The process is inside the job from its very first
+    /// instruction — there is no spawn→assign race.
+    ///
+    /// Returns the child PID and a handle that can be used to kill or wait on the process.
+    pub fn spawn(
+        &self,
+        exe: &std::path::Path,
+        args: &[&str],
+    ) -> Result<(u32, AdoptedProcess), PocError> {
+        // Step 1: measure the attribute-list buffer size (first call always returns
+        // ERROR_INSUFFICIENT_BUFFER and fills `attr_size`).
+        let mut attr_size: usize = 0;
+        let _ = unsafe { InitializeProcThreadAttributeList(None, 1, None, &mut attr_size) };
+
+        // Step 2: allocate and initialise the attribute list.
+        let mut attr_buf = vec![0u8; attr_size];
+        let attr_list = LPPROC_THREAD_ATTRIBUTE_LIST(attr_buf.as_mut_ptr().cast());
+        unsafe { InitializeProcThreadAttributeList(Some(attr_list), 1, None, &mut attr_size) }
+            .map_err(|e| err("InitializeProcThreadAttributeList", e))?;
+
+        // Step 3: register this job's handle in the attribute list.
+        // PROC_THREAD_ATTRIBUTE_JOB_LIST accepts a contiguous array of HANDLE values.
+        let job_handle = self.0.0;
+        unsafe {
+            UpdateProcThreadAttribute(
+                attr_list,
+                0,
+                PROC_THREAD_ATTRIBUTE_JOB_LIST as usize,
+                Some(std::ptr::addr_of!(job_handle).cast()),
+                size_of::<HANDLE>(),
+                None,
+                None,
+            )
+        }
+        .map_err(|e| err("UpdateProcThreadAttribute(JOB_LIST)", e))?;
+
+        // Step 4: build the command-line and application-name strings.
+        let mut cmdline = build_cmdline(exe, args);
+        let exe_wide: Vec<u16> = {
+            use std::os::windows::ffi::OsStrExt;
+            exe.as_os_str().encode_wide().chain(Some(0)).collect()
+        };
+
+        // Step 5: spawn with extended startup info pointing at the attribute list.
+        let mut si = STARTUPINFOEXW {
+            StartupInfo: STARTUPINFOW {
+                cb: size_of::<STARTUPINFOEXW>() as u32,
+                ..Default::default()
+            },
+            lpAttributeList: attr_list,
+        };
+        let mut pi = PROCESS_INFORMATION::default();
+        unsafe {
+            CreateProcessW(
+                PCWSTR(exe_wide.as_ptr()),
+                Some(PWSTR(cmdline.as_mut_ptr())),
+                None,
+                None,
+                false,
+                EXTENDED_STARTUPINFO_PRESENT,
+                None,
+                PCWSTR::null(),
+                std::ptr::addr_of!(si).cast::<STARTUPINFOW>(),
+                &mut pi,
+            )
+        }
+        .map_err(|e| err("CreateProcessW", e))?;
+
+        // The thread handle is not needed; the process started normally (not suspended).
+        let _ = unsafe { CloseHandle(pi.hThread) };
+        unsafe { DeleteProcThreadAttributeList(attr_list) };
+
+        Ok((pi.dwProcessId, AdoptedProcess(Handle(pi.hProcess))))
+    }
+}
+
+fn build_cmdline(exe: &std::path::Path, args: &[&str]) -> Vec<u16> {
+    use std::os::windows::ffi::OsStrExt;
+    // Minimal quoting: wrap exe path in double-quotes (handles spaces in the path).
+    // PoC args are simple identifiers with no special characters so no quoting is needed.
+    let mut out = Vec::<u16>::new();
+    out.push(b'"' as u16);
+    out.extend(exe.as_os_str().encode_wide());
+    out.push(b'"' as u16);
+    for arg in args {
+        out.push(b' ' as u16);
+        out.extend(std::ffi::OsStr::new(arg).encode_wide());
+    }
+    out.push(0);
+    out
 }
 
 #[cfg(test)]

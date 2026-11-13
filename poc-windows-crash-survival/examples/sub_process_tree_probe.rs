@@ -104,7 +104,7 @@ fn sub_agent_breakaway() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(windows)]
 fn orchestrator() -> Result<(), Box<dyn std::error::Error>> {
     use poc_windows_crash_survival::{
-        AdoptedProcess, Job, current_user_sid, make_temporary, restrictive_sddl, set_privilege,
+        Job, current_user_sid, make_temporary, restrictive_sddl, set_privilege,
     };
     use std::process::{Command, Stdio};
     use std::time::Duration;
@@ -122,7 +122,7 @@ fn orchestrator() -> Result<(), Box<dyn std::error::Error>> {
     // ── Part A: children auto-join the job ────────────────────────────────────────────────────
     println!("\n── Part A: children of a job member auto-join the job ──");
     {
-        let sub_pid = spawn_sub_agent(&job, "sub-agent")?;
+        let (sub_pid, _proc) = spawn_sub_agent(&job, "sub-agent")?;
         wait_for_members(&job, 3, Duration::from_secs(10))?;
         let info = job.info()?;
         assert!(
@@ -143,11 +143,10 @@ fn orchestrator() -> Result<(), Box<dyn std::error::Error>> {
     // ── Part B: TerminateProcess on top-level leaves children alive ───────────────────────────
     println!("\n── Part B: TerminateProcess on top-level leaves children alive ──");
     {
-        let sub_pid = spawn_sub_agent(&job, "sub-agent")?;
+        let (_, process) = spawn_sub_agent(&job, "sub-agent")?;
         wait_for_members(&job, 3, Duration::from_secs(10))?;
         let before = job.info()?.active_processes;
 
-        let process = AdoptedProcess::open(sub_pid)?;
         process.kill()?;
         assert!(process.wait(Duration::from_secs(5)));
 
@@ -165,7 +164,7 @@ fn orchestrator() -> Result<(), Box<dyn std::error::Error>> {
     // ── Part C: terminate_all kills the entire tree ───────────────────────────────────────────
     println!("\n── Part C: terminate_all kills every member including children ──");
     {
-        let _sub_pid = spawn_sub_agent(&job, "sub-agent")?;
+        let (_sub_pid, _proc) = spawn_sub_agent(&job, "sub-agent")?;
         wait_for_members(&job, 3, Duration::from_secs(10))?;
         let before = job.info()?.active_processes;
         job.terminate_all(1)?;
@@ -217,17 +216,14 @@ fn orchestrator() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Spawns this binary in `mode` (e.g. "sub-agent"), assigns it to `job`, returns its PID.
+/// Spawns this binary in `mode` (e.g. "sub-agent") and places it atomically in `job`
+/// using `PROC_THREAD_ATTRIBUTE_JOB_LIST` — no spawn→assign race.
 #[cfg(windows)]
-fn spawn_sub_agent(job: &poc_windows_crash_survival::Job, mode: &str) -> Result<u32, Box<dyn std::error::Error>> {
-    use std::process::{Command, Stdio};
-    let child = Command::new(std::env::current_exe()?)
-        .arg(mode)
-        .stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null())
-        .spawn()?;
-    let pid = child.id();
-    job.assign(&child)?;
-    Ok(pid)
+fn spawn_sub_agent(
+    job: &poc_windows_crash_survival::Job,
+    mode: &str,
+) -> Result<(u32, poc_windows_crash_survival::AdoptedProcess), Box<dyn std::error::Error>> {
+    Ok(job.spawn(&std::env::current_exe()?, &[mode])?)
 }
 
 /// Polls until `active_processes >= target` or timeout.
