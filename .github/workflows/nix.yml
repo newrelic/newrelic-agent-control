@@ -1,5 +1,8 @@
 name: Nix
 
+# Every flake check runs as its own job, discovered from the flake so new checks appear
+# automatically. `nix build .#checks.x86_64-linux.<name>` reproduces any job locally.
+
 on:
   pull_request:
     paths:
@@ -7,6 +10,27 @@ on:
       - flake.lock
       - nix/**
       - .github/workflows/nix.yml
+      - .goreleaser.yml
+      - build/package/**
+      - Cargo.toml
+      - Cargo.lock
+      - "*/Cargo.toml"
+      - agent-control/**
+  # Builds on the default branch populate the cache that pull requests read from.
+  push:
+    branches:
+      - main
+    paths:
+      - flake.nix
+      - flake.lock
+      - nix/**
+      - .github/workflows/nix.yml
+      - .goreleaser.yml
+      - build/package/**
+      - Cargo.toml
+      - Cargo.lock
+      - "*/Cargo.toml"
+      - agent-control/**
   workflow_dispatch:
 
 permissions:
@@ -17,31 +41,84 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  flake-check:
-    name: nix flake check
+  discover:
+    name: discover checks
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    outputs:
+      checks: ${{ steps.list.outputs.checks }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
       - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - id: list
+        run: |
+          checks=$(nix eval --raw .#checks.x86_64-linux --apply 'cs: builtins.toJSON (builtins.attrNames cs)')
+          echo "checks=$checks" >> "$GITHUB_OUTPUT"
+          echo "$checks"
 
-      # Formatting, cargo fmt and cargo clippy, the same command used locally.
-      - run: nix flake check -L
-
-  build-musl:
-    name: nix build x86_64-linux-musl
+  check:
+    name: ${{ matrix.check }}
+    needs: discover
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        check: ${{ fromJSON(needs.discover.outputs.checks) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
+      # The VM tests (QEMU, a guest image and the Rust toolchain) do not fit in the runner's
+      # default disk. This carves a large volume out of /mnt for the Nix store, and has to run
+      # before Nix is installed.
+      - if: startsWith(matrix.check, 'vm-')
+        uses: wimpysworld/nothing-but-nix@b2574ec1cf1462bee0a34de0fb6ff11ad3c43cb2 # v12
+        with:
+          hatchet-protocol: holster
       - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          # Build scratch space on the larger volume for the VM tests.
+          extra_nix_config: ${{ startsWith(matrix.check, 'vm-') && 'build-dir = /nix/build' || '' }}
+      # GitHub Actions cache as a Nix substituter. Garbage collected by nix-cache-gc.yml.
+      - uses: Mic92/hestia@dfed9ced335d28978ba74e513939a10db1f71025 # v3.1.0
+        with:
+          upstream-cache-filter: "true"
+      - run: nix build -L ".#checks.x86_64-linux.${{ matrix.check }}"
+
+  packages:
+    name: packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: Mic92/hestia@dfed9ced335d28978ba74e513939a10db1f71025 # v3.1.0
+        with:
+          upstream-cache-filter: "true"
 
       - run: nix build .#x86_64-linux-musl -L
 
       - name: Check the binary is static
         run: file result/bin/newrelic-agent-control
 
+      - run: nix build .#deb-x86_64 .#rpm-x86_64 -L
+
       - name: Pinned toolchain from the dev shell
         run: nix develop -c cargo --version
+
+  # A single status to require in branch protection: the checks above are a dynamic matrix,
+  # so their individual names change as checks are added.
+  nix-passed:
+    name: nix passed
+    if: always()
+    needs: [discover, check, packages]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every job to have succeeded
+        run: |
+          r='${{ needs.discover.result }}/${{ needs.check.result }}/${{ needs.packages.result }}'
+          echo "discover/check/packages = $r"
+          [ "$r" = "success/success/success" ] || { echo "a required job did not succeed"; exit 1; }
