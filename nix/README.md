@@ -14,6 +14,7 @@ The flake gives every contributor, and CI, the same pinned toolchain and the sam
 | `nix build .#x86_64-linux-musl` | Static x86_64 Linux binaries, the production target. |
 | `nix build .#aarch64-linux-musl` | Static aarch64 Linux binaries. |
 | `nix build .#x86_64-windows-gnu` | Windows binaries (`.exe`) for the MinGW target `x86_64-pc-windows-gnu`. |
+| `nix build .#deb-x86_64`, `.#rpm-x86_64`, `.#deb-aarch64`, `.#rpm-aarch64` | Packages built with nfpm from the musl binaries, using the `nfpms` section of `.goreleaser.yml` for layout, scripts and relations. |
 
 The musl and Windows builds are cross-compiled with the toolchains of nixpkgs, so they build on Linux and macOS hosts alike, without a Linux builder. The first build on macOS compiles the cross compilers, as they are not in the public binary cache; a shared cache avoids that for everyone else. The MSVC Windows target needs the Microsoft SDK, so it is still built outside Nix.
 
@@ -26,10 +27,11 @@ The musl and Windows builds are cross-compiled with the toolchains of nixpkgs, s
 | `rust-lib/pkgs-overlay.nix` | The `pkgs` of every module: nixpkgs with rust-overlay. |
 | `rust-lib/options.nix` | The typed `rustLib` options, readable from any module as `config.rustLib.<name>`. |
 | `rust-lib/toolchain.nix` | Defines them: Rust toolchain (version from `Cargo.toml`), crane, source filter and shared build arguments. |
-| `packages/` | `binaries.nix`: native build of the on-host binaries and cross builds (musl, Windows). |
+| `packages/` | `binaries.nix`: native build of the on-host binaries and cross builds (musl, Windows). `linux-packages.nix`: deb and rpm packages derived from `.goreleaser.yml` (`nfpm.jq` maps its `nfpms` section to an nfpm config). |
 | `devshells/` | `dev.nix`: the development shell; `hooks.nix`: the same shell, with the git hooks installed on entry. |
 | `formatting.nix` | treefmt: `rustfmt` from the pinned toolchain, `nixfmt`, `taplo`, `prettier` for YAML, `shfmt`, `terraform` and `tilt` for the Tiltfiles. |
 | `git-hooks.nix` | git hooks (prek): treefmt, codespell, shellcheck, actionlint, yamllint, hadolint, statix, deadnix, the `check-*` hooks, `cargo check` and clippy. |
+| `guest.nix` | `guest`: the Linux system (and its architecture) that packages and VM tests are built for and run on; aarch64 Linux on Darwin hosts. |
 | `checks/` | CI-equivalent checks run by `nix flake check`: `cargo.nix` has `cargo fmt`, clippy and the unit tests with `cargo nextest`. |
 
 The default dev shell does not install the hooks, because `.git/hooks` is shared by all worktrees. Use `nix develop .#hooks` in the clone where you want them: the hooks are installed once, but `.pre-commit-config.yaml` is written in the worktree the shell is entered from, so enter it in every worktree you commit from. `prek uninstall` removes the hooks.
