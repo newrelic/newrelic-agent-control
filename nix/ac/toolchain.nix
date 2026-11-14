@@ -1,18 +1,12 @@
-# Rust toolchain, crane library and source/args shared by the other modules.
-# Exposed to every perSystem module as the `ac` module argument.
+# Values of the `ac` options (see options.nix): the Rust toolchain, crane and the sources and
+# arguments of the builds.
 { inputs, ... }:
 {
   perSystem =
-    { system, ... }:
+    { pkgs, lib, ... }:
     let
-      pkgs = import inputs.nixpkgs {
-        inherit system;
-        overlays = [ inputs.rust-overlay.overlays.default ];
-      };
-      inherit (pkgs) lib;
-
-      workspaceToml = builtins.fromTOML (builtins.readFile ../Cargo.toml);
-      agentControlToml = builtins.fromTOML (builtins.readFile ../agent-control/Cargo.toml);
+      workspaceToml = builtins.fromTOML (builtins.readFile ../../Cargo.toml);
+      agentControlToml = builtins.fromTOML (builtins.readFile ../../agent-control/Cargo.toml);
       rustVersion = workspaceToml.workspace.package.rust-version;
 
       mkToolchain =
@@ -33,10 +27,10 @@
 
       # Cargo sources plus the agent type registry embedded by agent-control/build.rs.
       src = lib.fileset.toSource {
-        root = ../.;
+        root = ../../.;
         fileset = lib.fileset.unions [
-          (craneLib.fileset.commonCargoSources ../.)
-          (lib.fileset.fileFilter (f: f.hasExt "yaml") ../agent-control/agent-type-registry)
+          (craneLib.fileset.commonCargoSources ../../.)
+          (lib.fileset.fileFilter (f: f.hasExt "yaml") ../../agent-control/agent-type-registry)
         ];
       };
 
@@ -53,19 +47,16 @@
       };
     in
     {
-      _module.args = {
-        inherit pkgs;
-        ac = {
-          inherit
-            rustVersion
-            toolchain
-            mkToolchain
-            mkCraneLib
-            craneLib
-            src
-            commonArgs
-            ;
-        };
+      config.ac = {
+        inherit
+          rustVersion
+          toolchain
+          mkToolchain
+          mkCraneLib
+          craneLib
+          src
+          commonArgs
+          ;
       };
     };
 }

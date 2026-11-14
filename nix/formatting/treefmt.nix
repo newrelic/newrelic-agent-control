@@ -4,7 +4,7 @@
   imports = [ inputs.treefmt-nix.flakeModule ];
 
   perSystem =
-    { ac, pkgs, ... }:
+    { config, pkgs, ... }:
     {
       treefmt = {
         projectRootFile = "flake.nix";
@@ -12,7 +12,7 @@
         programs.rustfmt = {
           enable = true;
           edition = "2024";
-          package = pkgs.writeShellScriptBin "rustfmt" ''exec ${ac.toolchain}/bin/rustfmt "$@"'';
+          package = pkgs.writeShellScriptBin "rustfmt" ''exec ${config.ac.toolchain}/bin/rustfmt "$@"'';
         };
       };
     };

@@ -6,7 +6,7 @@ The flake gives every contributor, and CI, the same pinned toolchain and the sam
 
 | Command | What it does |
 | --- | --- |
-| `nix develop` | Shell with the pinned Rust toolchain (version read from `Cargo.toml`), `cargo-deny`, `cargo-nextest`, `cargo-llvm-cov`, `cargo-shear`, `shellcheck`, `actionlint`. Installs the git hooks. |
+| `nix develop` | Shell with the pinned Rust toolchain (version read from `Cargo.toml`), `cargo-deny`, `cargo-nextest`, `cargo-llvm-cov`, `cargo-shear`, `shellcheck`, `actionlint`. |
 | `nix fmt` | Formats Rust and Nix files (treefmt). |
 | `nix flake check` | Formatting, git hooks, `cargo fmt` and `cargo clippy --workspace --all-targets -D warnings`, as in CI. |
 | `nix build` | On-host binaries for the current system. |
@@ -17,13 +17,17 @@ From a Mac, build for Linux through a Linux builder by selecting the system expl
 
 ## Layout
 
-| File | Purpose |
+Each directory is one kind of flake output, and its `default.nix` lists the files in it: `flake.nix` imports `nix/`, which imports the directories, which import their files. To add a package, a check, a hook or a shell, add a file to the directory of its kind and list it in that `default.nix`. Every file is a [flake-parts](https://flake.parts) module.
+
+| Path | Purpose |
 | --- | --- |
-| `toolchain.nix` | Rust toolchain, crane, source filter and build arguments shared by the other modules (the `ac` module argument). |
-| `packages.nix` | Native and musl builds of the on-host binaries. |
-| `devshell.nix` | Development shell. |
-| `formatting.nix` | treefmt: `rustfmt` from the pinned toolchain and `nixfmt`. |
-| `hooks.nix` | git hooks: treefmt on commit, clippy on push. |
-| `checks.nix` | CI-equivalent checks run by `nix flake check`. |
+| `pkgs.nix` | The `pkgs` of every module: nixpkgs with rust-overlay. |
+| `ac/options.nix` | The typed `ac` options, readable from any module as `config.ac.<name>`. |
+| `ac/toolchain.nix` | Defines them: Rust toolchain (version from `Cargo.toml`), crane, source filter and shared build arguments. |
+| `packages/` | `binaries.nix`: native and musl builds of the on-host binaries. |
+| `devshells/` | `dev.nix`: the development shell. |
+| `formatting/` | treefmt: `rustfmt` from the pinned toolchain and `nixfmt`. |
+| `hooks/` | git hooks: treefmt on commit, clippy on push. |
+| `checks/` | CI-equivalent checks run by `nix flake check`: `cargo.nix` has rustfmt and clippy. |
 
 The Windows and Kubernetes binaries are not built by this flake.
