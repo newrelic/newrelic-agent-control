@@ -12,6 +12,7 @@ The flake gives every contributor, and CI, the same pinned toolchain and the sam
 | `nix build` | On-host binaries for the current system. |
 | `nix build .#x86_64-linux-musl` | Static x86_64 Linux binaries, the production target (Linux hosts). |
 | `nix build .#aarch64-linux-musl` | Static aarch64 Linux binaries (Linux hosts). |
+| `nix build .#deb-x86_64`, `.#rpm-x86_64`, `.#deb-aarch64`, `.#rpm-aarch64` | Packages built with nfpm from the musl binaries, using the `nfpms` section of `.goreleaser.yml` for layout, scripts and relations. |
 
 From a Mac, build for Linux through a Linux builder by selecting the system explicitly, e.g. `nix build .#packages.aarch64-linux.aarch64-linux-musl`.
 
@@ -24,7 +25,8 @@ Each directory is one kind of flake output, and its `default.nix` lists the file
 | `pkgs.nix` | The `pkgs` of every module: nixpkgs with rust-overlay. |
 | `ac/options.nix` | The typed `ac` options, readable from any module as `config.ac.<name>`. |
 | `ac/toolchain.nix` | Defines them: Rust toolchain (version from `Cargo.toml`), crane, source filter and shared build arguments. |
-| `packages/` | `binaries.nix`: native and musl builds of the on-host binaries. |
+| `ac/guest.nix` | `ac.guest`: the Linux system (and its architecture) packages and VM tests run on; aarch64 Linux on Darwin hosts. |
+| `packages/` | `binaries.nix`: native and musl builds of the on-host binaries. `linux-packages.nix`: deb and rpm packages derived from `.goreleaser.yml` (`nfpm.jq` maps its `nfpms` section to an nfpm config). |
 | `devshells/` | `dev.nix`: the development shell. |
 | `formatting/` | treefmt: `rustfmt` from the pinned toolchain and `nixfmt`. |
 | `hooks/` | git hooks: treefmt on commit, clippy on push. |
