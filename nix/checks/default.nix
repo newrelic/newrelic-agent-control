@@ -1,5 +1,6 @@
 {
   imports = [
     ./cargo.nix
+    ./vm
   ];
 }
