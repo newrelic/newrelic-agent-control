@@ -25,6 +25,12 @@
       url = "github:cachix/git-hooks.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    # numtide/nix-vm-test with aarch64 and Darwin host support (numtide/nix-vm-test#203).
+    nix-vm-test = {
+      url = "github:DavSanchez/nix-vm-test/a725af45689735881202e51e7e76ffa27b6b305e";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =

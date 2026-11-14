@@ -72,6 +72,27 @@
         "type": "github"
       }
     },
+    "nix-vm-test": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1793004709,
+        "narHash": "sha256-U1MgLSl2+bGUUHVwehJ6gPdLCZiswglEDEpInFWDtQU=",
+        "owner": "DavSanchez",
+        "repo": "nix-vm-test",
+        "rev": "a725af45689735881202e51e7e76ffa27b6b305e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "DavSanchez",
+        "repo": "nix-vm-test",
+        "rev": "a725af45689735881202e51e7e76ffa27b6b305e",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1794165970,
@@ -93,6 +114,7 @@
         "crane": "crane",
         "flake-parts": "flake-parts",
         "git-hooks": "git-hooks",
+        "nix-vm-test": "nix-vm-test",
         "nixpkgs": "nixpkgs",
         "rust-overlay": "rust-overlay",
         "treefmt-nix": "treefmt-nix"

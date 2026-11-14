@@ -14,6 +14,7 @@ The flake gives every contributor, and CI, the same pinned toolchain and the sam
 | `nix build .#aarch64-linux-musl` | Static aarch64 Linux binaries (Linux hosts). |
 | `nix build .#deb-x86_64`, `.#rpm-x86_64`, `.#deb-aarch64`, `.#rpm-aarch64` | Packages built with nfpm from the musl binaries, using the `nfpms` section of `.goreleaser.yml` for layout, scripts and relations. |
 | `nix build .#checks.<system>.vm-nixos-kill-mode-mixed` and `...-process` | NixOS VM tests of the packaged systemd unit with `KillMode=mixed` and `KillMode=process`: sub-agent fate after `kill -9`, `systemctl stop` and `systemctl kill --kill-who=all`. They run on a Mac (aarch64 Linux guest under HVF) and on Linux with KVM. |
+| `nix build .#checks.<system>.vm-<distro>-kill-mode-<mode>` | The same scenario on Ubuntu 20.04 (hybrid cgroups), Ubuntu 22.04 and Rocky 9.6 (cgroup v2), installing the deb or rpm built from this revision, plus Rocky 8.9 (cgroup v1) on x86_64 Linux. Built on [nix-vm-test](https://github.com/numtide/nix-vm-test); runs from a Mac through numtide/nix-vm-test#203. |
 
 From a Mac, build for Linux through a Linux builder by selecting the system explicitly, e.g. `nix build .#packages.aarch64-linux.aarch64-linux-musl`.
 
@@ -32,6 +33,6 @@ Each directory is one kind of flake output, and its `default.nix` lists the file
 | `formatting/` | treefmt: `rustfmt` from the pinned toolchain, `nixfmt` and `ruff format`. |
 | `hooks/` | git hooks: treefmt on commit, clippy on push. |
 | `checks/` | CI-equivalent checks run by `nix flake check`: `cargo.nix` has rustfmt and clippy. |
-| `checks/vm/` | VM tests of the service unit and sub-agent process handling. `nixos.nix` runs them on NixOS; `scenario.nix` and `scenario.py` are the sleeper sub-agent and the test scenario, not modules. |
+| `checks/vm/` | VM tests of the service unit and sub-agent process handling. `nixos.nix` runs them on NixOS and `distros.nix` on Ubuntu and Rocky guests installing the packages; `scenario.nix`, `scenario.py` and `fetch_over_http.py` are the sleeper sub-agent, the test scenario and the file delivery to guests, not modules. |
 
 The Windows and Kubernetes binaries are not built by this flake.
