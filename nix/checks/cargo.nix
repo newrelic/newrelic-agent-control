@@ -1,9 +1,10 @@
-# `nix flake check`: the formatting and lint steps of CI, runnable anywhere.
+# Cargo steps of CI that `nix flake check` runs: rustfmt and clippy.
 # treefmt and git-hooks contribute their own checks from their modules.
 _: {
   perSystem =
-    { ac, ... }:
+    { config, ... }:
     let
+      ac = config.ac;
       inherit (ac) craneLib;
       workspaceArgs = ac.commonArgs // {
         cargoExtraArgs = "--workspace";

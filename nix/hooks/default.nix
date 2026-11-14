@@ -1,0 +1,5 @@
+{
+  imports = [
+    ./pre-commit.nix
+  ];
+}

@@ -3,12 +3,14 @@
 _: {
   perSystem =
     {
-      ac,
+      config,
       pkgs,
       lib,
       ...
     }:
     let
+      ac = config.ac;
+
       onhostArgs = "--package newrelic_agent_control --bin newrelic-agent-control --bin newrelic-agent-control-cli";
 
       mkPackage =
@@ -21,6 +23,7 @@ _: {
           // {
             cargoArtifacts = craneLib.buildDepsOnly args;
             doCheck = false;
+            meta.mainProgram = "newrelic-agent-control";
           }
         );
 

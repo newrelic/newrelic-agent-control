@@ -36,13 +36,6 @@
         "aarch64-darwin"
       ];
 
-      imports = [
-        ./nix/toolchain.nix
-        ./nix/packages.nix
-        ./nix/devshell.nix
-        ./nix/formatting.nix
-        ./nix/hooks.nix
-        ./nix/checks.nix
-      ];
+      imports = [ ./nix ];
     };
 }
