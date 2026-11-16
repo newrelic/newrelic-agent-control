@@ -320,6 +320,17 @@ spinning up a container where the user is root and running them there with:
 make -C agent-control test/onhost/root/integration
 ```
 
+#### `cgroup-tracker` tests against the real cgroupfs
+
+The `cgroup-tracker` crate has tests that need root and a writable cgroupfs (Linux only). They are ignored by default
+and run against both cgroup hierarchies: v1 through a private named hierarchy mounted by the test, v2 through a scratch
+cgroup (skipped on hosts without the unified hierarchy). Build as your user and run through `sudo`:
+
+```sh
+cargo test -p cgroup-tracker --test cgroupfs --no-run   # prints the test binary path
+sudo <test binary path> --ignored
+```
+
 ### Feature `k8s`
 
 Running basic tests, not requiring an existing Kubernetes cluster.
