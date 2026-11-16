@@ -119,3 +119,38 @@ fn command_shutdown_kill_orphan_process() {
         }
     });
 }
+
+#[test]
+#[cfg(target_family = "unix")]
+fn command_shutdown_sigterm_reaches_descendants() {
+    let dir = tempfile::tempdir().unwrap();
+    let marker = dir.path().join("grandchild_terminated");
+
+    let cmd = ProcessOrigin::Spawn(OsProcessConfig::new(
+        "test".to_string().try_into().unwrap(),
+        &ExecutableData {
+            id: "test".to_string(),
+            bin: "tests/on_host/data/term_propagation.sh".to_string(),
+            args: vec![marker.to_string_lossy().into_owned()],
+            env: Default::default(),
+            restart_policy: Default::default(),
+            shutdown_timeout: Duration::from_millis(500),
+        },
+        None,
+    ))
+    .try_into_supervised()
+    .unwrap();
+
+    // Give the script time to install its traps and fork the grandchild.
+    sleep(Duration::from_millis(500));
+
+    // The root process ignores SIGTERM and doesn't forward it, so the marker can only be
+    // written if the signal was delivered to the whole process group.
+    assert!(cmd.shutdown().is_ok());
+
+    let deadline = std::time::Instant::now() + Duration::from_secs(2);
+    while !marker.exists() && std::time::Instant::now() < deadline {
+        sleep(Duration::from_millis(50));
+    }
+    assert!(marker.exists(), "grandchild did not receive SIGTERM");
+}
