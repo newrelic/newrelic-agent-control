@@ -65,7 +65,7 @@ pub fn check_ohi_shared_filesystem(
 }
 
 /// A single OHI's plumbing for this scenario: everything needed to wire the sub-agent, render its
-/// integration config, and grep the AC log for its invocation.
+/// integration config, and grep the infra-agent log for its invocation.
 pub struct Ohi {
     pub sub_agent_id: &'static str,
     pub integration_name: &'static str,
@@ -146,6 +146,13 @@ agents:
     #[cfg(target_family = "windows")]
     let config_path = crate::windows::local_config_path(infra_sub_agent_id);
 
+    // On Linux the infra-agent only logs to stdout/stderr, so Agent Control file logging is
+    // enabled to persist its output. On Windows it always writes its own log file.
+    #[cfg(target_family = "unix")]
+    let file_logging = "enable_file_logging: true\n";
+    #[cfg(target_family = "windows")]
+    let file_logging = "";
+
     write_agent_local_config(
         &config_path,
         format!(
@@ -155,7 +162,7 @@ config_agent:
   log:
     level: debug
 version: {infra_agent_version}
-"#
+{file_logging}"#
         ),
     );
 

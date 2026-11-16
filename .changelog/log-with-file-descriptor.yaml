@@ -1,0 +1,2 @@
+type: bugfix
+message: "On-host: with `enable_file_logging` enabled, sub-agents write their stdout/stderr directly to `stdout.log` and `stderr.log` in their log directory, so output keeps being recorded if Agent Control stops."

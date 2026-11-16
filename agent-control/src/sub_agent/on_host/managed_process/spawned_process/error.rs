@@ -1,26 +1,32 @@
-//! Errors produced while spawning, streaming, or stopping an OS process.
+//! Errors produced while spawning or stopping an OS process.
 
 use std::fmt::Debug;
+use std::path::PathBuf;
 use thiserror::Error;
 
-use super::logging::file_logger::FileLoggerError;
 #[cfg(target_family = "windows")]
 use crate::utils::job_object::JobObjectError;
 
 /// Errors produced while managing an OS process.
 #[derive(Error, Debug)]
 pub enum CommandError {
-    /// A standard stream (stdout/stderr) could not be piped.
-    #[error("{0} not piped")]
-    StreamPipeError(String),
-
     /// An I/O error occurred.
     #[error("{0}")]
     IOError(#[from] std::io::Error),
 
-    /// The file logger could not be built.
-    #[error("building file logger: {0}")]
-    FileLoggerError(#[from] FileLoggerError),
+    /// The directory holding the process stdout/stderr log files could not be created.
+    #[error("creating log directory {path}: {source}", path = path.display())]
+    CreateLogDir {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+
+    /// A process stdout/stderr log file could not be opened.
+    #[error("opening log file {path}: {source}", path = path.display())]
+    OpenLogFile {
+        path: PathBuf,
+        source: std::io::Error,
+    },
 
     /// A Windows Job Object operation failed.
     #[cfg(target_family = "windows")]

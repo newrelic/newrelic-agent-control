@@ -1,18 +1,11 @@
-//! OS-level command wrapper with not-started/started states, output streaming, and shutdown handling.
+//! OS-level command wrapper with not-started/started states, output redirection, and shutdown handling.
 
+use super::error::CommandError;
 use super::executable_data::ExecutableData;
-use super::logging::file_logger::SubAgentFileLoggingConfig;
-use super::{
-    error::CommandError,
-    logging::{
-        self,
-        file_logger::{FileSystemLoggers, file_logger},
-        logger::Logger,
-    },
-};
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_control::defaults::{STDERR_LOG_FILE_NAME_SUFFIX, STDOUT_LOG_FILE_NAME_SUFFIX};
-use std::process::{Child, Command, Stdio};
+use crate::sub_agent::on_host::managed_process::spawned_process::log_files::std_streams;
+use std::path::PathBuf;
+use std::process::{Child, Command};
 #[cfg(target_family = "unix")]
 use std::time::Duration;
 
@@ -23,16 +16,15 @@ use std::time::Duration;
 pub struct OsProcessConfig {
     cmd: Command,
     agent_id: AgentID,
-    file_logging_config: SubAgentFileLoggingConfig,
+    maybe_log_dir: Option<PathBuf>,
     #[cfg(target_family = "unix")]
     shutdown_timeout: Duration,
 }
 
-/// A spawned OS process with its loggers.
+/// A spawned OS process.
 pub struct OsProcess {
     agent_id: AgentID,
     process: Child,
-    loggers: Option<FileSystemLoggers>,
     #[cfg(target_family = "unix")]
     shutdown_timeout: Duration,
 }
@@ -41,50 +33,32 @@ pub struct OsProcess {
 // Not Started OS Process
 ////////////////////////////////////////////////////////////////////////////////////
 impl OsProcessConfig {
-    /// Creates a not-started process config for the given executable, configuring stdio pipes and logging.
+    /// Creates a not-started process config for the given executable. Its stdout/stderr are written
+    /// to log files in `log_dir` when provided, and discarded otherwise.
     pub fn new(
         agent_id: AgentID,
         executable_data: &ExecutableData,
-        file_logging_config: SubAgentFileLoggingConfig,
+        maybe_log_dir: Option<PathBuf>,
     ) -> Self {
         let mut cmd = Command::new(&executable_data.bin);
-        cmd.args(&executable_data.args)
-            .envs(&executable_data.env)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
+        cmd.args(&executable_data.args).envs(&executable_data.env);
 
         Self {
             agent_id,
             cmd,
-            file_logging_config,
+            maybe_log_dir,
             #[cfg(target_family = "unix")]
             shutdown_timeout: executable_data.shutdown_timeout,
         }
     }
 
-    /// Spawns the process, setting up file loggers and (on Windows) a job object.
+    /// Spawns the process with its stdout/stderr set up.
     pub fn start(mut self) -> Result<OsProcess, CommandError> {
-        let loggers = if self.file_logging_config.enabled {
-            Some(FileSystemLoggers::new(
-                file_logger(
-                    &self.agent_id,
-                    self.file_logging_config.clone(),
-                    STDOUT_LOG_FILE_NAME_SUFFIX,
-                )?,
-                file_logger(
-                    &self.agent_id,
-                    self.file_logging_config.clone(),
-                    STDERR_LOG_FILE_NAME_SUFFIX,
-                )?,
-            ))
-        } else {
-            None
-        };
-        let child = self.cmd.spawn()?;
+        let (stdout, stderr) = std_streams(&self.maybe_log_dir)?;
+        let child = self.cmd.stdout(stdout).stderr(stderr).spawn()?;
         Ok(OsProcess {
             agent_id: self.agent_id,
             process: child,
-            loggers,
             #[cfg(target_family = "unix")]
             shutdown_timeout: self.shutdown_timeout,
         })
@@ -99,37 +73,6 @@ impl OsProcess {
     /// Returns the process id of the running process.
     pub fn get_pid(&self) -> u32 {
         self.process.id()
-    }
-
-    pub(crate) fn stream(mut self) -> Result<Self, CommandError> {
-        let stdout = self
-            .process
-            .stdout
-            .take()
-            .ok_or(CommandError::StreamPipeError("stdout".to_string()))?;
-
-        let stderr = self
-            .process
-            .stderr
-            .take()
-            .ok_or(CommandError::StreamPipeError("stderr".to_string()))?;
-
-        let mut stdout_loggers = vec![Logger::Stdout(self.agent_id.clone())];
-        let mut stderr_loggers = vec![Logger::Stderr(self.agent_id.clone())];
-
-        if let Some(l) = self.loggers.take() {
-            let (out, err) = l.into_loggers();
-            stdout_loggers.push(Logger::File(Box::new(out)));
-            stderr_loggers.push(Logger::File(Box::new(err)));
-        };
-
-        // Read stdout and send to the channel
-        logging::thread::spawn_logger(stdout, stdout_loggers);
-
-        // Read stderr and send to the channel
-        logging::thread::spawn_logger(stderr, stderr_loggers);
-
-        Ok(self)
     }
 
     /// Returns the agent this process belongs to.
@@ -151,5 +94,66 @@ impl OsProcess {
         let job = crate::utils::job_object::JobObject::new()?;
         job.assign_process(&self.process)?;
         Ok(job)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::agent_control::defaults::STDOUT_LOG_FILE_NAME;
+    use crate::sub_agent::on_host::managed_process::spawned_process::restart_policy::RestartPolicy;
+    use crate::utils::retry::retry;
+    use std::collections::HashMap;
+    use std::time::Duration;
+
+    /// Prints `late-output` to stdout after a short delay.
+    fn delayed_output_command() -> (String, Vec<String>) {
+        #[cfg(target_family = "unix")]
+        let (bin, args) = ("sh", ["-c", "sleep 1; echo late-output"]);
+        #[cfg(target_family = "windows")]
+        let (bin, args) = (
+            "powershell",
+            [
+                "-NoProfile",
+                "-Command",
+                "Start-Sleep -Seconds 1; Write-Output late-output",
+            ],
+        );
+        (bin.to_string(), args.map(String::from).to_vec())
+    }
+
+    #[test]
+    fn process_appends_to_log_file_after_being_dropped() {
+        let log_dir = tempfile::tempdir().unwrap();
+        let stdout_log = log_dir.path().join(STDOUT_LOG_FILE_NAME);
+        std::fs::write(&stdout_log, "previous-output\n").unwrap();
+        let (bin, args) = delayed_output_command();
+        let exec_data = ExecutableData {
+            id: "late-writer".to_string(),
+            bin,
+            args,
+            env: HashMap::new(),
+            restart_policy: RestartPolicy::default(),
+            shutdown_timeout: Default::default(),
+        };
+
+        let process = OsProcessConfig::new(
+            AgentID::AgentControl,
+            &exec_data,
+            Some(log_dir.path().to_path_buf()),
+        )
+        .start()
+        .unwrap();
+        // Agent Control no longer holds any handle to the process or its log files.
+        drop(process);
+
+        retry(10, Duration::from_millis(500), || {
+            let content = std::fs::read_to_string(&stdout_log).map_err(|e| e.to_string())?;
+            // The pre-existing content must be preserved, with the new output appended after it.
+            (content.starts_with("previous-output\n") && content.contains("late-output"))
+                .then_some(())
+                .ok_or_else(|| format!("process output was not appended, got: {content:?}"))
+        })
+        .unwrap();
     }
 }
