@@ -1,4 +1,4 @@
-use crate::CgroupError;
+use crate::error::DetectError;
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
 
@@ -34,7 +34,7 @@ struct CgroupMount {
 pub(crate) fn detect_base(
     mountinfo: impl BufRead,
     self_cgroup: impl BufRead,
-) -> Result<(PathBuf, Hierarchy), CgroupError> {
+) -> Result<(PathBuf, Hierarchy), DetectError> {
     let (v2_mounts, v1_mounts) = parse_mountinfo(mountinfo);
     let memberships = parse_self_cgroup(self_cgroup);
 
@@ -57,7 +57,7 @@ pub(crate) fn detect_base(
         .iter()
         .find(|m| m.options.iter().any(|o| o == "name=systemd"))
         .or(v1_mounts.first())
-        .ok_or_else(|| CgroupError::Detect("no cgroup mount found".to_string()))?;
+        .ok_or(DetectError::NoCgroupMount)?;
     let path = memberships
         .iter()
         .find(|(_, ctrl, _)| {
@@ -65,24 +65,18 @@ pub(crate) fn detect_base(
                 .any(|c| mount.options.iter().any(|o| o == c))
         })
         .map(|(_, _, path)| path)
-        .ok_or_else(|| {
-            CgroupError::Detect(
-                "process is not a member of any mounted cgroup hierarchy".to_string(),
-            )
-        })?;
+        .ok_or(DetectError::NotInAnyHierarchy)?;
     Ok((resolve(mount, path)?, Hierarchy::V1))
 }
 
 /// Maps the process cgroup path to a directory under the mount, stripping the mount root
 /// (non-trivial inside cgroup namespaces and containers).
-fn resolve(mount: &CgroupMount, cgroup_path: &str) -> Result<PathBuf, CgroupError> {
+fn resolve(mount: &CgroupMount, cgroup_path: &str) -> Result<PathBuf, DetectError> {
     let relative = Path::new(cgroup_path)
         .strip_prefix(&mount.root)
-        .map_err(|_| {
-            CgroupError::Detect(format!(
-                "cgroup path `{cgroup_path}` is outside the mount root `{}`",
-                mount.root.display()
-            ))
+        .map_err(|_| DetectError::OutsideMountRoot {
+            cgroup_path: cgroup_path.to_string(),
+            mount_root: mount.root.clone(),
         })?;
     Ok(mount.mount_point.join(relative))
 }
@@ -213,17 +207,31 @@ mod tests {
         assert_eq!(hierarchy, Hierarchy::V2);
     }
 
-    #[rstest]
-    #[case::no_mount("", "0::/\n")]
-    #[case::outside_root(
-        "35 25 0:30 /ns/root /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n",
-        "0::/other\n"
-    )]
-    #[case::no_membership(V1_MOUNTS, "")]
-    fn missing_hierarchy(#[case] mountinfo: &str, #[case] self_cgroup: &str) {
+    #[test]
+    fn no_mount() {
         assert_matches!(
-            detect_base(mountinfo.as_bytes(), self_cgroup.as_bytes()),
-            Err(CgroupError::Detect(_))
+            detect_base("".as_bytes(), "0::/\n".as_bytes()),
+            Err(DetectError::NoCgroupMount)
+        );
+    }
+
+    #[test]
+    fn cgroup_outside_mount_root() {
+        let mountinfo = "35 25 0:30 /ns/root /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n";
+        assert_matches!(
+            detect_base(mountinfo.as_bytes(), "0::/other\n".as_bytes()),
+            Err(DetectError::OutsideMountRoot { cgroup_path, mount_root }) => {
+                assert_eq!(cgroup_path, "/other");
+                assert_eq!(mount_root, PathBuf::from("/ns/root"));
+            }
+        );
+    }
+
+    #[test]
+    fn no_membership() {
+        assert_matches!(
+            detect_base(V1_MOUNTS.as_bytes(), "".as_bytes()),
+            Err(DetectError::NotInAnyHierarchy)
         );
     }
 }

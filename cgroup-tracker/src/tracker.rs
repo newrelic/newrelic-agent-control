@@ -1,5 +1,5 @@
 use crate::hierarchy::detect_base;
-use crate::{CgroupError, CgroupName, Hierarchy};
+use crate::{CgroupName, CgroupOperation, CgroupTrackerError, Hierarchy};
 use nix::errno::Errno;
 use nix::sys::signal::{Signal, kill};
 use nix::sys::stat::Mode;
@@ -27,16 +27,20 @@ pub struct CgroupTracker {
 
 impl CgroupTracker {
     /// Detects the hierarchy and base cgroup from `/proc/self`.
-    pub fn detect() -> Result<Self, CgroupError> {
+    pub fn detect() -> Result<Self, CgroupTrackerError> {
         let open_file = |path: &str| {
             File::open(path)
                 .map(BufReader::new)
-                .map_err(|err| CgroupError::Detect(format!("opening `{path}`: {err}")))
+                .map_err(CgroupTrackerError::io(
+                    CgroupOperation::Open,
+                    Path::new(path),
+                ))
         };
         let (base, hierarchy) = detect_base(
             open_file("/proc/self/mountinfo")?,
             open_file("/proc/self/cgroup")?,
-        )?;
+        )
+        .map_err(CgroupTrackerError::Detect)?;
         Ok(Self::with_base(base, hierarchy))
     }
 
@@ -65,24 +69,32 @@ impl CgroupTracker {
 
     /// Pids of every process in the cgroup and its descendant cgroups.
     /// Empty if the cgroup does not exist.
-    pub fn members(&self, name: &CgroupName) -> Result<Vec<i32>, CgroupError> {
+    pub fn members(&self, name: &CgroupName) -> Result<Vec<i32>, CgroupTrackerError> {
         member_pids(&self.path_of(name))
     }
 
     /// Creates the cgroup. Idempotent.
-    pub fn create(&self, name: &CgroupName) -> Result<(), CgroupError> {
+    pub fn create(&self, name: &CgroupName) -> Result<(), CgroupTrackerError> {
         let path = self.path_of(name);
-        fs::create_dir_all(&path).map_err(CgroupError::io("creating", &path))
+        fs::create_dir_all(&path).map_err(CgroupTrackerError::io(CgroupOperation::Create, &path))
     }
 
     /// Creates the cgroup and configures `command` so the child joins it before `exec` and
     /// leads its own process group, keeping both invariants in a single place.
-    pub fn prepare(&self, name: &CgroupName, command: &mut Command) -> Result<(), CgroupError> {
+    pub fn prepare(
+        &self,
+        name: &CgroupName,
+        command: &mut Command,
+    ) -> Result<(), CgroupTrackerError> {
         self.create(name)?;
         let procs_path = self.path_of(name).join(PROCS_FILE);
         // Built before the fork so the child does not allocate.
-        let procs = CString::new(procs_path.as_os_str().as_bytes())
-            .map_err(|err| CgroupError::io("preparing", &procs_path)(io::Error::other(err)))?;
+        let procs = CString::new(procs_path.as_os_str().as_bytes()).map_err(|source| {
+            CgroupTrackerError::InvalidPath {
+                path: procs_path.clone(),
+                source,
+            }
+        })?;
         command.process_group(0);
         // SAFETY: the closure only calls async-signal-safe syscalls (open, write, close) on a
         // `CString` built before the fork, so it neither allocates nor takes locks. Writing `0`
@@ -104,7 +116,7 @@ impl CgroupTracker {
     /// Kills every process in the cgroup (and its descendants), then removes it.
     ///
     /// Uses `cgroup.kill` when available and falls back to signalling the members.
-    pub fn kill_and_remove(&self, name: &CgroupName) -> Result<(), CgroupError> {
+    pub fn kill_and_remove(&self, name: &CgroupName) -> Result<(), CgroupTrackerError> {
         let path = self.path_of(name);
         for _ in 0..KILL_ATTEMPTS {
             self.kill_members(&path)?;
@@ -116,11 +128,13 @@ impl CgroupTracker {
                     std::thread::sleep(KILL_RETRY_INTERVAL);
                     continue;
                 }
-                Err(err) => return Err(CgroupError::io("removing", &path)(err)),
+                Err(err) => {
+                    return Err(CgroupTrackerError::io(CgroupOperation::Remove, &path)(err));
+                }
             }
         }
         if path.exists() {
-            return Err(CgroupError::KillTimeout {
+            return Err(CgroupTrackerError::KillTimeout {
                 path,
                 attempts: KILL_ATTEMPTS,
             });
@@ -132,7 +146,7 @@ impl CgroupTracker {
         Ok(())
     }
 
-    fn kill_members(&self, path: &Path) -> Result<(), CgroupError> {
+    fn kill_members(&self, path: &Path) -> Result<(), CgroupTrackerError> {
         if self.hierarchy.supports_cgroup_kill() {
             match OpenOptions::new()
                 .write(true)
@@ -142,7 +156,9 @@ impl CgroupTracker {
                 Ok(()) => return Ok(()),
                 // Missing cgroup, or a kernel older than 5.14: signal the members instead.
                 Err(err) if err.kind() == io::ErrorKind::NotFound => {}
-                Err(err) => return Err(CgroupError::io("killing", path)(err)),
+                Err(err) => {
+                    return Err(CgroupTrackerError::io(CgroupOperation::WriteKillFile, path)(err));
+                }
             }
         }
         signal_members(path, &SystemSignaller)
@@ -164,7 +180,7 @@ impl Signaller for SystemSignaller {
 
 /// Signals every member of the cgroup. All pids are attempted, then the first failure
 /// (other than an already exited process) is reported.
-fn signal_members(path: &Path, signaller: &impl Signaller) -> Result<(), CgroupError> {
+fn signal_members(path: &Path, signaller: &impl Signaller) -> Result<(), CgroupTrackerError> {
     let mut first_error = None;
     for pid in member_pids(path)? {
         match signaller.sigkill(pid) {
@@ -173,25 +189,32 @@ fn signal_members(path: &Path, signaller: &impl Signaller) -> Result<(), CgroupE
             Err(Errno::ESRCH) => {}
             Err(errno) => {
                 tracing::debug!(pid, %errno, "Failed to kill cgroup member");
-                first_error.get_or_insert(errno);
+                first_error.get_or_insert((pid, errno));
             }
         }
     }
-    first_error.map_or(Ok(()), |err| {
-        Err(CgroupError::io("killing members of", path)(err.into()))
+    first_error.map_or(Ok(()), |(pid, source)| {
+        Err(CgroupTrackerError::Signal {
+            pid,
+            path: path.to_path_buf(),
+            source,
+        })
     })
 }
 
 /// Pids of the cgroup and of its descendant cgroups.
-fn member_pids(path: &Path) -> Result<Vec<i32>, CgroupError> {
-    let mut pids = match fs::read_to_string(path.join(PROCS_FILE)) {
+fn member_pids(path: &Path) -> Result<Vec<i32>, CgroupTrackerError> {
+    let procs_path = path.join(PROCS_FILE);
+    let mut pids = match fs::read_to_string(&procs_path) {
         Ok(content) => content
             .lines()
             .filter_map(|l| l.trim().parse().ok())
             .collect(),
         Err(err) if err.kind() == io::ErrorKind::NotFound => Vec::new(),
         Err(err) => {
-            return Err(CgroupError::io("reading members of", path)(err));
+            return Err(CgroupTrackerError::io(CgroupOperation::Read, &procs_path)(
+                err,
+            ));
         }
     };
     for child in read_subdirs(path)? {
@@ -200,7 +223,7 @@ fn member_pids(path: &Path) -> Result<Vec<i32>, CgroupError> {
     Ok(pids)
 }
 
-fn read_subdirs(path: &Path) -> Result<Vec<PathBuf>, CgroupError> {
+fn read_subdirs(path: &Path) -> Result<Vec<PathBuf>, CgroupTrackerError> {
     match fs::read_dir(path) {
         Ok(entries) => Ok(entries
             .flatten()
@@ -208,7 +231,7 @@ fn read_subdirs(path: &Path) -> Result<Vec<PathBuf>, CgroupError> {
             .filter(|p| p.is_dir())
             .collect()),
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(Vec::new()),
-        Err(err) => Err(CgroupError::io("reading", path)(err)),
+        Err(err) => Err(CgroupTrackerError::io(CgroupOperation::Read, path)(err)),
     }
 }
 
@@ -326,8 +349,8 @@ mod tests {
 
         // Every pid is attempted even though the first one fails.
         assert_eq!(signaller.calls.take(), vec![10, 11, 12]);
-        assert_matches!(err, CgroupError::IO { operation: "killing members of", source, .. } => {
-            assert_eq!(source.raw_os_error(), Some(Errno::EPERM as i32));
+        assert_matches!(err, CgroupTrackerError::Signal { pid: 10, source, .. } => {
+            assert_eq!(source, Errno::EPERM);
         });
     }
 
