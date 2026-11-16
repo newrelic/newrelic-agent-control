@@ -35,16 +35,10 @@ impl std::fmt::Display for CgroupName {
 }
 
 fn sanitize(value: &str) -> String {
-    value
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.') {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect()
+    value.replace(
+        |c: char| !(c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.')),
+        "_",
+    )
 }
 
 #[cfg(test)]
