@@ -1,10 +1,14 @@
 use crate::hierarchy::detect_base;
 use crate::{CgroupError, CgroupName, Hierarchy};
 use nix::errno::Errno;
+use nix::fcntl::{OFlag, open};
 use nix::sys::signal::{Signal, kill};
-use nix::unistd::Pid;
+use nix::sys::stat::Mode;
+use nix::unistd::{Pid, write};
+use std::ffi::CString;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufReader, Write};
+use std::os::unix::ffi::OsStrExt;
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -74,12 +78,24 @@ impl CgroupTracker {
     /// leads its own process group, keeping both invariants in a single place.
     pub fn prepare(&self, name: &CgroupName, command: &mut Command) -> Result<(), CgroupError> {
         self.create(name)?;
-        let procs = self.path_of(name).join(PROCS_FILE);
+        let procs_path = self.path_of(name).join(PROCS_FILE);
+        // Built before the fork so the child does not allocate.
+        let procs = CString::new(procs_path.as_os_str().as_bytes())
+            .map_err(|err| CgroupError::io("preparing", &procs_path)(io::Error::other(err)))?;
         command.process_group(0);
-        // SAFETY: the closure only opens a file and writes to it. Writing `0` to `cgroup.procs`
-        // moves the calling process, so the child is never outside the cgroup when it execs.
+        // SAFETY: the closure only calls async-signal-safe syscalls (open, write, close) on a
+        // `CString` built before the fork, so it neither allocates nor takes locks. Writing `0`
+        // to `cgroup.procs` moves the calling process, so the child never execs outside the cgroup.
         unsafe {
-            command.pre_exec(move || OpenOptions::new().write(true).open(&procs)?.write_all(b"0"));
+            command.pre_exec(move || {
+                let fd = open(
+                    procs.as_c_str(),
+                    OFlag::O_WRONLY | OFlag::O_CLOEXEC,
+                    Mode::empty(),
+                )?;
+                write(&fd, b"0")?;
+                Ok(())
+            });
         }
         Ok(())
     }

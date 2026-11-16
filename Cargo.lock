@@ -795,7 +795,6 @@ name = "cgroup-tracker"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
- "mockall",
  "nix 0.32.0",
  "rstest",
  "tempfile",
