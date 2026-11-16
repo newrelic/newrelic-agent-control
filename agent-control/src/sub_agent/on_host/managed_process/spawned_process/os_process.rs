@@ -123,8 +123,10 @@ mod tests {
     }
 
     #[test]
-    fn process_keeps_writing_to_log_file_after_being_dropped() {
+    fn process_appends_to_log_file_after_being_dropped() {
         let log_dir = tempfile::tempdir().unwrap();
+        let stdout_log = log_dir.path().join(STDOUT_LOG_FILE_NAME);
+        std::fs::write(&stdout_log, "previous-output\n").unwrap();
         let (bin, args) = delayed_output_command();
         let exec_data = ExecutableData {
             id: "late-writer".to_string(),
@@ -145,13 +147,12 @@ mod tests {
         // Agent Control no longer holds any handle to the process or its log files.
         drop(process);
 
-        let stdout_log = log_dir.path().join(STDOUT_LOG_FILE_NAME);
         retry(10, Duration::from_millis(500), || {
             let content = std::fs::read_to_string(&stdout_log).map_err(|e| e.to_string())?;
-            content
-                .contains("late-output")
+            // The pre-existing content must be preserved, with the new output appended after it.
+            (content.starts_with("previous-output\n") && content.contains("late-output"))
                 .then_some(())
-                .ok_or_else(|| format!("process output was not written, got: {content:?}"))
+                .ok_or_else(|| format!("process output was not appended, got: {content:?}"))
         })
         .unwrap();
     }
