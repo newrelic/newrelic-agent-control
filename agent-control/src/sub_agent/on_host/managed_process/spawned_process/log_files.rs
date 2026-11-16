@@ -31,30 +31,34 @@ pub(crate) fn std_streams(maybe_log_dir: &Option<PathBuf>) -> Result<(Stdio, Std
 }
 
 /// Creates `log_dir` if needed and opens the stdout and stderr log files inside it in append mode,
-/// so they can be handed to a spawned process. The process holds its own handles to the files and
-/// keeps writing to them independently of Agent Control.
+/// so they can be handed to a spawned process.
 fn open_std_log_files(log_dir: &Path) -> Result<(File, File), CommandError> {
-    DirectoryManagerFs.create(log_dir).map_err(|e| {
-        CommandError::LogFile(format!("creating directory {}: {e}", log_dir.display()))
-    })?;
+    DirectoryManagerFs
+        .create(log_dir)
+        .map_err(|source| CommandError::CreateLogDir {
+            path: log_dir.to_path_buf(),
+            source,
+        })?;
 
     let stdout = open_append(&log_dir.join(STDOUT_LOG_FILE_NAME))?;
     let stderr = open_append(&log_dir.join(STDERR_LOG_FILE_NAME))?;
     Ok((stdout, stderr))
 }
 
-fn open_append(log_dir: &Path) -> Result<File, CommandError> {
+fn open_append(path: &Path) -> Result<File, CommandError> {
     OpenOptions::new()
         .create(true)
         .append(true)
-        .open(log_dir)
-        .map_err(|e| CommandError::LogFile(format!("opening {}: {e}", log_dir.display())))
+        .open(path)
+        .map_err(|source| CommandError::OpenLogFile {
+            path: path.to_path_buf(),
+            source,
+        })
 }
 
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use crate::sub_agent::on_host::managed_process::spawned_process::log_files::SubAgentFileLoggingConfig;
     use assert_matches::assert_matches;
     use std::io::Write;
     use std::path::PathBuf;
@@ -102,6 +106,6 @@ pub mod test {
 
         let err = open_std_log_files(&file.join("child")).unwrap_err();
 
-        assert_matches!(err, CommandError::LogFile(msg) if msg.contains("creating directory"));
+        assert_matches!(err, CommandError::CreateLogDir { .. });
     }
 }

@@ -96,3 +96,45 @@ impl OsProcess {
         Ok(job)
     }
 }
+
+#[cfg(all(test, target_family = "unix"))]
+mod tests {
+    use super::*;
+    use crate::agent_control::defaults::STDOUT_LOG_FILE_NAME;
+    use crate::sub_agent::on_host::managed_process::spawned_process::restart_policy::RestartPolicy;
+    use crate::utils::retry::retry;
+    use std::collections::HashMap;
+
+    #[test]
+    fn process_keeps_writing_to_log_file_after_being_dropped() {
+        let log_dir = tempfile::tempdir().unwrap();
+        let exec_data = ExecutableData {
+            id: "late-writer".to_string(),
+            bin: "sh".to_string(),
+            args: vec!["-c".to_string(), "sleep 1; echo late-output".to_string()],
+            env: HashMap::new(),
+            restart_policy: RestartPolicy::default(),
+            shutdown_timeout: Default::default(),
+        };
+
+        let process = OsProcessConfig::new(
+            AgentID::AgentControl,
+            &exec_data,
+            Some(log_dir.path().to_path_buf()),
+        )
+        .start()
+        .unwrap();
+        // Agent Control no longer holds any handle to the process or its log files.
+        drop(process);
+
+        let stdout_log = log_dir.path().join(STDOUT_LOG_FILE_NAME);
+        retry(10, Duration::from_millis(500), || {
+            let content = std::fs::read_to_string(&stdout_log).map_err(|e| e.to_string())?;
+            content
+                .contains("late-output")
+                .then_some(())
+                .ok_or_else(|| format!("process output was not written, got: {content:?}"))
+        })
+        .unwrap();
+    }
+}
