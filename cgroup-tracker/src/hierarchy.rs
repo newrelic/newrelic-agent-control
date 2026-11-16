@@ -35,15 +35,22 @@ pub(crate) fn detect_base(
     mountinfo: impl BufRead,
     self_cgroup: impl BufRead,
 ) -> Result<(PathBuf, Hierarchy), CgroupError> {
-    let (v2_mount, v1_mounts) = parse_mountinfo(mountinfo);
+    let (v2_mounts, v1_mounts) = parse_mountinfo(mountinfo);
     let memberships = parse_self_cgroup(self_cgroup);
 
-    if let Some(mount) = v2_mount
-        && let Some((_, _, path)) = memberships
-            .iter()
-            .find(|(id, ctrl, _)| *id == "0" && ctrl.is_empty())
+    if let Some((_, _, path)) = memberships
+        .iter()
+        .find(|(id, ctrl, _)| *id == "0" && ctrl.is_empty())
+        && !v2_mounts.is_empty()
     {
-        return Ok((resolve(&mount, path)?, Hierarchy::V2));
+        // The same hierarchy can be mounted several times with different roots. Use the most
+        // specific mount whose root contains our cgroup.
+        let mount = v2_mounts
+            .iter()
+            .filter(|m| Path::new(path).starts_with(&m.root))
+            .max_by_key(|m| m.root.components().count())
+            .unwrap_or(&v2_mounts[0]);
+        return Ok((resolve(mount, path)?, Hierarchy::V2));
     }
 
     let mount = v1_mounts
@@ -80,9 +87,9 @@ fn resolve(mount: &CgroupMount, cgroup_path: &str) -> Result<PathBuf, CgroupErro
     Ok(mount.mount_point.join(relative))
 }
 
-/// Returns the first `cgroup2` mount and every v1 `cgroup` mount.
-fn parse_mountinfo(mountinfo: impl BufRead) -> (Option<CgroupMount>, Vec<CgroupMount>) {
-    let mut v2 = None;
+/// Returns every `cgroup2` mount and every v1 `cgroup` mount.
+fn parse_mountinfo(mountinfo: impl BufRead) -> (Vec<CgroupMount>, Vec<CgroupMount>) {
+    let mut v2 = Vec::new();
     let mut v1 = Vec::new();
     for line in mountinfo.lines().map_while(Result::ok) {
         // `<id> <parent> <dev> <root> <mount point> <opts> [optional...] - <fstype> <source> <super opts>`
@@ -105,7 +112,7 @@ fn parse_mountinfo(mountinfo: impl BufRead) -> (Option<CgroupMount>, Vec<CgroupM
                 .unwrap_or_default(),
         };
         match *fstype {
-            "cgroup2" if v2.is_none() => v2 = Some(mount),
+            "cgroup2" => v2.push(mount),
             "cgroup" => v1.push(mount),
             _ => {}
         }
@@ -182,6 +189,28 @@ mod tests {
         let mountinfo = "35 25 0:30 /ns/root /sys/fs/cgroup rw - cgroup2 cgroup2 rw\n";
         let (base, _) = detect_base(mountinfo.as_bytes(), "0::/ns/root/leaf\n".as_bytes()).unwrap();
         assert_eq!(base, PathBuf::from("/sys/fs/cgroup/leaf"));
+    }
+
+    #[rstest]
+    #[case::skips_non_matching_root(
+        "\
+35 25 0:30 /ns/other /mnt/other rw - cgroup2 cgroup2 rw
+36 25 0:30 /ns/root /sys/fs/cgroup rw - cgroup2 cgroup2 rw
+",
+        "/sys/fs/cgroup/leaf"
+    )]
+    #[case::prefers_most_specific_root(
+        "\
+35 25 0:30 / /mnt/full rw - cgroup2 cgroup2 rw
+36 25 0:30 /ns/root /sys/fs/cgroup rw - cgroup2 cgroup2 rw
+",
+        "/sys/fs/cgroup/leaf"
+    )]
+    fn picks_matching_v2_mount(#[case] mountinfo: &str, #[case] expected_base: &str) {
+        let (base, hierarchy) =
+            detect_base(mountinfo.as_bytes(), "0::/ns/root/leaf\n".as_bytes()).unwrap();
+        assert_eq!(base, PathBuf::from(expected_base));
+        assert_eq!(hierarchy, Hierarchy::V2);
     }
 
     #[rstest]
