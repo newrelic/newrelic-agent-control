@@ -130,7 +130,10 @@ fn command_shutdown_sigterm_reaches_descendants() {
         "test".to_string().try_into().unwrap(),
         &ExecutableData {
             id: "test".to_string(),
-            bin: "tests/on_host/data/term_propagation.sh".to_string(),
+            bin: std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/on_host/data/term_propagation.sh")
+                .to_string_lossy()
+                .into_owned(),
             args: vec![marker.to_string_lossy().into_owned()],
             env: Default::default(),
             restart_policy: Default::default(),
