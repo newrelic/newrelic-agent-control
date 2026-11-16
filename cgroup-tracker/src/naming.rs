@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 /// Prefix of every cgroup created by the tracker.
-pub const CGROUP_PREFIX: &str = "_nr-ac-";
+pub(crate) const CGROUP_PREFIX: &str = "_nr-ac-";
 
 /// Identifies the cgroup of an executable of an agent.
 ///
