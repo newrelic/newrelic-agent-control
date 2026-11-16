@@ -327,8 +327,8 @@ and run against both cgroup hierarchies: v1 through a private named hierarchy mo
 cgroup (skipped on hosts without the unified hierarchy). Build as your user and run through `sudo`:
 
 ```sh
-cargo test -p cgroup-tracker --test cgroupfs --no-run
-sudo -E env "PATH=$PATH" cargo test -p cgroup-tracker --test cgroupfs -- --ignored
+cargo test -p cgroup-tracker --test cgroupfs --no-run   # prints the test binary path
+sudo <test binary path> --ignored
 ```
 
 ### Feature `k8s`

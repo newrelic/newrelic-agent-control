@@ -2,7 +2,8 @@
 //! by default:
 //!
 //! ```text
-//! sudo -E env "PATH=$PATH" cargo test -p cgroup-tracker --test cgroupfs -- --ignored
+//! cargo test -p cgroup-tracker --test cgroupfs --no-run   # prints the test binary path
+//! sudo <test binary path> --ignored
 //! ```
 //!
 //! Every test runs against both hierarchies. The v2 case uses a scratch cgroup under the one of

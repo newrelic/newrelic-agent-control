@@ -485,10 +485,17 @@ jobs:
           save-cache: false
 
       - name: Build cgroup-tracker integration tests
-        run: cargo test --locked --package cgroup-tracker --test cgroupfs --no-run
+        id: build
+        run: |
+          bin="$(cargo test --locked --package cgroup-tracker --test cgroupfs --no-run --message-format=json \
+            | jq -r 'select(.reason == "compiler-artifact" and .target.name == "cgroupfs" and .executable != null) | .executable')"
+          echo "bin=${bin}" >> "$GITHUB_OUTPUT"
 
+      # Run the test binary itself: sudo resets the environment, which would break cargo's rustup setup.
       - name: Run cgroup-tracker root-required integration tests
-        run: sudo -E env "PATH=$PATH" cargo test --locked --package cgroup-tracker --test cgroupfs -- --ignored
+        env:
+          TEST_BIN: ${{ steps.build.outputs.bin }}
+        run: sudo "$TEST_BIN" --ignored
 
   on-host-oci-registry-tests:
     name: tests with oci registry
