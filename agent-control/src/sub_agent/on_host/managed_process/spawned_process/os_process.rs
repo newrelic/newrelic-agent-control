@@ -97,21 +97,39 @@ impl OsProcess {
     }
 }
 
-#[cfg(all(test, target_family = "unix"))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::agent_control::defaults::STDOUT_LOG_FILE_NAME;
     use crate::sub_agent::on_host::managed_process::spawned_process::restart_policy::RestartPolicy;
     use crate::utils::retry::retry;
     use std::collections::HashMap;
+    use std::time::Duration;
+
+    /// Prints `late-output` to stdout after a short delay.
+    fn delayed_output_command() -> (String, Vec<String>) {
+        #[cfg(target_family = "unix")]
+        let (bin, args) = ("sh", ["-c", "sleep 1; echo late-output"]);
+        #[cfg(target_family = "windows")]
+        let (bin, args) = (
+            "powershell",
+            [
+                "-NoProfile",
+                "-Command",
+                "Start-Sleep -Seconds 1; Write-Output late-output",
+            ],
+        );
+        (bin.to_string(), args.map(String::from).to_vec())
+    }
 
     #[test]
     fn process_keeps_writing_to_log_file_after_being_dropped() {
         let log_dir = tempfile::tempdir().unwrap();
+        let (bin, args) = delayed_output_command();
         let exec_data = ExecutableData {
             id: "late-writer".to_string(),
-            bin: "sh".to_string(),
-            args: vec!["-c".to_string(), "sleep 1; echo late-output".to_string()],
+            bin,
+            args,
             env: HashMap::new(),
             restart_policy: RestartPolicy::default(),
             shutdown_timeout: Default::default(),
