@@ -1,7 +1,6 @@
 use crate::hierarchy::detect_base;
 use crate::{CgroupError, CgroupName, Hierarchy};
 use nix::errno::Errno;
-use nix::fcntl::{OFlag, open};
 use nix::sys::signal::{Signal, kill};
 use nix::sys::stat::Mode;
 use nix::unistd::{Pid, write};
@@ -29,13 +28,15 @@ pub struct CgroupTracker {
 impl CgroupTracker {
     /// Detects the hierarchy and base cgroup from `/proc/self`.
     pub fn detect() -> Result<Self, CgroupError> {
-        let open = |path: &str| {
+        let open_file = |path: &str| {
             File::open(path)
                 .map(BufReader::new)
                 .map_err(|err| CgroupError::Detect(format!("opening `{path}`: {err}")))
         };
-        let (base, hierarchy) =
-            detect_base(open("/proc/self/mountinfo")?, open("/proc/self/cgroup")?)?;
+        let (base, hierarchy) = detect_base(
+            open_file("/proc/self/mountinfo")?,
+            open_file("/proc/self/cgroup")?,
+        )?;
         Ok(Self::with_base(base, hierarchy))
     }
 
@@ -88,9 +89,9 @@ impl CgroupTracker {
         // to `cgroup.procs` moves the calling process, so the child never execs outside the cgroup.
         unsafe {
             command.pre_exec(move || {
-                let fd = open(
+                let fd = nix::fcntl::open(
                     procs.as_c_str(),
-                    OFlag::O_WRONLY | OFlag::O_CLOEXEC,
+                    nix::fcntl::OFlag::O_WRONLY | nix::fcntl::OFlag::O_CLOEXEC,
                     Mode::empty(),
                 )?;
                 write(&fd, b"0")?;
