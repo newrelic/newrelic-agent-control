@@ -141,7 +141,7 @@ impl CgroupTracker {
                 attempts: KILL_ATTEMPTS,
             });
         }
-        // Best effort: the parent (agent) cgroup may hold other executables.
+        // Best effort: the shared root cgroup is only removed once no other cgroup is left in it.
         if let Some(parent) = path.parent() {
             let _ = fs::remove_dir(parent);
         }
@@ -245,6 +245,10 @@ mod tests {
     use std::collections::HashMap;
     use tempfile::TempDir;
 
+    fn name(value: &str) -> CgroupName {
+        CgroupName::try_from(value).unwrap()
+    }
+
     fn tracker() -> (TempDir, CgroupTracker) {
         let dir = TempDir::new().unwrap();
         // V1 so killing goes through signals, a tempdir has no `cgroup.kill`.
@@ -256,24 +260,24 @@ mod tests {
     fn path_of_joins_base_and_name() {
         let tracker = CgroupTracker::with_base("/sys/fs/cgroup/test", Hierarchy::V2);
         assert_eq!(
-            tracker.path_of(&CgroupName::new("agent", "exec")),
-            PathBuf::from("/sys/fs/cgroup/test/_nr-ac-agent/exec")
+            tracker.path_of(&name("agent-exec")),
+            PathBuf::from("/sys/fs/cgroup/test/_nr-ac/agent-exec")
         );
     }
 
     #[test]
     fn create_is_idempotent() {
         let (_dir, tracker) = tracker();
-        let name = CgroupName::new("agent", "exec");
+        let name = name("agent-exec");
         tracker.create(&name).unwrap();
         tracker.create(&name).unwrap();
         assert!(tracker.path_of(&name).is_dir());
     }
 
     #[test]
-    fn kill_and_remove_deletes_cgroup_and_empty_agent_dir() {
+    fn kill_and_remove_deletes_cgroup_and_empty_root_dir() {
         let (_dir, tracker) = tracker();
-        let name = CgroupName::new("agent", "exec");
+        let name = name("agent-exec");
         tracker.create(&name).unwrap();
 
         tracker.kill_and_remove(&name).unwrap();
@@ -283,9 +287,9 @@ mod tests {
     }
 
     #[test]
-    fn kill_and_remove_keeps_agent_dir_with_other_executables() {
+    fn kill_and_remove_keeps_root_dir_with_other_cgroups() {
         let (_dir, tracker) = tracker();
-        let (a, b) = (CgroupName::new("agent", "a"), CgroupName::new("agent", "b"));
+        let (a, b) = (name("agent-a"), name("agent-b"));
         tracker.create(&a).unwrap();
         tracker.create(&b).unwrap();
 
@@ -297,9 +301,7 @@ mod tests {
     #[test]
     fn kill_and_remove_missing_cgroup_is_ok() {
         let (_dir, tracker) = tracker();
-        tracker
-            .kill_and_remove(&CgroupName::new("agent", "exec"))
-            .unwrap();
+        tracker.kill_and_remove(&name("agent-exec")).unwrap();
     }
 
     /// Records the signalled pids and fails the configured ones.
@@ -359,7 +361,7 @@ mod tests {
     #[test]
     fn members_includes_descendant_cgroups() {
         let (_dir, tracker) = tracker();
-        let name = CgroupName::new("agent", "exec");
+        let name = name("agent-exec");
         tracker.create(&name).unwrap();
         let path = tracker.path_of(&name);
         let child = path.join("child");
@@ -377,9 +379,7 @@ mod tests {
     fn members_is_empty_when_cgroup_does_not_exist() {
         let (_dir, tracker) = tracker();
 
-        let pids = tracker
-            .members(&CgroupName::new("agent", "missing"))
-            .unwrap();
+        let pids = tracker.members(&name("missing")).unwrap();
 
         assert!(pids.is_empty());
     }
@@ -387,7 +387,7 @@ mod tests {
     #[test]
     fn prepare_attaches_child_before_exec() {
         let (_dir, tracker) = tracker();
-        let name = CgroupName::new("agent", "exec");
+        let name = name("agent-exec");
         tracker.create(&name).unwrap();
         // A regular file stands in for the kernel interface file.
         let procs = tracker.path_of(&name).join(PROCS_FILE);
@@ -405,9 +405,7 @@ mod tests {
         let (_dir, tracker) = tracker();
         let mut command = Command::new("true");
         // No `cgroup.procs` file, so attaching fails and the command must not run.
-        tracker
-            .prepare(&CgroupName::new("agent", "exec"), &mut command)
-            .unwrap();
+        tracker.prepare(&name("agent-exec"), &mut command).unwrap();
         assert!(command.spawn().is_err());
     }
 }
