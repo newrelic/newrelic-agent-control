@@ -73,30 +73,35 @@ The following is a section of the defined configuration variables for the Kubern
 ```yaml
 variables:
   chart_values:
-    newrelic-infrastructure:
-      description: "newrelic-infrastructure chart values"
-      type: yaml
-      required: false
-      default: {}
-    nri-metadata-injection:
-      description: "nri-metadata-injection chart values"
-      type: yaml
-      required: false
-      default: {}
-    global:
-      description: "Global chart values"
-      type: yaml
-      required: false
-      default: {}
+    description: "newrelic-infrastructure chart values"
+    type: yaml
+    required: false
+    default: {}
   chart_version:
     description: "nri-bundle chart version"
     type: string
     required: true
+  chart_name:
+    description: "nri-bundle chart name"
+    type: string
+    required: false
+    default: "nri-bundle"
+  chart_repository:
+    url:
+      description: "chart repository url"
+      type: string
+      required: false
+      default: "https://helm-charts.newrelic.com"
+    secret_reference:
+      description: "HelmRepository secret reference (secretRef)"
+      type: yaml
+      required: false
+      default: null
 ```
 
-Here, `chart_values` is a grouping field that contains three nested variables (`newrelic-infrastructure`, `nri-metadata-injection` and `global`), while `chart_version` is a sibling top-level variable.
+Here, `chart_repository` is a grouping field that contains two nested variables (`url` and `secret_reference`), while `chart_values`, `chart_version` and `chart_name` are sibling top-level variables.
 
-When referencing these variables elsewhere, as you will see in the [deployment](#agent-type-deployment) and [applying configuration](#applying-configurations) sections, you would access these nested fields using a dot (`.`), as usual for accessing fields in programming languages. For our example, we would use `chart_values.newrelic-infrastructure`, `chart_values.nri-metadata-injection`, `chart_values.global` and `chart_version` respectively.
+When referencing these variables elsewhere, as you will see in the [deployment](#agent-type-deployment) and [applying configuration](#applying-configurations) sections, you would access these nested fields using a dot (`.`), as usual for accessing fields in programming languages. For our example, we would use `chart_values`, `chart_version`, `chart_name`, `chart_repository.url` and `chart_repository.secret_reference` respectively.
 
 The variables can theoretically be nested this way indefinitely, but for usability purposes we advise to keep this at a reasonable level.
 
@@ -130,7 +135,7 @@ The value type that is accepted for this variable. As of now, the following type
 
 ##### `required` (`bool`)
 
-Specifies if providing a value for this variable is required or not. If `required` is `false`, a `default` value of its specified [type](#type-string) needs to be provided. If `required` is `true`, then a `default` value cannot be specified.
+Specifies if providing a value for this variable is required or not. If `required` is `false`, a `default` value of its specified [type](#type-string) needs to be provided, except for `yaml` variables, where an omitted `default` becomes `null`. If `required` is `true`, then a `default` value cannot be specified.
 
 ##### `default` (optional)
 
@@ -146,12 +151,14 @@ The `deployment` field is required and **cannot be empty**.
 
 #### The role of `variables`
 
-These instructions can be dynamically *rendered* using as inputs the **values** for the [variables](#agent-type-variables) exposed above, environment variables and other internal information exposed by AC. To reference any of these contents we use a template syntax with the form `${<NAMESPACE>:<VARIABLE_REF>}`. The `NAMESPACE` section can have the following values and determines what the `VARIABLE_REF` section represents:
+These instructions can be dynamically *rendered* using as inputs the **values** for the [variables](#agent-type-variables) exposed above, environment variables and other internal information exposed by AC. To reference any of these contents we use a template syntax with the form `${<NAMESPACE>:<VARIABLE_REF>}`. The `NAMESPACE` section determines what the `VARIABLE_REF` section represents:
 
 - `nr-var`: a variable exposed as in the previous section. If you defined a variable called `configs.some_toggle` then you can reference it inside the `deployment` section as `${nr-var:configs.some_toggle}`.
 - `nr-env`: environment variables. So, if AC started running with an env var called `MY_ENV` defined, it can be used inside the `deployment` section with `${nr-env:MY_ENV}`.
-- `nr-sub`: metadata variables related to the current workload populated automatically by AC. As of now, only the variable `agent_id` is exposed, which is a unique, human-friendly identifier of the current workload.
+- `nr-sub`: metadata variables related to the current workload populated automatically by AC. It exposes `agent_id` (a unique, human-friendly identifier of the current workload), `filesystem_agent_dir`, `shared_filesystem_dir`, `remote_dir` and, on-host, `packages.<package-id>.dir`.
 - `nr-ac`: global metadata used by AC (see [Global metadata list](#global-metadata-list)).
+
+Other namespaces (`nr-path`, `nr-vault`, `nr-file`, `nr-kubesec`, `nr-kubecm`, `nr-azurekv`, `nr-awssm`) are described in [VARIABLE_INTERPOLATION.md](./VARIABLE_INTERPOLATION.md).
 
 When talking about the variables that were defined in the `variables` field for an agent type definition, that can be used as local or received as remote configuration for an agent type instance, we will often use the term configuration values or just **values**.
 
@@ -294,6 +301,15 @@ deployment:
         kind: HelmReleaseWorkload
         target_namespace: ${nr-ac:namespace_agents}
   objects:
+    values:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: values-${nr-sub:agent_id}
+        namespace: ${nr-ac:namespace}
+      stringData:
+        values.yaml: |
+          ${nr-var:chart_values}
     release:
       apiVersion: helm.toolkit.fluxcd.io/v2
       kind: HelmRelease
@@ -303,14 +319,16 @@ deployment:
       spec:
         targetNamespace: ${nr-ac:namespace_agents}
         releaseName: ${nr-sub:agent_id}
-        interval: 3m
+        interval: 30s
+        chart:
+          spec:
+            chart: ${nr-var:chart_name}
+            version: ${nr-var:chart_version}
+        valuesFrom:
+          - kind: Secret
+            name: values-${nr-sub:agent_id}
+            valuesKey: values.yaml
         # ... omitted for brevity
-        values:
-          newrelic-infrastructure: ${nr-var:chart_values.newrelic-infrastructure}
-          nri-metadata-injection: ${nr-var:chart_values.nri-metadata-injection}
-          kube-state-metrics: ${nr-var:chart_values.kube-state-metrics}
-          nri-kube-events: ${nr-var:chart_values.nri-kube-events}
-          global: ${nr-var:chart_values.global}
 ```
 
 ##### Global metadata list
@@ -337,6 +355,7 @@ The following fields are used for configuring the on-host deployment of a sub-ag
 
 Instructions to actually run the sub-agent process. It is composed of the following fields:
 
+- `id`: Required. Unique identifier of the executable within the agent type. A string.
 - `path`: Full path to the executable binary. A string.
 - `args`: Command line arguments passed to the executable. This is an array of string.
 - `env`: A key-value mapping of environment variables and their respective values. Strings.
@@ -544,9 +563,9 @@ The value yaml look like:
 ```
 
 Note that a Package version. Can be:
-- A tag (`:v1.0.0`)
+- A tag (`v1.0.0`)
 - A digest (`@sha256:...`)
-- Both tag and digest (`:v1.0.0@sha256:...`), when both are specified the digest takes precedence.
+- Both tag and digest (`v1.0.0@sha256:...`), when both are specified the digest takes precedence.
 
 `public_key_url` is an optional field, when not configured signature verifications is skipped and logged with warn level.
 
@@ -581,17 +600,17 @@ The hook runs with a hardcoded timeout of 300 seconds (5 minutes) and is not con
 
 Fields:
 - `path`: Path to the command/interpreter. Can be absolute (e.g., `/bin/bash`, `C:\Windows\System32\cmd.exe`) or relative (e.g., `bash`, `python3`, `cmd`) which will be searched in the system PATH. **Required**.
-- `args`: List of arguments passed to the command. The structure depends on your use case (see examples below). Can be empty for binaries that don't require arguments. **Required**.
+- `args`: List of arguments passed to the command. The structure depends on your use case (see examples below). Optional, defaults to an empty list.
 - `env`: Optional map of environment variables passed to the script process.
 
 The script execution environment includes:
 - `PACKAGE_DIR`: Automatically set to the package installation directory
 - Current working directory: Set to the package directory
-- `stdout`: Discarded (to avoid log noise)
+- `stdout`: Captured and logged at debug level on success, and included in the warning log on failure
 - `stderr`: Captured and logged on failure
 
 > [!NOTE]
-> On Unix systems, if `path` points to a file, it will be automatically made executable (`chmod +x`) before execution. This ensures scripts extracted from OCI packages work even if they don't have execute permissions in the archive.
+> `path` is executed as is: scripts must already be executable in the OCI package, or be invoked through an interpreter (for example `path: bash` with `args: [./install.sh]`).
 
 **Linux Examples:**
 
@@ -990,7 +1009,7 @@ With [DaemonSets](https://kubernetes.io/docs/concepts/workloads/controllers/daem
 
 ##### Deployment
 
-For [Deployments](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/), AC will set healthy whenever there is no unavailable replicas.
+For [Deployments](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/), AC will set healthy whenever there are no unavailable replicas and the available replicas are not fewer than the desired replicas.
 
 #### Instrumentation CR
 

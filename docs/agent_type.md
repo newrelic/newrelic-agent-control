@@ -90,7 +90,7 @@ variables:
 All variables have a few common attributes:
 
 * `description`: A brief description of the variable. This is useful for documentation purposes and can help others understand the purpose of the variable.
-* `type`: The data type of the variable. We support several data types, including `string`, `file`, `bool`, `yaml`, and more.
+* `type`: The data type of the variable. We support several data types, including `string`, `bool`, `number`, `yaml` and `string_map`.
 * `default`: The default value for the variable if no value is provided.
 * `required`: Whether the variable is mandatory to be provided or not.
 * `classification`: A label that describes the kind of value the variable holds (e.g. `config`, `multi-config`).
@@ -98,11 +98,11 @@ All variables have a few common attributes:
 
 Both `classification` and `deprecated` are accepted and ignored by Agent Control — they carry no runtime behavior and don't affect resolution, validation, or defaults.
 
-In terms of variable types, we currently support the following types listed in [this source file](./variable/variable_type.rs#L22):
+In terms of variable types, we currently support the following types listed in [this source file](../agent-control/src/agent_type/variable/value.rs):
 
 * `string`: A string value, such as "Hello, world!"
 * `number`: An numeric value, such as 42 or 0.25
-* `boolean`: A boolean value, which can be either *true* or *false*
+* `bool`: A boolean value, which can be either *true* or *false*
 * `yaml`: The YAML type variable is used to handle multi-line strings that will be parsed as YAML such as Helm Charts values.
 * `string_map`: A map of string keys to string values. Used to project a set of files into a directory on-host (see `dir_content_from_map`), where map keys become filenames and values become file contents.
 
@@ -110,7 +110,7 @@ In terms of variable types, we currently support the following types listed in [
 
 The deployment section indicates how the agent should be executed and how its health should be checked.
 
-Note you can reference the variables defined in the `variables` section using `${nr-var:variable_name}`. And this is valid for nested variables as well: following the example above, you would be able to use `${nr-var:log.info}`.
+Note you can reference the variables defined in the `variables` section using `${nr-var:variable_name}`. And this is valid for nested variables as well: following the example above, you would be able to use `${nr-var:log.level}`.
 
 ### Template Functions
 
@@ -151,7 +151,9 @@ deployment:
       args:
         - --config
         - ${nr-var:config_agent}
-      env: "NRIA_PLUGIN_DIR="${nr-sub:shared_filesystem_dir}/infra-agent-ohi-configs" NRIA_STATUS_SERVER_ENABLED=true"
+      env:
+        NRIA_PLUGIN_DIR: "${nr-sub:shared_filesystem_dir}/infra-agent-ohi-configs"
+        NRIA_STATUS_SERVER_ENABLED: "true"
       restart_policy:
         backoff_strategy:
           type: fixed
@@ -183,7 +185,7 @@ In the `backoff_strategy` we have:
   * `exponential`: Delay interval doubles after each retry.
 * `backoff_delay`: It defines the duration between retries when a restart is needed. This delay protects against aggressive restarts. Default is *2s*.
 * `max_retries`: This integer value defines the maximum number of retry attempts before exiting the retry mechanism and accepting the failure. Default is *0*.
-* `last_retry_interal`: This is used to store the duration of the last delay. It can especially be relevant in case of *linear* or *exponential* back-off strategies where each retry level has a different delay value. Default is *600*.
+* `last_retry_interval`: This is used to store the duration of the last delay. It can especially be relevant in case of *linear* or *exponential* back-off strategies where each retry level has a different delay value. Default is *600*.
 
 #### On Host Health
 
@@ -199,6 +201,8 @@ health:
         path: "/v1/status"
         port: 8003
         healthy_status_codes: [200, 203, 204]
+      - kind: File
+        path: "${nr-sub:filesystem_agent_dir}/health.yml"
 ```
 
 In this configuration:
@@ -212,7 +216,7 @@ In this configuration:
 
 By finely tuning these parameters, developers can closely monitor the agent's performance and address issues instantly. Adopting a robust health check strategy helps minimize downtime and keeps your system resilient and reliable.
 
-Additionally, alternate protocols and interfaces can be mentioned under `health` - for instance, a `cmd` interface to run a command or script, or a `file` interface to read a specific file for agent status. However, as of current updates, these methods are **not implemented** yet.
+Additionally, a `cmd` interface to run a command or script can be mentioned under `health`. However, as of current updates, this method is **not implemented** yet.
 
 ```yaml
 # ...
@@ -222,17 +226,6 @@ health:
   cmd:
     command: "newrelic-agent-control --status"
     healthy_codes: [0] 
-    unhealthy_string: ".*(unhealthy|fatal|error).*"
-```
-
-```yaml
-# ...
-health:
-  interval: 30s
-  timeout: 5s
-  file:
-    path: "/etc/newrelic-infra/health.lock"
-    should_be_present: true
     unhealthy_string: ".*(unhealthy|fatal|error).*"
 ```
 
@@ -495,7 +488,7 @@ This guideline shows how to build a custom agent type and integrate it with the 
         agent_type: "external/com.influxdata.telegraf:0.0.1"
     ```
 
-4. If any `required` variable has been defined in the type or any default value for variables needs to be customized, then define a `values.yaml` in `/etc/newrelic-agent-control/fleet/agents.d/my-telegraf/values.yaml`:
+4. If any `required` variable has been defined in the type or any default value for variables needs to be customized, then define a `local_config.yaml` in `/etc/newrelic-agent-control/local-data/my-telegraf-collector/local_config.yaml`, where the directory name is the agent id used in the `agents` config:
 
     ```yaml
     config_file: /custom/path/to/file

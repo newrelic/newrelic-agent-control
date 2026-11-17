@@ -18,7 +18,7 @@ To compile and run locally:
     - On macOS, you might run into an error like the following:
 
       ```console
-      ❯ cargo zigbuild --bin newrelic-agent-control-onhost --target aarch64-unknown-linux-musl
+      ❯ cargo zigbuild --bin newrelic-agent-control --target aarch64-unknown-linux-musl
       [...]
         = note: some arguments are omitted. use `--verbose` to show all linker arguments
         = note: error: unable to search for static library /<SOME_PATH_TO_RLIB_FILE>.rlib: ProcessFdQuotaExceeded
@@ -58,7 +58,7 @@ To compile and run locally:
       # pipelines:
     ```
 
-8. Execute the binary with the config file with `sudo ./target/debug/newrelic-agent-control`
+8. Execute the binary with the config file with `sudo ./target/<ARCH>-unknown-linux-musl/debug/newrelic-agent-control`
 
 #### Cross-compilation for Windows
 
@@ -99,7 +99,7 @@ Control configuration directory.
 ### Kubernetes
 
 We use [`minikube`](https://minikube.sigs.k8s.io/docs/) and [`tilt`](https://tilt.dev/) to launch a local cluster and
-deploy the Agent Control [charts](https://github.com/newrelic/helm-charts/tree/master/charts/agent-control).
+deploy the Agent Control [charts](https://github.com/newrelic/helm-charts/tree/master/charts/agent-control-bootstrap).
 
 #### Prerequisites
 
@@ -111,9 +111,8 @@ deploy the Agent Control [charts](https://github.com/newrelic/helm-charts/tree/m
 - Ensure you have `tilt` installed for managing local development environments.
 - Add an Agent Control values file in `local/agent-control-tilt.yml`.
 
-Note: Adding the `'chart_repo'` setting, pointing to
-the [New Relic charts](https://github.com/newrelic/helm-charts/tree/master/charts) on a local path, allows using local
-helm charts.
+Note: The `FEATURE_BRANCH` environment variable selects the branch of the
+[New Relic charts](https://github.com/newrelic/helm-charts/tree/master/charts) repository used by the `Tiltfile`.
 
 #### Steps
 
@@ -125,7 +124,7 @@ make tilt-up
 On macOS, you might run into an error like the following:
 
 ```console
-❯ cargo zigbuild --bin newrelic-agent-control-onhost --target aarch64-unknown-linux-musl
+❯ cargo zigbuild --bin newrelic-agent-control-k8s --target aarch64-unknown-linux-musl
 [...]
   = note: some arguments are omitted. use `--verbose` to show all linker arguments
   = note: error: unable to search for static library /<SOME_PATH_TO_RLIB_FILE>.rlib: ProcessFdQuotaExceeded
@@ -394,12 +393,12 @@ cargo build -p newrelic_agent_control --profile release-debug --features dhat-ad
 ### Heap Profiling in Kubernetes
 
 You can run heap profiling inside a Kubernetes cluster by using pre-built container images that have the `dhat-heap`
-feature compiled in. A dedicated GitHub Actions workflow (`⏯️🚀 Build dhat-heap images to ghcr.io`) is available to
+feature compiled in. A dedicated GitHub Actions workflow (`⏯️🚀 Build dhat-heap AC image to ghcr.io`) is available to
 build and push multi-arch (`linux/amd64`, `linux/arm64`) images to the GitHub Container Registry.
 
 #### 1. Build the profiling images
 
-Navigate to **Actions → ⏯️🚀 Build dhat-heap images to ghcr.io → Run workflow** and run it:
+Navigate to **Actions → ⏯️🚀 Build dhat-heap AC image to ghcr.io → Run workflow** and run it:
 
 The workflow produces a new image:
 
@@ -489,7 +488,7 @@ agentControlDeployment:
       limits:
         memory: "1Gi"
     image:
-      registry: ghrc.io
+      registry: ghcr.io
       repository: newrelic/newrelic-agent-control-dev
       tag: dhat-heap-dev-1
       pullPolicy: Always

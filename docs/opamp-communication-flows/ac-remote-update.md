@@ -10,7 +10,8 @@ Example message updating the on-host Agent Control binary:
 
 ```yaml
 agents:
-  nr-infra: newrelic/com.newrelic.infrastructure:0.1.0
+  nr-infra:
+    agent_type: newrelic/com.newrelic.infrastructure:0.1.0
 version: "v1.2.3"
 ```
 
@@ -18,7 +19,8 @@ Example with a pinned digest:
 
 ```yaml
 agents:
-  nr-infra: newrelic/com.newrelic.infrastructure:0.1.0
+  nr-infra:
+    agent_type: newrelic/com.newrelic.infrastructure:0.1.0
 version: "v1.2.3@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
 ```
 
@@ -30,7 +32,8 @@ Example message updating Agent Control chart version:
 
 ```yaml
 agents:
-  nr-infra: newrelic/com.newrelic.infrastructure:0.1.0
+  nr-infra:
+    agent_type: newrelic/com.newrelic.infrastructure:0.1.0
 chart_version: "1.0.0"
 ```
 
@@ -38,7 +41,8 @@ Example message updating Flux version:
 
 ```yaml
 agents:
-  nr-infra: newrelic/com.newrelic.infrastructure:0.1.0
+  nr-infra:
+    agent_type: newrelic/com.newrelic.infrastructure:0.1.0
 cd_chart_version: "1.0.0"
 ```
 
@@ -46,7 +50,8 @@ Example message updating both versions:
 
 ```yaml
 agents:
-  nr-infra: newrelic/com.newrelic.infrastructure:0.1.0
+  nr-infra:
+    agent_type: newrelic/com.newrelic.infrastructure:0.1.0
 chart_version: "1.0.0"
 cd_chart_version: "1.0.0"
 ```

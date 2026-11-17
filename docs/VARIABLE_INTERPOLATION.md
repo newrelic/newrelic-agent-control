@@ -24,7 +24,7 @@ Filters are optional post-processing steps applied to the resolved value (e.g. `
 | Sub-agent attributes | `nr-sub` | AC-computed paths and identifiers for the sub-agent | On-host, K8s |
 | Agent Control attributes | `nr-ac` | AC's own runtime attributes | On-host, K8s |
 | Path helpers | `nr-path` | OS-native paths (avoids separator issues on Windows) | On-host |
-| Environment variables | `nr-env` | Host environment (`std::env`) | On-host |
+| Environment variables | `nr-env` | Agent Control process environment (`std::env`) | On-host, K8s |
 | Vault secrets | `nr-vault` | HashiCorp Vault (KV1 or KV2) | On-host |
 | Azure Key Vault secrets | `nr-azurekv` | Azure Key Vault (Managed Identity or Service Principal) | On-host |
 | AWS Secrets Manager secrets | `nr-awssm` | AWS Secrets Manager (access key or EC2 instance profile) | On-host |
@@ -95,7 +95,9 @@ Runtime attributes from AC itself.
 
 | Variable | Description |
 |---|---|
-| `nr-ac:host_id` | Unique identifier for the host running AC |
+| `nr-ac:host_id` | Unique identifier for the host running AC (on-host only) |
+| `nr-ac:namespace` | Namespace where Agent Control is deployed (K8s only) |
+| `nr-ac:namespace_agents` | Namespace where sub-agents are created (K8s only) |
 
 ```yaml
 env:
@@ -134,7 +136,7 @@ log:
 
 ### `nr-env` — Environment variables
 
-Reads a value directly from the host's environment at render time. No configuration required.
+Reads a value directly from the Agent Control process environment at render time. No configuration required.
 
 ```yaml
 env:

@@ -1,6 +1,6 @@
 # Agent Control Configuration
 
-Agent control will load the configuration from the file `local_config.yaml` in the corresponding directory (`/etc/newrelic-agent-control/local-data/agent-control/` or `/opt/homebrew/var/lib/newrelic-agent-control/local-data/agent-control/`).
+Agent control will load the configuration from the file `local_config.yaml` in the corresponding directory (`/etc/newrelic-agent-control/local-data/agent-control/` or `/opt/homebrew/etc/newrelic-agent-control/local-data/agent-control/`).
 
 Additionally, any configuration field can be set as an environment variable with the `NR_AC` prefix, using `__` to separate keys. Examples:
 
@@ -12,7 +12,7 @@ NR_AC_FLEET_CONTROL__AUTH_CONFIG__CLIENT_ID="some-client-id"
 ```
 ## Environment Variables file (on-host)
 
-Agent Control can load environment variables from a YAML file named `environment_variables.yaml` placed in the local configuration directory (`/etc/newrelic-agent-control/`, `C:\Program Files\New Relic\newrelic-agent-control\`). 
+Agent Control can load environment variables from a YAML file named `environment_variables.yaml` placed in the local configuration directory (`/etc/newrelic-agent-control/`, `/opt/homebrew/etc/newrelic-agent-control/`, `C:\Program Files\New Relic\newrelic-agent-control\`). 
 
 Format: the file must be a flat YAML map of string keys to string values.
 
@@ -44,7 +44,8 @@ Example:
 
 ```yaml
 agents:
-  nrdot: "newrelic/com.newrelic.opentelemetry.collector:0.1.0"
+  nrdot:
+    agent_type: "newrelic/com.newrelic.opentelemetry.collector:0.1.0"
 ```
 
 ### logs
@@ -55,11 +56,11 @@ Logs can be configured as follows:
 log:
   format:
     target: true # Defaults to false, includes extra information for debugging purposes
-    timestamp: "%Y-%m-%dT%H:%M%S" # Defaults to "%Y-%m-%dT%H:%M%S", details in <https://docs.rs/chrono/0.4.40/chrono/format/strftime/index.html#fn7>
+    timestamp: "%Y-%m-%dT%H:%M:%S" # Defaults to "%Y-%m-%dT%H:%M:%S", details in <https://docs.rs/chrono/0.4.40/chrono/format/strftime/index.html#fn7>
     ansi_colors: true # Defaults to false, set up ansi-colors in the stderr logs output.
     formatter: json # Defaults to "json". It accepts "json" (newline delimited JSON logs) or "pretty" (human-readable, single-line logs)
   level: debug # Defines the log level, defaults to "info".
-  insecure_fine_grained_level: debug # Enables logs for external dependencies and sets its level. This cannot be considered secure since external dependencies may leek secrets. If this is set the 'level' field does not apply.
+  insecure_fine_grained_level: debug # Enables logs for external dependencies and sets its level. This cannot be considered secure since external dependencies may leak secrets. If this is set the 'level' field does not apply.
   file:
     enabled: true # Enabled logging to files.
     path: /some/path/logs.log # Optional path to write logs to, if not set it will use 'newrelic-agent-control.log' in the application logging directory.
@@ -84,7 +85,7 @@ fleet_control:
   fleet_id: "some-id" # Fleet identifier.
   signature_validation:
     enabled: true # Defaults to true, allows disabling the signature validation.
-    public_key_server_url: "https://publickeys.newrelic.com/signing/blob-management/global/agentconfiguration" # Server to obtain the public key for signature validation.
+    public_key_server_url: "https://publickeys.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json" # Server to obtain the public key for signature validation.
 ```
 
 ### proxy
@@ -93,8 +94,8 @@ Agent Control will use the system proxy (configured through the standard `HTTP_P
 proxy options can also be configured using the proxy configuration field. If both are set, the precedence works as follows:
 
 1. `proxy` configuration field
-2. `HTTP_PROXY` environment variable
-3. `HTTPS_PROXY` environment variable
+2. `HTTPS_PROXY` environment variable
+3. `HTTP_PROXY` environment variable
 
 ```yaml
 proxy:
@@ -118,7 +119,7 @@ Agent Control status server allows consulting the status of Agent Control and an
 server:
   port: 51200 # Port for the status server. Defaults to 51200.
   host: "127.0.0.1" # Host for the status server. Defaults to '127.0.0.1'.
-  enabled: true # The status server is enabled by default
+  enabled: true # Defaults to false. Set to true to enable the status server.
 ```
 
 ### health_check
@@ -151,7 +152,7 @@ self_instrumentation:
       enabled: true # Defaults to false.
       batch_config:
         scheduled_delay: 30s # Set the scheduled delay for batch export of logs. Defaults to 30s.
-        max_size: 512 # Se the maximum number of logs to process in a single batch. Defaults to 512.
+        max_size: 512 # Set the maximum number of logs to process in a single batch. Defaults to 512.
 ```
 
 ### host_id
@@ -181,7 +182,7 @@ k8s:
   current_chart_version: "0.0.50-dev" # Chart version used to deploy agent-control, it will be reported to Fleet Control and used to check if a remote update should be applied.
   ac_remote_update: true # When disabled remote updates for Agent Control are ignored.
   ac_release_name: agent-control-deployment # Informs of the 'Agent Control' release name that needs to be updated on remote updates and when checking health. If it is empty, the healthiness of Agent Control will not be checked.
-  cd_remote_update: true # When disabled remote updates for the Agent Control CD are ignored. Besides, the health of this component is not checked.
+  cd_remote_update: true # When disabled remote updates for the Agent Control CD are ignored.
   cd_release_name: agent-control-cd  # Informs of the 'Agent Control CD' release name that needs to be updated on remote updates and when checking health. If it is empty, the healthiness of Agent Control CD will not be checked.
 ```
 
@@ -282,7 +283,7 @@ Configures the on-host self-update mechanism.
 
 ```yaml
 self_update:
-  enabled: false # Defaults to false. When true, Agent Control will attempt to self-update when Fleet Control pushes a new version.
+  enabled: true # Defaults to true. When true, Agent Control will attempt to self-update when Fleet Control pushes a new version. Set to false to disable it.
   signature_verification_enabled: true # Defaults to true. When false, package signature verification is skipped (not recommended for production).
   package:
     download:

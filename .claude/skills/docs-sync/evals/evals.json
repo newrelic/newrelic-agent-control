@@ -1,0 +1,193 @@
+{
+  "skill_name": "docs-sync",
+  "evals": [
+    {
+      "id": 1,
+      "name": "shared-fs-cleanup",
+      "commit": "6279d31d",
+      "prompt": "/docs-sync branch",
+      "expected_output": "Flags the INTEGRATING_AGENTS.md note saying shared-filesystem cleanup is not implemented as now false.",
+      "expectations": [
+        "Reports a finding in docs/INTEGRATING_AGENTS.md at line 565",
+        "Reports at least one finding with code evidence"
+      ],
+      "checks": [
+        {
+          "type": "matches",
+          "text": "Names docs/INTEGRATING_AGENTS.md",
+          "pattern": "INTEGRATING_AGENTS\\.md"
+        },
+        {
+          "type": "matches",
+          "text": "Points at line 565",
+          "pattern": "L?565"
+        },
+        {
+          "type": "has_findings",
+          "text": "Reports at least one finding",
+          "min": 1
+        },
+        {
+          "type": "diff_touches",
+          "text": "Edits INTEGRATING_AGENTS.md",
+          "pattern": "INTEGRATING_AGENTS\\.md$"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "log-filenames",
+      "commit": "dc530c24",
+      "prompt": "/docs-sync branch",
+      "expected_output": "Flags the dated log file names in both file-tree diagrams of AC_repositories_and_files.md.",
+      "expectations": [
+        "Reports the Linux layout lines (96-97) in docs/AC_repositories_and_files.md",
+        "Reports the Windows layout line (146) in the same doc"
+      ],
+      "checks": [
+        {
+          "type": "matches",
+          "text": "Names docs/AC_repositories_and_files.md",
+          "pattern": "AC_repositories_and_files\\.md"
+        },
+        {
+          "type": "matches",
+          "text": "Points at the Linux layout (line 96)",
+          "pattern": "96"
+        },
+        {
+          "type": "matches",
+          "text": "Points at the Windows layout (line 146)",
+          "pattern": "146"
+        },
+        {
+          "type": "diff_touches",
+          "text": "Edits AC_repositories_and_files.md",
+          "pattern": "AC_repositories_and_files\\.md$"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "delete-ohi-0-1-0",
+      "commit": "562a0bca",
+      "prompt": "/docs-sync branch",
+      "expected_output": "Flags the nri_redis:0.1.0 examples at lines 132 and 146 of agent-config-merging.md as referencing a deleted agent type.",
+      "expectations": [
+        "Reports docs/opamp-communication-flows/agent-config-merging.md",
+        "Reports both example lines (132 and 146) that reference nri_redis:0.1.0"
+      ],
+      "checks": [
+        {
+          "type": "matches",
+          "text": "Names agent-config-merging.md",
+          "pattern": "agent-config-merging\\.md"
+        },
+        {
+          "type": "matches",
+          "text": "Quotes nri_redis:0.1.0",
+          "pattern": "nri_redis:0\\.1\\.0"
+        },
+        {
+          "type": "matches",
+          "text": "Points at line 132",
+          "pattern": "132"
+        },
+        {
+          "type": "matches",
+          "text": "Points at line 146",
+          "pattern": "146"
+        },
+        {
+          "type": "diff_touches",
+          "text": "Edits agent-config-merging.md",
+          "pattern": "agent-config-merging\\.md$"
+        },
+        {
+          "type": "diff_added_absent",
+          "text": "Edits do not reintroduce nri_redis:0.1.0",
+          "pattern": "nri_redis:0\\.1\\.0"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "log-retention",
+      "commit": "8e326732",
+      "prompt": "/docs-sync branch",
+      "expected_output": "No contradictions. At most an undocumented-behavior note about fixed 30-day retention.",
+      "expectations": [
+        "Reports no contradiction findings"
+      ],
+      "checks": [
+        {
+          "type": "no_findings",
+          "text": "Reports no contradiction findings"
+        },
+        {
+          "type": "no_edits",
+          "text": "Makes no doc edits"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "refactor-windows-crates",
+      "commit": "c0ff4409",
+      "prompt": "/docs-sync branch",
+      "expected_output": "Dependency swap and internal refactor; no doc impact.",
+      "expectations": [
+        "Reports no findings"
+      ],
+      "checks": [
+        {
+          "type": "no_findings",
+          "text": "Reports no findings"
+        },
+        {
+          "type": "no_edits",
+          "text": "Makes no doc edits"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "refactor-namespaced-var",
+      "commit": "8a76244c",
+      "prompt": "/docs-sync branch",
+      "expected_output": "Internal type rename; docs mention variables but not the renamed types. No findings.",
+      "expectations": [
+        "Reports no findings"
+      ],
+      "checks": [
+        {
+          "type": "no_findings",
+          "text": "Reports no findings"
+        },
+        {
+          "type": "no_edits",
+          "text": "Makes no doc edits"
+        }
+      ]
+    }
+  ],
+  "global_checks": [
+    {
+      "type": "evidence_per_finding",
+      "text": "Every finding has a code evidence line"
+    },
+    {
+      "type": "severity_per_finding",
+      "text": "Every finding carries a severity label"
+    },
+    {
+      "type": "max_tokens",
+      "text": "Run stays under the token budget",
+      "value": 150000
+    },
+    {
+      "type": "edits_confined",
+      "text": "Only docs/ and the report changed"
+    }
+  ]
+}

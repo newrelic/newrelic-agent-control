@@ -1,6 +1,6 @@
 # Package Manager
 
-Agent Control (AC) manages agent packages (and in the future agent types) distributed as OCI ([Open Container Initiative](https://opencontainers.org/)) artifacts.
+Agent Control (AC) manages agent packages (and agent types) distributed as OCI ([Open Container Initiative](https://opencontainers.org/)) artifacts.
 The package manager handles download, signature verification, extraction, installation and garbage collection of packages from OCI registries.
 
 ## Package structure
@@ -86,11 +86,10 @@ There, AC expects to find some specific keys and values.
 
 * `artifactType` must exist and have value `application/vnd.newrelic.agent.v1`
 
-* `layers/mediaType` must take one of the following values:
+* Exactly one layer must have a supported `layers/mediaType`, which takes one of the following values:
 
   - `application/vnd.newrelic.agent.content.v1.zip`
   - `application/vnd.newrelic.agent.content.v1.tar+gzip`
-  - `application/vnd.newrelic.agent-type.content.v1.tar+gzip`
 
 Example:
 
@@ -138,18 +137,19 @@ The `final_path` location is where the extracted package will reside after insta
 by the agent through the variable `${nr-sub:packages.infra-agent.dir}`.
 
 **Steps**:
+0. If the package is already installed at `final_path`, skip steps 1-5 (the post-download hook still runs)
 1. Create temporary download directory
-2. Download artifact (expects exactly 1 layer/file), if the file was already downloaded, skip download
+2. Download artifact (expects exactly 1 supported layer/file)
 3. Create final installation directory
-4. Extract archive based on `PackageType` (tar.gz or zip) derived from the MIME type
+4. Extract archive based on `PackageMediaType` (tar+gzip or zip) derived from the layer media type
 5. Delete temporary directory (always, even on failure)
+6. Run the optional `post_download_hook`
 
 The whole operation blocks the sub-agent thread until it terminates.
 Notice that the old sub-agent (and therefore the binary) is stopped before the new one is downloaded and executed.
 In the next iterations, we will have a non-blocking implementation to avoid the sub-agent being blocked by this operation.
 
-There is no installation step or script execution, just extraction. We expect to support installation scripts in the future.
-TODO: not implemented yet
+After extraction, Agent Control runs the optional `post_download_hook` (see [INTEGRATING_AGENTS.md](./INTEGRATING_AGENTS.md#packages)) on every install, including when the package is already on disk. Otherwise there is no installation step, only extraction.
 
 ## Signature Verification
 
@@ -271,7 +271,7 @@ Example:
 - Installing archive errors → Delete partial installation directory then fail
   This includes the following errors
   - Create temporal download path error → Fail
-  - Download error (includes signature verification errors) → Retry several times, then fail
+  - Download error (includes signature verification errors) → Fail (agent package downloads are attempted once; only the Agent Control self-update download is retried)
   - Extract package → Fail
 - Delete temporal package path → Fail
 - Retain packages error → Fail
@@ -291,4 +291,4 @@ This is needed to execute tests with ignore "needs oci registry" and having suff
 Notice that AC is already configured to use HTTP as protocol when connecting to `localhost:5001` if executed/built __without__ `--release`.
 
 ## Agent Types Management
-TODO not implemented yet
+Agent types not embedded in the binary are pulled from the OCI registry as artifacts of type `application/vnd.newrelic.agent-type.v1`.
