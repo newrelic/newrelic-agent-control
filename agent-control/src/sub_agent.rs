@@ -525,12 +525,9 @@ where
                     return None;
                 }
 
-                self.report_state(
-                    ConfigState::Failed {
-                        error_message: format!("invalid config: {err}"),
-                    },
-                    hash,
-                );
+                let error_message = format!("Invalid config: {err}");
+                warn!("{error_message}");
+                self.report_state(ConfigState::Failed { error_message }, hash);
                 old_supervisor
             }
         }
@@ -845,6 +842,7 @@ pub mod tests {
     use std::path::PathBuf;
     use std::sync::Arc;
     use std::thread;
+    use tracing_test::traced_test;
 
     type TestSubAgent = SubAgent<
         MockStartedOpAMPClient,
@@ -1480,6 +1478,7 @@ deployment:
     }
 
     #[test]
+    #[traced_test]
     fn test_remote_config_applying_to_failed() {
         let (config_repository, mut opamp_client) = test_mocks();
 
@@ -1513,6 +1512,7 @@ deployment:
         config_repository.assert_no_config_for_agent(&TestAgent::id());
 
         assert!(new_supervisor.is_some());
+        assert!(logs_contain("Invalid config: "));
     }
 
     #[test]
