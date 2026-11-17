@@ -50,7 +50,7 @@ mod unix {
             tracker.hierarchy()
         );
 
-        let name = CgroupName::new("example-agent", "sleep-tree");
+        let name = CgroupName::try_from("example-agent-sleep-tree").map_err(|e| e.to_string())?;
         match command.as_str() {
             "start-or-readopt" => start_or_readopt(&tracker, &name),
             "status" => status(&tracker, &name),
