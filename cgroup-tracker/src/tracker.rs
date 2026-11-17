@@ -99,6 +99,8 @@ impl CgroupTracker {
         // SAFETY: the closure only calls async-signal-safe syscalls (open, write, close) on a
         // `CString` built before the fork, so it neither allocates nor takes locks. Writing `0`
         // to `cgroup.procs` moves the calling process, so the child never execs outside the cgroup.
+        // NOTE: any change on the closure passed to `pre_exec` needs to keep it free of
+        // locks and/or allocations, otherwise it could cause deadlocks on the child.
         unsafe {
             command.pre_exec(move || {
                 let fd = nix::fcntl::open(
