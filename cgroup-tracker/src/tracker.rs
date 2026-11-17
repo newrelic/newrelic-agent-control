@@ -115,16 +115,16 @@ impl CgroupTracker {
         Ok(())
     }
 
-    /// Kills every process in the cgroup (and its descendants), then removes it.
+    /// Kills every process in the cgroup (and its descendants), then removes it along with
+    /// its descendant cgroups.
     ///
     /// Uses `cgroup.kill` when available and falls back to signalling the members.
     pub fn kill_and_remove(&self, name: &CgroupName) -> Result<(), CgroupTrackerError> {
         let path = self.path_of(name);
         for _ in 0..KILL_ATTEMPTS {
             self.kill_members(&path)?;
-            match fs::remove_dir(&path) {
+            match remove_cgroup_tree(&path) {
                 Ok(()) => break,
-                Err(err) if err.kind() == io::ErrorKind::NotFound => break,
                 // Members are still around (e.g. dying or not yet reaped).
                 Err(err) if err.kind() == io::ErrorKind::ResourceBusy => {
                     std::thread::sleep(KILL_RETRY_INTERVAL);
@@ -225,6 +225,26 @@ fn member_pids(path: &Path) -> Result<Vec<i32>, CgroupTrackerError> {
     Ok(pids)
 }
 
+/// Removes the cgroup and its descendant cgroups, deepest first, since the kernel refuses to
+/// remove a cgroup that still has children. A missing cgroup is not an error.
+fn remove_cgroup_tree(path: &Path) -> io::Result<()> {
+    let entries = match fs::read_dir(path) {
+        Ok(entries) => entries,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(err),
+    };
+    for entry in entries {
+        let entry = entry?;
+        if entry.file_type()?.is_dir() {
+            remove_cgroup_tree(&entry.path())?;
+        }
+    }
+    match fs::remove_dir(path) {
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
+        result => result,
+    }
+}
+
 fn read_subdirs(path: &Path) -> Result<Vec<PathBuf>, CgroupTrackerError> {
     match fs::read_dir(path) {
         Ok(entries) => Ok(entries
@@ -296,6 +316,19 @@ mod tests {
         tracker.kill_and_remove(&a).unwrap();
 
         assert!(tracker.path_of(&b).is_dir());
+    }
+
+    #[test]
+    fn kill_and_remove_deletes_descendant_cgroups() {
+        let (_dir, tracker) = tracker();
+        let name = name("agent-exec");
+        tracker.create(&name).unwrap();
+        let nested = tracker.path_of(&name).join("child").join("grandchild");
+        fs::create_dir_all(&nested).unwrap();
+
+        tracker.kill_and_remove(&name).unwrap();
+
+        assert!(!tracker.path_of(&name).exists());
     }
 
     #[test]
