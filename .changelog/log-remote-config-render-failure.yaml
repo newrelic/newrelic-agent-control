@@ -1,0 +1,2 @@
+type: bugfix
+message: Log remote configuration render failures
