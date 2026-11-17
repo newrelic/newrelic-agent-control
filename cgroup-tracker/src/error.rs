@@ -19,7 +19,7 @@ pub enum CgroupTrackerError {
         source: std::io::Error,
     },
     /// The cgroup path cannot be passed to the kernel.
-    #[error("invalid cgroup path `{path}`: {source}")]
+    #[error("invalid cgroup path '{path}': {source}")]
     InvalidPath {
         /// Offending path.
         path: PathBuf,
@@ -28,7 +28,7 @@ pub enum CgroupTrackerError {
         source: std::ffi::NulError,
     },
     /// Sending SIGKILL to a member of a cgroup failed.
-    #[error("killing process {pid} of cgroup `{path}`: {source}")]
+    #[error("killing process {pid} of cgroup '{path}': {source}")]
     Signal {
         /// Pid of the process that could not be killed.
         pid: i32,
@@ -59,6 +59,14 @@ impl CgroupTrackerError {
     }
 }
 
+/// The given string is not a valid [CgroupName](crate::CgroupName).
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("invalid cgroup name '{name}': {reason}")]
+pub struct InvalidCgroupName {
+    pub(crate) name: String,
+    pub(crate) reason: &'static str,
+}
+
 /// Failure to resolve the cgroup hierarchy of the current process.
 #[derive(Debug, thiserror::Error)]
 pub enum DetectError {
@@ -69,7 +77,7 @@ pub enum DetectError {
     #[error("process is not a member of any mounted cgroup hierarchy")]
     NotInAnyHierarchy,
     /// The cgroup of the process is not reachable from the selected mount.
-    #[error("cgroup path `{cgroup_path}` is outside the mount root `{mount_root}`")]
+    #[error("cgroup path '{cgroup_path}' is outside the mount root '{mount_root}'")]
     OutsideMountRoot {
         /// Cgroup path of the process, as read from `/proc/self/cgroup`.
         cgroup_path: String,
