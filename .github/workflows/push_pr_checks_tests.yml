@@ -447,17 +447,18 @@ jobs:
       - name: Run documentation tests
         run: cargo test --locked --doc
 
-  # Test using root can be troublesome to perform as usually the Rust toolchain is installed local to the user.
-  # To test for root privileges, we can run from a container (disabling the test that fail if running non-root).
+  # The Rust toolchain is installed local to the user, so `sudo cargo` doesn't work. Instead, we build as the
+  # runner user and run only the test binaries as root through cargo's target runner (disabling the tests
+  # that fail if running non-root).
   on-host-root-tests:
     name: tests as root
-    # Container operations must run on a linux runner https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idcontainer.
-    # We use `null` to disable the use of a container on windows.
-    container: ${{ matrix.os == 'ubuntu-latest' && 'rust:latest' || null }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ ubuntu-latest, windows-latest ]
+    env:
+      # `env` passes the fixture explicitly since sudo resets the environment. Ignored on Windows.
+      CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: "sudo env TEST_MACHINE_ID_PATH=/tmp/machine-id"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
