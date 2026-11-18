@@ -795,7 +795,7 @@ name = "cgroup-tracker"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
- "nix 0.32.0",
+ "nix",
  "rstest",
  "tempfile",
  "thiserror",

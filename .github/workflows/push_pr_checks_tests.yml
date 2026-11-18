@@ -425,7 +425,11 @@ jobs:
           save-cache: true
 
       - name: Run workspace tests excluding the agent control pkg (includes -winAdmin- ignored because it doesn't apply)
-        run: cargo test --workspace --exclude 'newrelic_agent_control' --all-targets -- --include-ignored
+        run: cargo test --workspace --exclude 'newrelic_agent_control' --exclude 'cgroup-tracker' --all-targets -- --include-ignored
+
+      # Its integration tests need root and run in the `cgroup-tracker-cgroupfs-tests` job.
+      - name: Run cgroup-tracker unit tests
+        run: cargo test --locked -p cgroup-tracker --lib
 
       - name: Run tests agent control lib excluding root-required tests (on-host)
         run: make -C agent-control test/onhost
@@ -443,17 +447,18 @@ jobs:
       - name: Run documentation tests
         run: cargo test --locked --doc
 
-  # Test using root can be troublesome to perform as usually the Rust toolchain is installed local to the user.
-  # To test for root privileges, we can run from a container (disabling the test that fail if running non-root).
+  # The Rust toolchain is installed local to the user, so `sudo cargo` doesn't work. Instead, we build as the
+  # runner user and run only the test binaries as root through cargo's target runner (disabling the tests
+  # that fail if running non-root).
   on-host-root-tests:
     name: tests as root
-    # Container operations must run on a linux runner https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idcontainer.
-    # We use `null` to disable the use of a container on windows.
-    container: ${{ matrix.os == 'ubuntu-latest' && 'rust:latest' || null }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ ubuntu-latest, windows-latest ]
+    env:
+      # `env` passes the fixture explicitly since sudo resets the environment. Ignored on Windows.
+      CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: "sudo env TEST_MACHINE_ID_PATH=/tmp/machine-id"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -467,6 +472,42 @@ jobs:
 
       - name: Run onHost root-required integration-tests only
         run: make -C agent-control test/onhost/root/integration
+
+  # Runs on the bare runner: containers get a read-only `/sys/fs/cgroup` and their own cgroup
+  # namespace, which prevents mounting the v1 hierarchy the tests use.
+  cgroup-tracker-cgroupfs-tests:
+    name: cgroup-tracker cgroupfs tests (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ ubuntu-24.04, ubuntu-24.04-arm ]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: ./.github/actions/install-rust-toolchain
+
+      - uses: ./.github/actions/rust-cache
+        with:
+          identifier: 'cgroup-tracker-cgroupfs'
+          restore-strategy: ${{ github.ref == 'refs/heads/main' && 'exact' || 'nearest' }}
+          save-cache: true
+
+      - name: Run cgroupfs tests
+        env:
+          # Builds as the runner user and runs the test binary as root in its own delegated
+          # cgroup, so the tests never write into a cgroup managed by systemd.
+          #
+          # Under cgroup v2 systemd owns the hierarchy and expects to be the only writer
+          # inside the units it manages. Creating or moving cgroups there behind its back
+          # can make it lose track of processes, fight with our changes, or break the
+          # runner session. Agent Control will eventually run as a systemd service, so the
+          # tracker is expected to work only inside a subtree delegated to it (Delegate=yes),
+          # which systemd leaves alone. Running the tests in a delegated scope reproduces
+          # that production setup and keeps leftover test cgroups from touching the runner.
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: "sudo systemd-run --scope --quiet --collect -p Delegate=yes --"
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUNNER: "sudo systemd-run --scope --quiet --collect -p Delegate=yes --"
+        run: cargo test --locked -p cgroup-tracker --test cgroupfs -- --ignored
 
   on-host-oci-registry-tests:
     name: tests with oci registry
@@ -591,6 +632,7 @@ jobs:
       - generate-release-build
       - unit-docs-onhost-integration-tests
       - on-host-root-tests
+      - cgroup-tracker-cgroupfs-tests
       - on-host-oci-registry-tests
       - k8s-integration-tests
 
