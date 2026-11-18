@@ -7,29 +7,28 @@
 //! scoping-poc probe <file>
 //! scoping-poc layout
 //! ```
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 mod backend;
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 mod cgroupfs;
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 mod dbus;
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 mod error;
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 mod gated;
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 mod spawn;
 
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 mod cli;
 
-#[cfg(target_os = "linux")]
-#[tokio::main]
-async fn main() -> std::process::ExitCode {
-    cli::run(std::env::args().skip(1).collect()).await
+#[cfg(unix)]
+fn main() -> std::process::ExitCode {
+    cli::run(std::env::args().skip(1).collect())
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(unix))]
 fn main() {
-    eprintln!("process-scoping-poc only runs on Linux");
+    eprintln!("process-scoping-poc only runs on Unix");
 }

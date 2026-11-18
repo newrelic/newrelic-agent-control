@@ -49,7 +49,7 @@ pub struct Started {
 }
 
 impl Backend {
-    pub async fn start(self, name: &str, argv: &[String]) -> Result<Started> {
+    pub fn start(self, name: &str, argv: &[String]) -> Result<Started> {
         match self {
             Self::None => {
                 let child = spawn(command(argv)?)?;
@@ -85,11 +85,11 @@ impl Backend {
                     waiter: Waiter::Child(child),
                 })
             }
-            Self::DbusScope => crate::gated::start_scope(&unit_name(name, "scope"), argv).await,
+            Self::DbusScope => crate::gated::start_scope(&unit_name(name, "scope"), argv),
             Self::DbusService => {
                 let unit = unit_name(name, "service");
-                let systemd = Systemd::connect().await?;
-                let pid = systemd.start_service(&unit, argv).await?;
+                let systemd = Systemd::connect()?;
+                let pid = systemd.start_service(&unit, argv)?;
                 Ok(Started {
                     pid,
                     waiter: Waiter::Unit(unit),
@@ -98,53 +98,38 @@ impl Backend {
         }
     }
 
-    pub async fn pids(self, name: &str) -> Result<Vec<u32>> {
+    pub fn pids(self, name: &str) -> Result<Vec<u32>> {
         match self {
             Self::None => Err(Error::new("the none backend tracks nothing")),
             Self::Cgroup => Ok(Cgroup::new(name).pids()),
-            Self::SystemdRun | Self::DbusScope => Ok(Systemd::connect()
-                .await?
-                .pids(&unit_name(name, "scope"))
-                .await),
-            Self::DbusService => Ok(Systemd::connect()
-                .await?
-                .pids(&unit_name(name, "service"))
-                .await),
+            Self::SystemdRun | Self::DbusScope => {
+                Ok(Systemd::connect()?.pids(&unit_name(name, "scope")))
+            }
+            Self::DbusService => Ok(Systemd::connect()?.pids(&unit_name(name, "service"))),
         }
     }
 
-    pub async fn stop(self, name: &str) -> Result<()> {
+    pub fn stop(self, name: &str) -> Result<()> {
         match self {
             Self::None => Err(Error::new("the none backend tracks nothing")),
             Self::Cgroup => Cgroup::new(name).kill_and_remove(),
             Self::SystemdRun | Self::DbusScope => {
-                Systemd::connect()
-                    .await?
-                    .stop(&unit_name(name, "scope"))
-                    .await
+                Systemd::connect()?.stop(&unit_name(name, "scope"))
             }
-            Self::DbusService => {
-                Systemd::connect()
-                    .await?
-                    .stop(&unit_name(name, "service"))
-                    .await
-            }
+            Self::DbusService => Systemd::connect()?.stop(&unit_name(name, "service")),
         }
     }
 }
 
 impl Waiter {
-    pub async fn wait(self) -> Result<String> {
+    pub fn wait(self) -> Result<String> {
         match self {
             Self::Child(mut child) => {
-                let status = tokio::task::spawn_blocking(move || child.wait())
-                    .await
-                    .map_err(ctx("joining wait task"))?
-                    .map_err(ctx("waiting for child"))?;
+                let status = child.wait().map_err(ctx("waiting for child"))?;
                 Ok(status.to_string())
             }
             Self::Unit(unit) => {
-                Systemd::connect().await?.wait_gone(&unit).await?;
+                Systemd::connect()?.wait_gone(&unit)?;
                 Ok("unit inactive".to_string())
             }
         }

@@ -3769,10 +3769,9 @@ dependencies = [
 name = "process-scoping-poc"
 version = "0.1.0"
 dependencies = [
- "libc",
+ "futures-executor",
+ "nix",
  "thiserror",
- "tokio",
- "tokio-stream",
  "zbus_systemd",
 ]
 
@@ -6135,7 +6134,6 @@ dependencies = [
  "serde",
  "serde_repr",
  "socket2",
- "tokio",
  "uds_windows",
  "uuid",
  "windows-sys 0.61.2",
@@ -6346,6 +6344,9 @@ checksum = "ce6a55d4f521760475a30f7b96779508fe8c40dc834478709454dd1d5f0ebc72"
 dependencies = [
  "futures-core",
  "futures-io",
+ "rustix",
+ "socket2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

@@ -33,8 +33,8 @@ fn parse(args: &[String]) -> Result<Args> {
     })
 }
 
-pub async fn run(args: Vec<String>) -> ExitCode {
-    match dispatch(&args).await {
+pub fn run(args: Vec<String>) -> ExitCode {
+    match dispatch(&args) {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => {
             eprintln!("error: {err}");
@@ -43,30 +43,30 @@ pub async fn run(args: Vec<String>) -> ExitCode {
     }
 }
 
-async fn dispatch(args: &[String]) -> Result<()> {
+fn dispatch(args: &[String]) -> Result<()> {
     let (subcommand, rest) = args
         .split_first()
         .ok_or_else(|| Error::new("missing subcommand"))?;
     match subcommand.as_str() {
         "run" => {
             let args = parse(rest)?;
-            let started = args.backend.start(&args.name, &args.command).await?;
+            let started = args.backend.start(&args.name, &args.command)?;
             println!("started name={} pid={}", args.name, started.pid);
             std::io::stdout().flush().ok();
-            let status = started.waiter.wait().await?;
+            let status = started.waiter.wait()?;
             println!("exited name={} status={status}", args.name);
             Ok(())
         }
         "pids" => {
             let args = parse(rest)?;
-            for pid in args.backend.pids(&args.name).await? {
+            for pid in args.backend.pids(&args.name)? {
                 println!("{pid}");
             }
             Ok(())
         }
         "stop" => {
             let args = parse(rest)?;
-            args.backend.stop(&args.name).await
+            args.backend.stop(&args.name)
         }
         "probe" => {
             // First action of the process: record the cgroups it starts in.
@@ -75,7 +75,7 @@ async fn dispatch(args: &[String]) -> Result<()> {
                 .map_err(|e| Error::new(format!("reading /proc/self/cgroup: {e}")))?;
             std::fs::write(out, cgroup).map_err(|e| Error::new(format!("writing {out}: {e}")))?;
             loop {
-                tokio::time::sleep(Duration::from_secs(3600)).await;
+                std::thread::sleep(Duration::from_secs(3600));
             }
         }
         "layout" => {

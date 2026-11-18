@@ -8,9 +8,8 @@ publish.workspace = true
 rust-version.workspace = true
 license-file.workspace = true
 
-[target.'cfg(target_os = "linux")'.dependencies]
-libc = "0.2"
+[target.'cfg(unix)'.dependencies]
+nix = { workspace = true, features = ["fs", "signal"] }
 thiserror = { workspace = true }
-tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
-zbus_systemd = { version = "0.26201.0", default-features = false, features = ["systemd1", "zbus-async-tokio"] }
-tokio-stream = "0.1"
+futures-executor = "0.3"
+zbus_systemd = { version = "0.26201.0", default-features = false, features = ["systemd1", "zbus-async-zruntime"] }

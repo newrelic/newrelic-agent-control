@@ -1,11 +1,17 @@
 //! Backends C and D: transient units created over the systemd D-Bus API with `zbus_systemd`.
+//!
+//! zbus 6 has no blocking API, so each call is driven to completion with `block_on`; zbus does its
+//! I/O on its own runtime threads.
 use crate::error::{Error, Result, ctx};
-use std::time::Duration;
-use tokio_stream::StreamExt;
+use futures_executor::block_on;
+use std::thread::sleep;
+use std::time::{Duration, Instant};
 use zbus_systemd::systemd1::{ManagerProxy, ServiceProxy, UnitProxy};
 use zbus_systemd::zbus::{Connection, OwnedVariant, Variant};
 
 type Properties = Vec<(String, OwnedVariant)>;
+
+const JOB_TIMEOUT: Duration = Duration::from_secs(30);
 
 fn variant<T>(value: T) -> Result<OwnedVariant>
 where
@@ -20,60 +26,73 @@ pub struct Systemd {
 }
 
 impl Systemd {
-    pub async fn connect() -> Result<Self> {
-        let connection = Connection::system()
-            .await
-            .map_err(ctx("connecting to the system bus"))?;
-        let manager = ManagerProxy::new(&connection)
-            .await
-            .map_err(ctx("creating the systemd manager proxy"))?;
-        manager.subscribe().await.map_err(ctx("subscribing"))?;
-        Ok(Self {
-            connection,
-            manager,
+    pub fn connect() -> Result<Self> {
+        block_on(async {
+            let connection = Connection::system()
+                .await
+                .map_err(ctx("connecting to the system bus"))?;
+            let manager = ManagerProxy::new(&connection)
+                .await
+                .map_err(ctx("creating the systemd manager proxy"))?;
+            Ok(Self {
+                connection,
+                manager,
+            })
         })
     }
 
-    /// Calls `StartTransientUnit` and waits for its job to finish.
-    async fn start_transient(&self, unit: &str, properties: Properties) -> Result<()> {
-        let mut removed = self
-            .manager
-            .receive_job_removed()
-            .await
-            .map_err(ctx("subscribing to job removals"))?;
-        let job = self
-            .manager
-            .start_transient_unit(unit.to_string(), "fail".to_string(), properties, Vec::new())
-            .await
-            .map_err(ctx("starting transient unit"))?;
-        let wait = async {
-            while let Some(signal) = removed.next().await {
-                let args = signal.args().map_err(ctx("reading job signal"))?;
-                if *args.job() == job {
-                    return match args.result().as_str() {
-                        "done" => Ok(()),
-                        other => Err(Error::new(format!("job for {unit} ended with {other}"))),
-                    };
+    fn unit_proxy(&self, unit: &str) -> Result<Option<UnitProxy<'static>>> {
+        block_on(async {
+            let Ok(path) = self.manager.get_unit(unit.to_string()).await else {
+                return Ok(None);
+            };
+            UnitProxy::builder(&self.connection)
+                .path(path)
+                .build()
+                .await
+                .map(Some)
+                .map_err(ctx("building unit proxy"))
+        })
+    }
+
+    fn active_state(&self, unit: &str) -> Option<String> {
+        let proxy = self.unit_proxy(unit).ok()??;
+        block_on(proxy.active_state()).ok()
+    }
+
+    /// Calls `StartTransientUnit` and waits until the unit is active.
+    fn start_transient(&self, unit: &str, properties: Properties) -> Result<()> {
+        block_on(self.manager.start_transient_unit(
+            unit.to_string(),
+            "fail".to_string(),
+            properties,
+            Vec::new(),
+        ))
+        .map_err(ctx("starting transient unit"))?;
+        let deadline = Instant::now() + JOB_TIMEOUT;
+        loop {
+            match self.active_state(unit).as_deref() {
+                Some("active") => return Ok(()),
+                Some("failed") => return Err(Error::new(format!("{unit} failed to start"))),
+                _ if Instant::now() > deadline => {
+                    return Err(Error::new(format!("timeout waiting for {unit}")));
                 }
+                _ => sleep(Duration::from_millis(50)),
             }
-            Err(Error::new("job signal stream ended"))
-        };
-        tokio::time::timeout(Duration::from_secs(30), wait)
-            .await
-            .map_err(|_| Error::new(format!("timeout waiting for the job of {unit}")))?
+        }
     }
 
     /// Transient scope adopting `pid`.
-    pub async fn start_scope(&self, unit: &str, pid: u32) -> Result<()> {
+    pub fn start_scope(&self, unit: &str, pid: u32) -> Result<()> {
         let properties = vec![
             ("Description".to_string(), variant("process-scoping-poc")?),
             ("PIDs".to_string(), variant(vec![pid])?),
         ];
-        self.start_transient(unit, properties).await
+        self.start_transient(unit, properties)
     }
 
     /// Transient service that systemd forks itself; returns the main PID.
-    pub async fn start_service(&self, unit: &str, argv: &[String]) -> Result<u32> {
+    pub fn start_service(&self, unit: &str, argv: &[String]) -> Result<u32> {
         let program = argv.first().ok_or_else(|| Error::new("empty command"))?;
         let exec_start = vec![(program.clone(), argv.to_vec(), false)];
         let properties = vec![
@@ -81,57 +100,53 @@ impl Systemd {
             ("Type".to_string(), variant("simple")?),
             ("ExecStart".to_string(), variant(exec_start)?),
         ];
-        self.start_transient(unit, properties).await?;
-        let path = self
-            .manager
-            .get_unit(unit.to_string())
-            .await
-            .map_err(ctx("getting unit"))?;
-        let service = ServiceProxy::builder(&self.connection)
-            .path(path)
-            .build()
-            .await
-            .map_err(ctx("building service proxy"))?;
-        service.main_pid().await.map_err(ctx("reading main pid"))
+        self.start_transient(unit, properties)?;
+        block_on(async {
+            let path = self
+                .manager
+                .get_unit(unit.to_string())
+                .await
+                .map_err(ctx("getting unit"))?;
+            let service = ServiceProxy::builder(&self.connection)
+                .path(path)
+                .build()
+                .await
+                .map_err(ctx("building service proxy"))?;
+            service.main_pid().await.map_err(ctx("reading main pid"))
+        })
     }
 
     /// PIDs in the cgroup of the unit; empty if the unit does not exist.
-    pub async fn pids(&self, unit: &str) -> Vec<u32> {
-        match self.manager.get_unit_processes(unit.to_string()).await {
+    pub fn pids(&self, unit: &str) -> Vec<u32> {
+        match block_on(self.manager.get_unit_processes(unit.to_string())) {
             Ok(processes) => processes.into_iter().map(|(_, pid, _)| pid).collect(),
             Err(_) => Vec::new(),
         }
     }
 
-    pub async fn stop(&self, unit: &str) -> Result<()> {
-        self.manager
-            .stop_unit(unit.to_string(), "replace".to_string())
-            .await
-            .map_err(ctx("stopping unit"))?;
+    pub fn stop(&self, unit: &str) -> Result<()> {
+        block_on(
+            self.manager
+                .stop_unit(unit.to_string(), "replace".to_string()),
+        )
+        .map_err(ctx("stopping unit"))?;
         for _ in 0..100 {
-            if self.pids(unit).await.is_empty() {
+            if self.pids(unit).is_empty() {
                 return Ok(());
             }
-            tokio::time::sleep(Duration::from_millis(100)).await;
+            sleep(Duration::from_millis(100));
         }
         Err(Error::new(format!("{unit} still has processes after stop")))
     }
 
     /// Returns once the unit is gone or inactive.
-    pub async fn wait_gone(&self, unit: &str) -> Result<()> {
-        loop {
-            let Ok(path) = self.manager.get_unit(unit.to_string()).await else {
-                return Ok(());
-            };
-            let proxy = UnitProxy::builder(&self.connection)
-                .path(path)
-                .build()
-                .await
-                .map_err(ctx("building unit proxy"))?;
-            match proxy.active_state().await.as_deref() {
-                Ok("inactive" | "failed") | Err(_) => return Ok(()),
-                Ok(_) => tokio::time::sleep(Duration::from_millis(200)).await,
-            }
+    pub fn wait_gone(&self, unit: &str) -> Result<()> {
+        while !matches!(
+            self.active_state(unit).as_deref(),
+            None | Some("inactive" | "failed")
+        ) {
+            sleep(Duration::from_millis(200));
         }
+        Ok(())
     }
 }
