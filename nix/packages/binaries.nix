@@ -14,9 +14,9 @@ _: {
       onhostArgs = "--package newrelic_agent_control --bin newrelic-agent-control --bin newrelic-agent-control-cli";
 
       mkPackage =
-        craneLib: extraArgs:
+        craneLib: extraArgs: cargoExtraArgs:
         let
-          args = ac.commonArgs // extraArgs // { cargoExtraArgs = onhostArgs; };
+          args = ac.commonArgs // extraArgs // { inherit cargoExtraArgs; };
         in
         craneLib.buildPackage (
           args
@@ -51,7 +51,9 @@ _: {
         };
       };
 
+      # `pkg` selects what is built: the cargo arguments and the derivation name.
       mkCross =
+        pkg:
         {
           triple,
           targetCc,
@@ -63,6 +65,7 @@ _: {
           cc = "${targetCc}/bin/${targetCc.targetPrefix}cc";
         in
         mkPackage (ac.mkCraneLib [ triple ]) {
+          inherit (pkg) pname;
           nativeBuildInputs = ac.commonArgs.nativeBuildInputs ++ [ targetCc ];
           CARGO_BUILD_TARGET = triple;
           CARGO_BUILD_RUSTFLAGS = rustflags;
@@ -73,12 +76,26 @@ _: {
           HOST_CC = "${pkgs.stdenv.cc}/bin/cc";
           "CC_${envTriple}" = cc;
           "CARGO_TARGET_${lib.toUpper envTriple}_LINKER" = cc;
-        };
+        } pkg.cargoExtraArgs;
+
+      agentControl = {
+        pname = ac.commonArgs.pname;
+        cargoExtraArgs = onhostArgs;
+      };
+
+      # Proof of concept binary for the process scoping VM tests.
+      scopingPoc = {
+        pname = "process-scoping-poc";
+        cargoExtraArgs = "--package process-scoping-poc";
+      };
     in
     {
       packages = {
-        default = mkPackage ac.craneLib { };
+        default = mkPackage ac.craneLib { } onhostArgs;
       }
-      // lib.mapAttrs (_: mkCross) crossTargets;
+      // lib.mapAttrs (_: mkCross agentControl) crossTargets
+      // lib.mapAttrs' (
+        name: target: lib.nameValuePair "scoping-poc-${name}" (mkCross scopingPoc target)
+      ) (lib.filterAttrs (name: _: lib.hasSuffix "linux-musl" name) crossTargets);
     };
 }

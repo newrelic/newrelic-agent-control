@@ -1,0 +1,16 @@
+[package]
+name = "process-scoping-poc"
+description = "Proof of concept comparing ways to start sub-agent processes inside a cgroup on Linux"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
+zbus_systemd = { version = "0.26201.0", default-features = false, features = ["systemd1", "zbus-async-tokio"] }
+tokio-stream = "0.1"
