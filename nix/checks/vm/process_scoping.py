@@ -60,6 +60,15 @@ def start(backend, tag):
         leftovers = [line for line in current.splitlines() if unit in line]
         if leftovers:
             print(f"[{backend}] still accounted to the supervisor unit in: {leftovers}")
+    # No thread may outlive a D-Bus call: a connection kept alive between calls would leave a
+    # helper thread of zbus behind. A supervisor that polls D-Bus shows one only during a call.
+    main = machine.succeed(f"systemctl show -p MainPID --value poc-sup-{tag}").strip()
+    counts = [
+        int(machine.succeed(f"sleep 0.2; ls /proc/{main}/task | wc -l"))
+        for _ in range(10)
+    ]
+    print(f"[{backend}] supervisor threads over time: {counts}")
+    assert min(counts) == 1, f"a thread outlives the D-Bus calls: {counts}"
     return pid
 
 

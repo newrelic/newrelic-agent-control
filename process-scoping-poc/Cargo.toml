@@ -11,5 +11,4 @@ license-file.workspace = true
 [target.'cfg(unix)'.dependencies]
 nix = { workspace = true, features = ["fs", "signal"] }
 thiserror = { workspace = true }
-futures-executor = "0.3"
 zbus_systemd = { version = "0.26201.0", default-features = false, features = ["systemd1", "zbus-async-zruntime"] }

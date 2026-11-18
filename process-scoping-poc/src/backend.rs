@@ -1,5 +1,5 @@
 use crate::cgroupfs::Cgroup;
-use crate::dbus::Systemd;
+use crate::dbus;
 use crate::error::{Error, Result, ctx};
 use crate::spawn::{command, spawn};
 use std::process::Child;
@@ -88,8 +88,7 @@ impl Backend {
             Self::DbusScope => crate::gated::start_scope(&unit_name(name, "scope"), argv),
             Self::DbusService => {
                 let unit = unit_name(name, "service");
-                let systemd = Systemd::connect()?;
-                let pid = systemd.start_service(&unit, argv)?;
+                let pid = dbus::start_service(&unit, argv)?;
                 Ok(Started {
                     pid,
                     waiter: Waiter::Unit(unit),
@@ -102,10 +101,8 @@ impl Backend {
         match self {
             Self::None => Err(Error::new("the none backend tracks nothing")),
             Self::Cgroup => Ok(Cgroup::new(name).pids()),
-            Self::SystemdRun | Self::DbusScope => {
-                Ok(Systemd::connect()?.pids(&unit_name(name, "scope")))
-            }
-            Self::DbusService => Ok(Systemd::connect()?.pids(&unit_name(name, "service"))),
+            Self::SystemdRun | Self::DbusScope => Ok(dbus::pids(&unit_name(name, "scope"))),
+            Self::DbusService => Ok(dbus::pids(&unit_name(name, "service"))),
         }
     }
 
@@ -113,10 +110,8 @@ impl Backend {
         match self {
             Self::None => Err(Error::new("the none backend tracks nothing")),
             Self::Cgroup => Cgroup::new(name).kill_and_remove(),
-            Self::SystemdRun | Self::DbusScope => {
-                Systemd::connect()?.stop(&unit_name(name, "scope"))
-            }
-            Self::DbusService => Systemd::connect()?.stop(&unit_name(name, "service")),
+            Self::SystemdRun | Self::DbusScope => dbus::stop(&unit_name(name, "scope")),
+            Self::DbusService => dbus::stop(&unit_name(name, "service")),
         }
     }
 }
@@ -129,7 +124,7 @@ impl Waiter {
                 Ok(status.to_string())
             }
             Self::Unit(unit) => {
-                Systemd::connect()?.wait_gone(&unit)?;
+                dbus::wait_gone(&unit);
                 Ok("unit inactive".to_string())
             }
         }

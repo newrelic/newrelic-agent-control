@@ -4,7 +4,7 @@
 //! `Command::spawn` does not return until the child has executed the program, so it runs on its
 //! own thread while the PID reaches this one over a pipe.
 use crate::backend::{Started, Waiter};
-use crate::dbus::Systemd;
+use crate::dbus;
 use crate::error::{Error, Result, ctx};
 use crate::spawn::command;
 use nix::errno::Errno;
@@ -81,7 +81,7 @@ pub fn start_scope(unit: &str, argv: &[String]) -> Result<Started> {
 }
 
 fn adopt(unit: &str, pid: u32) -> Result<()> {
-    Systemd::connect()?.start_scope(unit, pid)?;
+    dbus::start_scope(unit, pid)?;
     for _ in 0..50 {
         let cgroup = std::fs::read_to_string(format!("/proc/{pid}/cgroup")).unwrap_or_default();
         if cgroup.contains(unit) {

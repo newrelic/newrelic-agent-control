@@ -3769,7 +3769,6 @@ dependencies = [
 name = "process-scoping-poc"
 version = "0.1.0"
 dependencies = [
- "futures-executor",
  "nix",
  "thiserror",
  "zbus_systemd",
