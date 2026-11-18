@@ -24,6 +24,8 @@ fn k8s_template_value_providers() {
     k8s.port_forward("vault-0", 8200, 8200);
     let namespace = block_on(k8s.test_namespace());
     let tmp_dir = tempdir().expect("failed to create local temp dir");
+    let secret_file = tmp_dir.path().join("secret.txt");
+    std::fs::write(&secret_file, "bar6\n").unwrap();
 
     let value_providers = r#"  vault:
     sources:
@@ -90,7 +92,9 @@ release:
   hashicorpVaultV2Key: ${{nr-vault:sourceB:secret:my-secret:foo2}}
   k8sSecretKey: ${{nr-kubesec:{namespace}:pod-secrets:foo3}}
   k8sConfigMapKey: ${{nr-kubecm:{namespace}:pod-config:foo5}}
-  envVarKey: ${{nr-env:{test_name}_foo4}}"#
+  envVarKey: ${{nr-env:{test_name}_foo4}}
+  fileKey: ${{nr-file:{file}}}"#,
+            file = secret_file.display()
         ),
     ));
 
@@ -130,6 +134,7 @@ hashicorpVaultV2Key: bar2
 k8sSecretKey: bar3
 k8sConfigMapKey: bar5
 envVarKey: bar4
+fileKey: bar6
     "#;
 
     retry(60, Duration::from_secs(1), || {

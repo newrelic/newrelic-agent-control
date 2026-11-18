@@ -21,3 +21,4 @@ mod restarting_processes;
 mod self_instrumentation_otel;
 mod shared_filesystem;
 mod stale_agent_filesystem_cleanup;
+mod value_providers;

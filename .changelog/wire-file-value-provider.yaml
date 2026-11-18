@@ -1,0 +1,2 @@
+type: bugfix
+message: Register the file value provider so `${nr-file:<path>}` variables resolve on-host and on Kubernetes

@@ -198,7 +198,7 @@ impl AgentControlRunner {
             .map(|(client, consumer)| (Some(client), Some(consumer)))
             .unwrap_or_default();
 
-        let mut value_providers = ValueProviders::default().with_env();
+        let mut value_providers = ValueProviders::default().with_env().with_file();
         if let Some(config) = &agent_control_config.value_providers {
             value_providers = value_providers
                 .with_config(config.clone(), self.bootstrap_config.proxy.clone())
