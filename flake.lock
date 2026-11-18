@@ -79,16 +79,15 @@
         ]
       },
       "locked": {
-        "lastModified": 1793004709,
-        "narHash": "sha256-U1MgLSl2+bGUUHVwehJ6gPdLCZiswglEDEpInFWDtQU=",
-        "owner": "DavSanchez",
+        "lastModified": 1795035975,
+        "narHash": "sha256-MxBdo6y0i2s/C+FBL6bkr4NL3hVw4iurYqF0Ysohydc=",
+        "owner": "numtide",
         "repo": "nix-vm-test",
-        "rev": "a725af45689735881202e51e7e76ffa27b6b305e",
+        "rev": "b700f8ab0c3d6d7288a043ee2a1ec73f5a4c5970",
         "type": "github"
       },
       "original": {
-        "owner": "DavSanchez",
-        "ref": "feat/aarch64-support-vmtools",
+        "owner": "numtide",
         "repo": "nix-vm-test",
         "type": "github"
       }
