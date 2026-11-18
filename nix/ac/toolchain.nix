@@ -5,8 +5,8 @@
   perSystem =
     { pkgs, lib, ... }:
     let
-      workspaceToml = builtins.fromTOML (builtins.readFile ../../Cargo.toml);
-      agentControlToml = builtins.fromTOML (builtins.readFile ../../agent-control/Cargo.toml);
+      workspaceToml = fromTOML (builtins.readFile ../../Cargo.toml);
+      agentControlToml = fromTOML (builtins.readFile ../../agent-control/Cargo.toml);
       rustVersion = workspaceToml.workspace.package.rust-version;
 
       mkToolchain =
