@@ -30,6 +30,7 @@ const LOGGING_DISABLED_CRATES: &[&str] = &[
     "e2e_runner",
     "fake_opamp_server",
     "oci_test_utils",
+    "process_scoping_poc",
 ];
 
 fn main() {
