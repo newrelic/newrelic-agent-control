@@ -497,6 +497,14 @@ jobs:
         env:
           # Builds as the runner user and runs the test binary as root in its own delegated
           # cgroup, so the tests never write into a cgroup managed by systemd.
+          #
+          # Under cgroup v2 systemd owns the hierarchy and expects to be the only writer
+          # inside the units it manages. Creating or moving cgroups there behind its back
+          # can make it lose track of processes, fight with our changes, or break the
+          # runner session. Agent Control will eventually run as a systemd service, so the
+          # tracker is expected to work only inside a subtree delegated to it (Delegate=yes),
+          # which systemd leaves alone. Running the tests in a delegated scope reproduces
+          # that production setup and keeps leftover test cgroups from touching the runner.
           CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: "sudo systemd-run --scope --quiet --collect -p Delegate=yes --"
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUNNER: "sudo systemd-run --scope --quiet --collect -p Delegate=yes --"
         run: cargo test --locked -p cgroup-tracker --test cgroupfs -- --ignored
