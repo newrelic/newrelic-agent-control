@@ -5,6 +5,7 @@ use std::cell::RefCell;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 use tempfile::TempDir;
 
@@ -15,6 +16,8 @@ const V1_HIERARCHY_NAME: &str = "nr-ac-test";
 pub const V1_BASE_ENV: &str = "CGROUP_TRACKER_V1_BASE";
 const WAIT_TIMEOUT: Duration = Duration::from_secs(10);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
+/// Distinguishes the bases created within this process. The pid covers other processes.
+static BASE_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 /// Cgroup base private to a single test, so tests can run in parallel.
 ///
@@ -30,8 +33,12 @@ pub struct TestBase {
 impl TestBase {
     /// For v2, the base is a child of the cgroup the test process runs in. For v1, it is a child
     /// of the root of a freshly mounted named hierarchy.
-    pub fn new(hierarchy: Hierarchy, test_name: &str) -> Self {
-        let unique = format!("test-{test_name}-{hierarchy:?}-{}", std::process::id());
+    pub fn new(hierarchy: Hierarchy) -> Self {
+        let unique = format!(
+            "test-{hierarchy:?}-{}-{}",
+            std::process::id(),
+            BASE_COUNTER.fetch_add(1, Ordering::Relaxed)
+        );
         let (base, v1_mount) = match hierarchy {
             Hierarchy::V2 => {
                 let detected = CgroupTracker::detect().expect("detecting the test process cgroup");

@@ -71,7 +71,7 @@ fn sigkill(pid: i32) {
 #[case::v1(Hierarchy::V1)]
 #[ignore = "requires a writable cgroup v2, and root or a premounted hierarchy for v1"]
 fn child_execs_inside_cgroup(#[case] hierarchy: Hierarchy) {
-    let base = TestBase::new(hierarchy, "child-execs");
+    let base = TestBase::new(hierarchy);
     let name = base.cgroup("cat");
     let mut command = Command::new("cat");
     command.arg("/proc/self/cgroup");
@@ -93,7 +93,7 @@ fn child_execs_inside_cgroup(#[case] hierarchy: Hierarchy) {
 #[case::v1(Hierarchy::V1)]
 #[ignore = "requires a writable cgroup v2, and root or a premounted hierarchy for v1"]
 fn forks_double_forks_and_setsid_stay_tracked(#[case] hierarchy: Hierarchy) {
-    let base = TestBase::new(hierarchy, "forks");
+    let base = TestBase::new(hierarchy);
     let name = base.cgroup("tree");
     let mut child = base.spawn(&name, TREE_SCRIPT);
     let shell = child.id() as i32;
@@ -126,7 +126,7 @@ fn forks_double_forks_and_setsid_stay_tracked(#[case] hierarchy: Hierarchy) {
 #[case::v1(Hierarchy::V1)]
 #[ignore = "requires a writable cgroup v2, and root or a premounted hierarchy for v1"]
 fn kill_and_remove_kills_whole_tree(#[case] hierarchy: Hierarchy) {
-    let base = TestBase::new(hierarchy, "kill-tree");
+    let base = TestBase::new(hierarchy);
     let name = base.cgroup("tree");
     let mut child = base.spawn(&name, TREE_SCRIPT);
     let members = base.wait_for_members(&name, TREE_SIZE);
@@ -145,7 +145,7 @@ fn kill_and_remove_kills_whole_tree(#[case] hierarchy: Hierarchy) {
 #[case::v1(Hierarchy::V1)]
 #[ignore = "requires a writable cgroup v2, and root or a premounted hierarchy for v1"]
 fn kill_and_remove_with_unreaped_child(#[case] hierarchy: Hierarchy) {
-    let base = TestBase::new(hierarchy, "unreaped");
+    let base = TestBase::new(hierarchy);
     let name = base.cgroup("pair");
     let mut child = base.spawn(&name, PAIR_SCRIPT);
     let shell = child.id() as i32;
@@ -170,7 +170,7 @@ fn kill_and_remove_with_unreaped_child(#[case] hierarchy: Hierarchy) {
 #[case::v1(Hierarchy::V1)]
 #[ignore = "requires a writable cgroup v2, and root or a premounted hierarchy for v1"]
 fn kill_and_remove_removes_descendant_cgroups(#[case] hierarchy: Hierarchy) {
-    let base = TestBase::new(hierarchy, "descendants");
+    let base = TestBase::new(hierarchy);
     let name = base.cgroup("pair");
     let mut child = base.spawn(&name, PAIR_SCRIPT);
     let shell = child.id() as i32;
@@ -197,7 +197,7 @@ fn kill_and_remove_removes_descendant_cgroups(#[case] hierarchy: Hierarchy) {
 #[case::v1(Hierarchy::V1)]
 #[ignore = "requires a writable cgroup v2, and root or a premounted hierarchy for v1"]
 fn populated_cgroup_cannot_be_removed(#[case] hierarchy: Hierarchy) {
-    let base = TestBase::new(hierarchy, "populated");
+    let base = TestBase::new(hierarchy);
     let name = base.cgroup("pair");
     let mut child = base.spawn(&name, PAIR_SCRIPT);
     base.wait_for_members(&name, 2);
@@ -214,7 +214,7 @@ fn populated_cgroup_cannot_be_removed(#[case] hierarchy: Hierarchy) {
 #[case::v1(Hierarchy::V1)]
 #[ignore = "requires a writable cgroup v2, and root or a premounted hierarchy for v1"]
 fn tree_survives_parent_death_and_is_readopted(#[case] hierarchy: Hierarchy) {
-    let base = TestBase::new(hierarchy, "readopt");
+    let base = TestBase::new(hierarchy);
     let name = base.cgroup("pair");
     let mut child = base.spawn(&name, PAIR_SCRIPT);
     let shell = child.id() as i32;
