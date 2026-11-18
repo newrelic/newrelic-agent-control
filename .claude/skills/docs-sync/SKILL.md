@@ -1,7 +1,7 @@
 ---
 name: docs-sync
-description: Detects drift between the code and the docs in docs/, fixes it and explains each fix in a markdown report. By default it audits every doc against the whole codebase; `branch` mode only covers what the current branch's changes make false. Use before opening a PR, or when asked whether docs are stale or out of date. Invoke with /docs-sync or /docs-sync branch.
-argument-hint: branch audit
+description: Detects drift between the code and the docs in docs/, fixes it and explains each fix in a markdown report. By default it audits every doc against the whole codebase; `diff` mode only covers what the current branch's changes (against `main` or a given base) make false. Use before opening a PR, or when asked whether docs are stale or out of date. Invoke with /docs-sync or /docs-sync diff [base].
+argument-hint: audit | diff [base]
 ---
 
 # docs-sync
@@ -11,7 +11,7 @@ Find statements in `docs/` that the code contradicts, fix them, and explain what
 ## Modes
 
 - `/docs-sync` (default): every doc against the whole codebase. `audit` is an alias.
-- `/docs-sync branch`: only statements that `git diff main...HEAD` makes false. Drift the branch did not cause is listed in the report as out of scope and left untouched.
+- `/docs-sync diff [base]`: only statements that `git diff <base>...HEAD` makes false. `<base>` is any branch or commit and defaults to `main`; e.g. `/docs-sync diff feature-branch` uses `git diff feature-branch...HEAD`. Drift the diff did not cause is listed in the report as out of scope and left untouched.
 
 Both modes apply the fixes themselves, without asking.
 
@@ -28,12 +28,12 @@ Both modes apply the fixes themselves, without asking.
 
 1. **Scope.**
    - Default: `find docs -name '*.md'`.
-   - Branch: `git diff main...HEAD --stat`. If every changed file is a test or under `docs/`, or nothing a doc could observe changed (renames or removals, config keys, flags, env vars, defaults, agent-type schema, behavior, error or log messages), say "no doc impact" and stop without a report. Otherwise grep `docs/` for the changed identifiers and keep the docs that match or whose headings cover the change. Every doc line containing a deleted or renamed identifier is a finding, even if the old value could still work elsewhere.
+   - Diff: `git diff <base>...HEAD --stat`. If every changed file is a test or under `docs/`, or nothing a doc could observe changed (renames or removals, config keys, flags, env vars, defaults, agent-type schema, behavior, error or log messages), say "no doc impact" and stop without a report. Otherwise grep `docs/` for the changed identifiers and keep the docs that match or whose headings cover the change. Every doc line containing a deleted or renamed identifier is a finding, even if the old value could still work elsewhere.
 2. **Extract.** Launch `Explore` subagents in one message: one per doc, or one per batch of small docs (up to ~30 KB). Skip them when one doc and a handful of claims is all there is. Each returns only false claims, as `severity | doc:line | claim | code:line | evidence | fix | confidence (high or low)`, and is told:
    - no evidence, no finding;
    - search the whole repo (`agent-control/src`, `tests`, `test`, `build`, `.github`, `Makefile`, `Tiltfile`) before saying something does not exist, and trace the path that runs in production for defaults (serde, templating, builders);
    - agent-type ids absent from the embedded registry can resolve remotely: list them as "could not verify", not stale, unless a changelog shows they were removed;
-   - in branch mode, only check claims that depend on the changes (pass the list).
+   - in diff mode, only check claims that depend on the changes (pass the list).
 
    Wait for all of them, then merge and dedupe.
 3. **Verify** each finding yourself:
@@ -46,8 +46,8 @@ Both modes apply the fixes themselves, without asking.
 4. **Apply** the doc edits.
 5. **Report** to `docs-sync-audit.md` at the repo root (overwrite; do not commit):
    - one line of scope: mode, docs covered, docs skipped;
-   - per doc, `misleading` rows first, a table `| Line | Sev | Claim | Code evidence | Action |`. Code evidence is `path:line` plus a quote. `Action` is `Applied`, `Applied (adapted)` (say how it differs) or `Needs decision`;
-   - then, skipping empty ones: Needs decision (evidence and both options), Dropped (reason), Could not verify, Out of scope (branch mode), Undocumented behavior, Counts, Known limits (behavior claims are best-effort; design rationale is not verified).
+   - per doc, `misleading` rows first, a table `| Line | Sev | Claim | Code evidence | Action |`. Code evidence is `path:line` plus a quote, repeated on every row: never "same as above". `Action` is `Applied`, `Applied (adapted)` (say how it differs) or `Needs decision`;
+   - then, skipping empty ones: Needs decision (evidence and both options), Dropped (reason), Could not verify, Out of scope (diff mode), Undocumented behavior, Counts, Known limits (behavior claims are best-effort; design rationale is not verified).
 
    Severity: **misleading** = a reader gets wrong behavior or a failing command; **stale** = outdated examples, names or values; **typo** = wording only.
 6. **Check and reply.** `git status --short` shows only `docs/` and the report. Reply with the counts, the "Needs decision" items and the report path; do not paste the report.

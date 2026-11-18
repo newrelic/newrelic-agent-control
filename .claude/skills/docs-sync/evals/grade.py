@@ -34,6 +34,10 @@ def run_check(check, report, timing, diff="", status=""):
         files = re.findall(r"^\+\+\+ b/(.+)$", diff, re.M)
         hit = [f for f in files if re.search(check["pattern"], f)]
         return bool(hit), f"edited files: {files or 'none'}"
+    if kind == "diff_untouched":
+        files = re.findall(r"^\+\+\+ b/(.+)$", diff, re.M)
+        hit = [f for f in files if re.search(check["pattern"], f)]
+        return not hit, f"edited files matching {check['pattern']!r}: {hit or 'none'}"
     if kind == "diff_added_absent":
         added = [l[1:] for l in diff.splitlines() if l.startswith("+") and not l.startswith("+++")]
         bad = [l for l in added if re.search(check["pattern"], l)]
