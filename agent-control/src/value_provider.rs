@@ -14,7 +14,6 @@ use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::value_provider::aws_secrets_manager::{AwsSecretsManager, AwsSecretsManagerConfig};
 use crate::value_provider::azure_key_vault::{AzureKeyVault, AzureKeyVaultConfig};
 use crate::value_provider::env::Env;
-use crate::value_provider::file::FileProvider;
 use crate::value_provider::k8s_configmap::K8sConfigMapProvider;
 use crate::value_provider::k8s_secret::K8sSecretProvider;
 use crate::value_provider::vault::{Vault, VaultConfig};
@@ -88,8 +87,6 @@ pub enum ValueProviderType<C: K8sClient = SyncK8sClient> {
     K8sSecret(K8sSecretProvider<C>),
     /// Values retrieved from Kubernetes ConfigMaps.
     K8sConfigMap(K8sConfigMapProvider<C>),
-    /// Values retrieved from the local filesystem.
-    File(FileProvider),
     /// Values retrieved from environment variables.
     Env(Env),
 }
@@ -116,9 +113,6 @@ impl<C: K8sClient> ValueProvider for ValueProviderType<C> {
             ValueProviderType::K8sConfigMap(provider) => provider.get_value(path).map_err(|err| {
                 ValueProvidersError(format!("k8s configmap provider failed: {err}"))
             }),
-            ValueProviderType::File(provider) => provider
-                .get_value(path)
-                .map_err(|err| ValueProvidersError(format!("file provider failed: {err}"))),
             ValueProviderType::Env(provider) => provider
                 .get_value(path)
                 .map_err(|err| ValueProvidersError(format!("env provider failed: {err}"))),
@@ -170,13 +164,6 @@ impl Registry<ValueProviderType> {
             Namespace::K8sConfigMap,
             ValueProviderType::K8sConfigMap(K8sConfigMapProvider::new(k8s_client)),
         );
-        self
-    }
-
-    /// Registers the file provider.
-    pub fn with_file(mut self) -> Self {
-        self.0
-            .insert(Namespace::File, ValueProviderType::File(FileProvider));
         self
     }
 

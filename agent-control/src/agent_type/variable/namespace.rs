@@ -55,8 +55,6 @@ pub enum Namespace {
     EnvironmentVariable,
     /// Secrets retrieved from a HashiCorp Vault.
     Vault,
-    /// Secrets retrieved from a file.
-    File,
     /// Secrets retrieved from Kubernetes Secrets.
     K8sSecret,
     /// Values retrieved from Kubernetes ConfigMaps.
@@ -90,8 +88,6 @@ impl Namespace {
     const K8S_SECRET: &'static str = "kubesec";
     /// Encapsulates the values retrieved from K8s ConfigMaps
     const K8S_CONFIGMAP: &'static str = "kubecm";
-    /// Encapsulates the secrets retrieved from a file
-    const FILE_SECRET: &'static str = "file";
     /// Encapsulates secrets retrieved from Azure Key Vault
     const AZURE_KEY_VAULT: &'static str = "azurekv";
     /// Encapsulates secrets retrieved from AWS Secrets Manager
@@ -113,7 +109,6 @@ impl Namespace {
             | Namespace::Path => false,
             Namespace::EnvironmentVariable
             | Namespace::Vault
-            | Namespace::File
             | Namespace::K8sSecret
             | Namespace::K8sConfigMap
             | Namespace::AzureKeyVault
@@ -131,7 +126,6 @@ impl Display for Namespace {
             Self::Path => Self::PATH,
             Self::EnvironmentVariable => Self::ENVIRONMENT_VARIABLE,
             Self::Vault => Self::VAULT_SECRET,
-            Self::File => Self::FILE_SECRET,
             Self::K8sSecret => Self::K8S_SECRET,
             Self::K8sConfigMap => Self::K8S_CONFIGMAP,
             Self::AzureKeyVault => Self::AZURE_KEY_VAULT,
@@ -173,10 +167,6 @@ mod tests {
         assert_eq!(
             "nr-kubecm:test".to_string(),
             VariableName::new(Namespace::K8sConfigMap, "test").to_string()
-        );
-        assert_eq!(
-            "nr-file:test".to_string(),
-            VariableName::new(Namespace::File, "test").to_string()
         );
         assert_eq!(
             "nr-azurekv:test".to_string(),
