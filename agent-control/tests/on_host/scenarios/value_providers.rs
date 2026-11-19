@@ -1,4 +1,8 @@
-use std::{fs::read_to_string, time::Duration};
+use std::{
+    fs::{canonicalize, read_to_string},
+    path::Path,
+    time::Duration,
+};
 
 use crate::common::base_paths::TempBasePaths;
 use crate::on_host::consts::NO_CONFIG;
@@ -49,8 +53,7 @@ deployment:
           kind: file
           text: "${{nr-file:{source}}}"
 "#,
-            // Forward slashes keep Windows paths from being read as YAML escape sequences.
-            source = source_file.display().to_string().replace('\\', "/")
+            source = template_safe_path(&source_file)
         ),
         dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME),
     );
@@ -83,4 +86,15 @@ deployment:
         }
         Ok(())
     });
+}
+
+/// Returns the path in a form accepted inside a `${nr-...}` reference and a YAML string. The
+/// reference only allows `[a-zA-Z0-9.\-_/:]`, so Windows 8.3 short names (`RUNNER~1`) are expanded
+/// by canonicalizing, the `\\?\` prefix is dropped and backslashes become forward slashes.
+fn template_safe_path(path: &Path) -> String {
+    let canonical = canonicalize(path).expect("source file should exist");
+    let path = canonical.display().to_string();
+    path.strip_prefix(r"\\?\")
+        .unwrap_or(&path)
+        .replace('\\', "/")
 }
