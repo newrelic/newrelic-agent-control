@@ -60,8 +60,9 @@ mod unix {
     }
 
     fn start_or_readopt(tracker: &CgroupTracker, name: &CgroupName) -> Result<(), String> {
-        let path = tracker.path_of(name);
-        let members = tracker.members(name).map_err(|e| e.to_string())?;
+        let cgroup = tracker.cgroup(name);
+        let path = cgroup.path();
+        let members = cgroup.members().map_err(|e| e.to_string())?;
         if !members.is_empty() {
             println!("cgroup: {}", path.display());
             println!("re-adopted existing tree, members: {members:?}");
@@ -76,24 +77,22 @@ mod unix {
             .stdout(Stdio::null())
             .stderr(Stdio::null());
         // Creates the cgroup and makes the child join it before `exec`.
-        tracker
-            .prepare(name, &mut command)
-            .map_err(|e| e.to_string())?;
-        let child = command.spawn().map_err(|e| format!("spawning: {e}"))?;
+        let child = cgroup.spawn(command).map_err(|e| e.to_string())?;
         println!("spawned `sh -c '{SCRIPT}'` with pid {}", child.id());
-        println!("cgroup: {}", tracker.path_of(name).display());
+        println!("cgroup: {}", path.display());
         // The child is neither waited for nor killed: exiting here is what a crash looks like.
         println!("exiting without stopping the tree");
         Ok(())
     }
 
     fn status(tracker: &CgroupTracker, name: &CgroupName) -> Result<(), String> {
-        let path = tracker.path_of(name);
+        let cgroup = tracker.cgroup(name);
+        let path = cgroup.path();
         if !path.exists() {
             println!("cgroup {} does not exist", path.display());
             return Ok(());
         }
-        let pids = tracker.members(name).map_err(|e| e.to_string())?;
+        let pids = cgroup.members().map_err(|e| e.to_string())?;
         println!("cgroup: {}", path.display());
         println!("members: {}", pids.len());
         for pid in pids {
@@ -105,8 +104,9 @@ mod unix {
     }
 
     fn stop(tracker: &CgroupTracker, name: &CgroupName) -> Result<(), String> {
-        tracker.kill_and_remove(name).map_err(|e| e.to_string())?;
-        println!("killed and removed {}", tracker.path_of(name).display());
+        let cgroup = tracker.cgroup(name);
+        cgroup.kill_and_remove().map_err(|e| e.to_string())?;
+        println!("killed and removed {}", cgroup.path().display());
         Ok(())
     }
 }

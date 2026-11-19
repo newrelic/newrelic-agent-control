@@ -10,7 +10,7 @@ use std::io::{self, BufReader, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Child, Command};
 use std::time::Duration;
 
 const PROCS_FILE: &str = "cgroup.procs";
@@ -62,32 +62,45 @@ impl CgroupTracker {
         self.hierarchy
     }
 
-    /// Absolute path of the cgroup for `name`.
-    pub fn path_of(&self, name: &CgroupName) -> PathBuf {
-        self.base.join(name.relative_path())
+    /// Handle to the cgroup for `name`. The cgroup is not created until needed.
+    pub fn cgroup<'a>(&'a self, name: &'a CgroupName) -> Cgroup<'a> {
+        Cgroup {
+            tracker: self,
+            name,
+        }
+    }
+}
+
+/// A cgroup of a [CgroupTracker], identified by its [CgroupName]. It may not exist on disk yet.
+#[derive(Debug, Clone, Copy)]
+pub struct Cgroup<'a> {
+    tracker: &'a CgroupTracker,
+    name: &'a CgroupName,
+}
+
+impl Cgroup<'_> {
+    /// Absolute path of the cgroup. It may not exist yet, see [Self::prepare].
+    pub fn path(&self) -> PathBuf {
+        self.tracker.base.join(self.name.relative_path())
     }
 
     /// Pids of every process in the cgroup and its descendant cgroups.
     /// Empty if the cgroup does not exist.
-    pub fn members(&self, name: &CgroupName) -> Result<Vec<i32>, CgroupTrackerError> {
-        member_pids(&self.path_of(name))
+    pub fn members(&self) -> Result<Vec<i32>, CgroupTrackerError> {
+        member_pids(&self.path())
     }
 
     /// Creates the cgroup. Idempotent.
-    pub fn create(&self, name: &CgroupName) -> Result<(), CgroupTrackerError> {
-        let path = self.path_of(name);
+    fn create(&self) -> Result<(), CgroupTrackerError> {
+        let path = self.path();
         fs::create_dir_all(&path).map_err(CgroupTrackerError::io(CgroupOperation::Create, &path))
     }
 
     /// Creates the cgroup and configures `command` so the child joins it before `exec` and
     /// leads its own process group, keeping both invariants in a single place.
-    pub fn prepare(
-        &self,
-        name: &CgroupName,
-        command: &mut Command,
-    ) -> Result<(), CgroupTrackerError> {
-        self.create(name)?;
-        let procs_path = self.path_of(name).join(PROCS_FILE);
+    pub fn prepare(&self, command: &mut Command) -> Result<(), CgroupTrackerError> {
+        self.create()?;
+        let procs_path = self.path().join(PROCS_FILE);
         // Built before the fork so the child does not allocate.
         let procs = CString::new(procs_path.as_os_str().as_bytes()).map_err(|source| {
             CgroupTrackerError::InvalidPath {
@@ -115,12 +128,25 @@ impl CgroupTracker {
         Ok(())
     }
 
+    /// Creates the cgroup and spawns `command` inside it, see [Self::prepare].
+    ///
+    /// If the spawn fails, the cgroup is left in place (empty if it was created by this call).
+    /// Callers should clean it up with [Self::kill_and_remove] if they do not retry.
+    pub fn spawn(&self, mut command: Command) -> Result<Child, CgroupTrackerError> {
+        self.prepare(&mut command)?;
+        command.spawn().map_err(|source| CgroupTrackerError::Spawn {
+            program: command.get_program().to_string_lossy().into_owned(),
+            path: self.path(),
+            source,
+        })
+    }
+
     /// Kills every process in the cgroup (and its descendants), then removes it along with
     /// its descendant cgroups.
     ///
     /// Uses `cgroup.kill` when available and falls back to signalling the members.
-    pub fn kill_and_remove(&self, name: &CgroupName) -> Result<(), CgroupTrackerError> {
-        let path = self.path_of(name);
+    pub fn kill_and_remove(&self) -> Result<(), CgroupTrackerError> {
+        let path = self.path();
         for _ in 0..KILL_ATTEMPTS {
             self.kill_members(&path)?;
             match remove_cgroup_tree(&path) {
@@ -149,7 +175,7 @@ impl CgroupTracker {
     }
 
     fn kill_members(&self, path: &Path) -> Result<(), CgroupTrackerError> {
-        if self.hierarchy.supports_cgroup_kill() {
+        if self.tracker.hierarchy.supports_cgroup_kill() {
             match OpenOptions::new()
                 .write(true)
                 .open(path.join(KILL_FILE))
@@ -280,7 +306,7 @@ mod tests {
     fn path_of_joins_base_and_name() {
         let tracker = CgroupTracker::with_base("/sys/fs/cgroup/test", Hierarchy::V2);
         assert_eq!(
-            tracker.path_of(&name("agent-exec")),
+            tracker.cgroup(&name("agent-exec")).path(),
             PathBuf::from("/sys/fs/cgroup/test/_nr-ac/agent-exec")
         );
     }
@@ -289,52 +315,76 @@ mod tests {
     fn create_is_idempotent() {
         let (_dir, tracker) = tracker();
         let name = name("agent-exec");
-        tracker.create(&name).unwrap();
-        tracker.create(&name).unwrap();
-        assert!(tracker.path_of(&name).is_dir());
+        tracker.cgroup(&name).create().unwrap();
+        tracker.cgroup(&name).create().unwrap();
+        assert!(tracker.cgroup(&name).path().is_dir());
+    }
+
+    #[test]
+    fn spawn_failure_returns_spawn_error_and_keeps_cgroup() {
+        let (_dir, tracker) = tracker();
+        let name = name("agent-exec");
+
+        let err = tracker
+            .cgroup(&name)
+            .spawn(Command::new("/nonexistent/binary"))
+            .unwrap_err();
+
+        assert_matches!(err, CgroupTrackerError::Spawn { program, path, .. } => {
+            assert_eq!(program, "/nonexistent/binary");
+            assert_eq!(path, tracker.cgroup(&name).path());
+        });
+        assert!(tracker.cgroup(&name).path().is_dir());
     }
 
     #[test]
     fn kill_and_remove_deletes_cgroup_and_empty_root_dir() {
         let (_dir, tracker) = tracker();
         let name = name("agent-exec");
-        tracker.create(&name).unwrap();
+        tracker.cgroup(&name).create().unwrap();
 
-        tracker.kill_and_remove(&name).unwrap();
+        tracker.cgroup(&name).kill_and_remove().unwrap();
 
-        assert!(!tracker.path_of(&name).exists());
-        assert!(!tracker.path_of(&name).parent().unwrap().exists());
+        assert!(!tracker.cgroup(&name).path().exists());
+        assert!(!tracker.cgroup(&name).path().parent().unwrap().exists());
     }
 
     #[test]
     fn kill_and_remove_keeps_root_dir_with_other_cgroups() {
         let (_dir, tracker) = tracker();
         let (a, b) = (name("agent-a"), name("agent-b"));
-        tracker.create(&a).unwrap();
-        tracker.create(&b).unwrap();
+        tracker.cgroup(&a).create().unwrap();
+        tracker.cgroup(&b).create().unwrap();
 
-        tracker.kill_and_remove(&a).unwrap();
+        tracker.cgroup(&a).kill_and_remove().unwrap();
 
-        assert!(tracker.path_of(&b).is_dir());
+        assert!(tracker.cgroup(&b).path().is_dir());
     }
 
     #[test]
     fn kill_and_remove_deletes_descendant_cgroups() {
         let (_dir, tracker) = tracker();
         let name = name("agent-exec");
-        tracker.create(&name).unwrap();
-        let nested = tracker.path_of(&name).join("child").join("grandchild");
+        tracker.cgroup(&name).create().unwrap();
+        let nested = tracker
+            .cgroup(&name)
+            .path()
+            .join("child")
+            .join("grandchild");
         fs::create_dir_all(&nested).unwrap();
 
-        tracker.kill_and_remove(&name).unwrap();
+        tracker.cgroup(&name).kill_and_remove().unwrap();
 
-        assert!(!tracker.path_of(&name).exists());
+        assert!(!tracker.cgroup(&name).path().exists());
     }
 
     #[test]
     fn kill_and_remove_missing_cgroup_is_ok() {
         let (_dir, tracker) = tracker();
-        tracker.kill_and_remove(&name("agent-exec")).unwrap();
+        tracker
+            .cgroup(&name("agent-exec"))
+            .kill_and_remove()
+            .unwrap();
     }
 
     /// Records the signalled pids and fails the configured ones.
@@ -395,14 +445,14 @@ mod tests {
     fn members_includes_descendant_cgroups() {
         let (_dir, tracker) = tracker();
         let name = name("agent-exec");
-        tracker.create(&name).unwrap();
-        let path = tracker.path_of(&name);
+        tracker.cgroup(&name).create().unwrap();
+        let path = tracker.cgroup(&name).path();
         let child = path.join("child");
         fs::create_dir(&child).unwrap();
         fs::write(path.join(PROCS_FILE), "10\n11\n").unwrap();
         fs::write(child.join(PROCS_FILE), "12\n").unwrap();
 
-        let mut pids = tracker.members(&name).unwrap();
+        let mut pids = tracker.cgroup(&name).members().unwrap();
         pids.sort_unstable();
 
         assert_eq!(pids, vec![10, 11, 12]);
@@ -412,7 +462,7 @@ mod tests {
     fn members_is_empty_when_cgroup_does_not_exist() {
         let (_dir, tracker) = tracker();
 
-        let pids = tracker.members(&name("missing")).unwrap();
+        let pids = tracker.cgroup(&name("missing")).members().unwrap();
 
         assert!(pids.is_empty());
     }
@@ -421,15 +471,30 @@ mod tests {
     fn prepare_attaches_child_before_exec() {
         let (_dir, tracker) = tracker();
         let name = name("agent-exec");
-        tracker.create(&name).unwrap();
+        tracker.cgroup(&name).create().unwrap();
         // A regular file stands in for the kernel interface file.
-        let procs = tracker.path_of(&name).join(PROCS_FILE);
+        let procs = tracker.cgroup(&name).path().join(PROCS_FILE);
         fs::write(&procs, "").unwrap();
 
         let mut command = Command::new("true");
-        tracker.prepare(&name, &mut command).unwrap();
+        tracker.cgroup(&name).prepare(&mut command).unwrap();
         assert!(command.status().unwrap().success());
 
+        assert_eq!(fs::read_to_string(procs).unwrap(), "0");
+    }
+
+    #[test]
+    fn spawn_runs_command_attached_to_the_cgroup() {
+        let (_dir, tracker) = tracker();
+        let name = name("agent-exec");
+        tracker.cgroup(&name).create().unwrap();
+        // A regular file stands in for the kernel interface file.
+        let procs = tracker.cgroup(&name).path().join(PROCS_FILE);
+        fs::write(&procs, "").unwrap();
+
+        let mut child = tracker.cgroup(&name).spawn(Command::new("true")).unwrap();
+
+        assert!(child.wait().unwrap().success());
         assert_eq!(fs::read_to_string(procs).unwrap(), "0");
     }
 
@@ -438,7 +503,10 @@ mod tests {
         let (_dir, tracker) = tracker();
         let mut command = Command::new("true");
         // No `cgroup.procs` file, so attaching fails and the command must not run.
-        tracker.prepare(&name("agent-exec"), &mut command).unwrap();
+        tracker
+            .cgroup(&name("agent-exec"))
+            .prepare(&mut command)
+            .unwrap();
         assert!(command.spawn().is_err());
     }
 }
