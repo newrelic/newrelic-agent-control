@@ -62,7 +62,7 @@ env:
   # renovate: datasource=npm depName=newrelic
   NODE_AGENT_VERSION: 14.11.0
   # renovate: datasource=pypi depName=newrelic
-  PYTHON_AGENT_VERSION: 11.0.0
+  PYTHON_AGENT_VERSION: 14.3.0
 
 jobs:
   build-packages:
