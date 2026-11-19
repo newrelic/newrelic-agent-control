@@ -30,12 +30,12 @@ use std::path::PathBuf;
 /// Directory, relative to the tracker base, holding every cgroup created by the tracker.
 pub(crate) const CGROUP_ROOT: &str = "_nr-ac";
 
-/// Maximum length of a single cgroup directory name.
-const MAX_LEN: usize = 255;
-
 /// cgroup v1 interface files that don't contain a `.`. Every other interface file is named
 /// `<controller>.<file>`, which can't clash with a name since `.` is not allowed.
 const RESERVED_NAMES: &[&str] = &["tasks", "notify_on_release"];
+
+/// Maximum length of a single cgroup directory name.
+const MAX_LEN: usize = 255;
 
 /// Name of a cgroup created by the tracker, located at `_nr-ac/<name>`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,7 +49,7 @@ impl CgroupName {
 }
 
 /// Validates the name. It must be made of ASCII alphanumerics, `-` and `_`, can't be empty and
-/// can't be one of the [`RESERVED_NAMES`].
+/// can't be one of the reserved names for cgroups.
 impl TryFrom<String> for CgroupName {
     type Error = InvalidCgroupName;
 
