@@ -1,0 +1,28 @@
+name: test-preload-label
+
+# Runs the preload e2e tests only on PRs labeled `preload-e2e`.
+# Intentionally has no merge_group, paths or schedule trigger while preload is not production-ready.
+
+on:
+  pull_request:
+    types: [ opened, synchronize, labeled ] # Also trigger when adding labels
+
+permissions:
+  contents: read
+  actions: read
+
+# See https://docs.github.com/en/actions/using-jobs/using-concurrency
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  onhost-preload-e2e:
+    if: contains(github.event.pull_request.labels.*.name, 'preload-e2e')
+    uses: ./.github/workflows/component_onhost_e2e_preload.yml
+    secrets:
+      NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
+      NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
+      E2E_ACCOUNT_ID: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}
+      E2E_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
+      E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}

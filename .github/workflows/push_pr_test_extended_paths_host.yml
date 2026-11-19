@@ -10,6 +10,7 @@ on:
       - "build/**"
       - ".github/workflows/component_onhost_e2e.yml"
       - ".github/actions/agent-versions/**"
+      - "!test/e2e-runner/src/linux/scenarios/preload_agent/**" # Covered by the preload-e2e label
   pull_request:
     types: [ opened, synchronize, labeled ] # Also check labels
     paths:
@@ -18,6 +19,7 @@ on:
       - "build/**"
       - ".github/workflows/component_onhost_e2e.yml"
       - ".github/actions/agent-versions/**"
+      - "!test/e2e-runner/src/linux/scenarios/preload_agent/**" # Covered by the preload-e2e label
   merge_group:
 
 permissions:
