@@ -197,6 +197,30 @@ fn kill_and_remove_removes_descendant_cgroups(#[case] hierarchy: Hierarchy) {
 #[case::v2(Hierarchy::V2)]
 #[case::v1(Hierarchy::V1)]
 #[ignore = "requires a writable cgroup v2, and root or a premounted hierarchy for v1"]
+fn list_returns_populated_and_empty_cgroups(#[case] hierarchy: Hierarchy) {
+    let base = TestBase::new(hierarchy);
+    let populated = base.cgroup("populated");
+    let empty = base.cgroup("empty");
+    let mut child = base.spawn(&populated, PAIR_SCRIPT);
+    base.wait_for_members(&populated, 2);
+    base.tracker()
+        .cgroup(&empty)
+        .prepare(&mut Command::new("true"))
+        .unwrap();
+
+    let names = base.tracker().list().unwrap();
+
+    assert_eq!(names.len(), 2);
+    assert!(names.contains(&populated));
+    assert!(names.contains(&empty));
+    base.tracker().cgroup(&populated).kill_and_remove().unwrap();
+    child.wait().unwrap();
+}
+
+#[rstest]
+#[case::v2(Hierarchy::V2)]
+#[case::v1(Hierarchy::V1)]
+#[ignore = "requires a writable cgroup v2, and root or a premounted hierarchy for v1"]
 fn populated_cgroup_cannot_be_removed(#[case] hierarchy: Hierarchy) {
     let base = TestBase::new(hierarchy);
     let name = base.cgroup("pair");
