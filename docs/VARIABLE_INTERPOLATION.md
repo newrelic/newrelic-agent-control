@@ -28,7 +28,6 @@ Filters are optional post-processing steps applied to the resolved value (e.g. `
 | Vault secrets | `nr-vault` | HashiCorp Vault (KV1 or KV2) | On-host |
 | Azure Key Vault secrets | `nr-azurekv` | Azure Key Vault (Managed Identity or Service Principal) | On-host |
 | AWS Secrets Manager secrets | `nr-awssm` | AWS Secrets Manager (access key or EC2 instance profile) | On-host |
-| File values | `nr-file` | Local filesystem file contents | On-host |
 | Kubernetes secrets | `nr-kubesec` | Kubernetes Secret objects | K8s |
 | Kubernetes ConfigMaps | `nr-kubecm` | Kubernetes ConfigMap objects | K8s |
 
@@ -142,13 +141,13 @@ env:
 ```
 
 > **Note:** `nr-env` is a pass-through — it reads whatever is in the host environment. For secret
-> management, prefer `nr-vault` or `nr-file`.
+> management, prefer `nr-vault`.
 
 ---
 
 ## Value Providers
 
-`nr-env`, `nr-vault`, `nr-azurekv`, `nr-awssm`, `nr-file`, `nr-kubesec`, and `nr-kubecm` are resolved by a
+`nr-env`, `nr-vault`, `nr-azurekv`, `nr-awssm`, `nr-kubesec`, and `nr-kubecm` are resolved by a
 value provider on every remote config update, not just at startup. This means their values are
 refreshed automatically when a new config is pushed from Fleet Control.
 
@@ -300,21 +299,6 @@ value_providers:
           access_key_id: "AKIAXXXXXXXXXXXXXXXX"
           secret_access_key: "your-secret-access-key"
 ```
-
-### `nr-file` — File values
-
-Reads the contents of a local file. The file content is trimmed of leading/trailing whitespace.
-No configuration needed in the Agent Control configuration.
-
-**Value path format:** absolute path to the file
-
-```yaml
-env:
-  API_KEY: "${nr-file:/etc/newrelic/api.key}"
-  CERT:    "${nr-file:/run/secrets/tls.crt}"
-```
-
----
 
 ### `nr-kubesec` — Kubernetes secrets
 
