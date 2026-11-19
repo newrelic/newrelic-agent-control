@@ -50,10 +50,12 @@ impl SupervisedProcess {
         }
     }
 
-    /// Sends SIGTERM. ESRCH (already gone) is treated as success since the goal —
-    /// process is not running — is already achieved.
+    /// Sends SIGTERM to the entire process group. ESRCH (already gone) is treated as success.
+    ///
+    /// The sub-agent is spawned as its own process group leader (pgid = pid), so negating the
+    /// pid targets every process it has spawned, not just the root process.
     pub(super) fn graceful_signal(&self) -> Result<(), CommandError> {
-        match kill(Pid::from_raw(self.pid as i32), Signal::SIGTERM) {
+        match kill(Pid::from_raw(-(self.pid as i32)), Signal::SIGTERM) {
             Ok(()) | Err(nix::errno::Errno::ESRCH) => Ok(()),
             Err(e) => Err(CommandError::IOError(io::Error::from(e))),
         }
@@ -94,5 +96,53 @@ impl SupervisedProcess {
             _ => 0,
         };
         ExitStatus::from_raw(raw)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sub_agent::on_host::managed_process::ProcessOrigin;
+    use crate::sub_agent::on_host::managed_process::spawned_process::executable_data::ExecutableData;
+    use crate::sub_agent::on_host::managed_process::spawned_process::os_process::OsProcessConfig;
+    use nix::unistd::getpgid;
+
+    fn spawn(bin: &str, args: &[&str]) -> SupervisedProcess {
+        ProcessOrigin::Spawn(OsProcessConfig::new(
+            "test".to_string().try_into().unwrap(),
+            &ExecutableData {
+                id: "test".to_string(),
+                bin: bin.to_string(),
+                args: args.iter().map(|a| a.to_string()).collect(),
+                env: Default::default(),
+                restart_policy: Default::default(),
+                shutdown_timeout: Default::default(),
+            },
+            None,
+        ))
+        .try_into_supervised()
+        .unwrap()
+    }
+
+    #[test]
+    fn spawned_process_leads_its_own_process_group() {
+        let process = spawn("sleep", &["5"]);
+        let pid = Pid::from_raw(process.pid as i32);
+
+        // `graceful_signal` targets `-pid`, which is only the child's group (and not Agent
+        // Control's own) if the child is a group leader distinct from this process.
+        assert_eq!(getpgid(Some(pid)).unwrap(), pid);
+        assert_ne!(getpgid(Some(pid)).unwrap(), getpgid(None).unwrap());
+
+        process.force_kill().unwrap();
+    }
+
+    #[test]
+    fn graceful_signal_succeeds_when_process_group_is_gone() {
+        let process = spawn("true", &[]);
+        // Reap the child so its process group no longer exists.
+        waitpid(Pid::from_raw(process.pid as i32), None).unwrap();
+
+        assert!(process.graceful_signal().is_ok());
     }
 }

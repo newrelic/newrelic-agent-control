@@ -4,6 +4,8 @@ use super::error::CommandError;
 use super::executable_data::ExecutableData;
 use crate::agent_control::agent_id::AgentID;
 use crate::sub_agent::on_host::managed_process::spawned_process::log_files::std_streams;
+#[cfg(target_family = "unix")]
+use std::os::unix::process::CommandExt;
 use std::path::PathBuf;
 use std::process::{Child, Command};
 #[cfg(target_family = "unix")]
@@ -42,6 +44,10 @@ impl OsProcessConfig {
     ) -> Self {
         let mut cmd = Command::new(&executable_data.bin);
         cmd.args(&executable_data.args).envs(&executable_data.env);
+        // Start the child in its own process group (pgid = child pid) so SIGTERM can be
+        // delivered to the entire group without affecting Agent Control's own group.
+        #[cfg(target_family = "unix")]
+        cmd.process_group(0);
 
         Self {
             agent_id,
