@@ -88,15 +88,14 @@ impl TestBase {
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null());
-        self.tracker.prepare(name, &mut command).unwrap();
-        command.spawn().unwrap()
+        self.tracker.cgroup(name).spawn(command).unwrap()
     }
 
     /// Waits until the cgroup has exactly `count` members and returns them sorted.
     pub fn wait_for_members(&self, name: &CgroupName, count: usize) -> Vec<i32> {
         let mut members = Vec::new();
         wait_until(&format!("{count} members in cgroup {name}"), || {
-            members = self.tracker.members(name).unwrap();
+            members = self.tracker.cgroup(name).members().unwrap();
             members.len() == count
         });
         members.sort_unstable();
@@ -138,7 +137,7 @@ impl TestBase {
 impl Drop for TestBase {
     fn drop(&mut self) {
         for name in self.names.take() {
-            if let Err(err) = self.tracker.kill_and_remove(&name) {
+            if let Err(err) = self.tracker.cgroup(&name).kill_and_remove() {
                 eprintln!("cleaning up cgroup {name}: {err}");
             }
         }

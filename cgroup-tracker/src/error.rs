@@ -27,6 +27,17 @@ pub enum CgroupTrackerError {
         #[source]
         source: std::ffi::NulError,
     },
+    /// Spawning the command inside the cgroup failed.
+    #[error("spawning '{program}' in cgroup '{path}': {source}")]
+    Spawn {
+        /// Program that could not be spawned.
+        program: String,
+        /// Path of the cgroup involved.
+        path: PathBuf,
+        /// Underlying I/O error.
+        #[source]
+        source: std::io::Error,
+    },
     /// Sending SIGKILL to a member of a cgroup failed.
     #[error("killing process {pid} of cgroup '{path}': {source}")]
     Signal {
