@@ -39,10 +39,7 @@
         strictDeps = true;
         pname = "newrelic-agent-control";
         version = agentControlToml.package.version;
-        nativeBuildInputs = [
-          pkgs.cmake
-          pkgs.pkg-config
-        ];
+        nativeBuildInputs = [ ];
         buildInputs = lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ pkgs.libiconv ];
       };
     in

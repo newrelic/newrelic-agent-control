@@ -1,5 +1,5 @@
 # Development shell with the pinned toolchain and the tools CI uses. The build inputs of the
-# on-host package (cmake, pkg-config, libiconv on Darwin) come from the package itself.
+# on-host package (libiconv on Darwin) come from the package itself.
 _: {
   perSystem =
     {
