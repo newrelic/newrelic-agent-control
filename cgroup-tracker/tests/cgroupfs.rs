@@ -134,6 +134,7 @@ fn kill_and_remove_kills_whole_tree(#[case] hierarchy: Hierarchy) {
     base.tracker().cgroup(&name).kill_and_remove().unwrap();
 
     assert!(!base.tracker().cgroup(&name).path().exists());
+    assert!(base.tracker().cgroup(&name).members().unwrap().is_empty());
     assert_eq!(child.wait().unwrap().signal(), Some(Signal::SIGKILL as i32));
     wait_until("every member to exit", || {
         members.iter().all(|pid| !is_alive(*pid))
