@@ -1,4 +1,3 @@
-use std::fmt;
 use std::path::{Path, PathBuf};
 
 /// Errors returned by the cgroup tracker.
@@ -60,7 +59,7 @@ pub enum CgroupTrackerError {
 }
 
 impl CgroupTrackerError {
-    /// Syntactic sugar to built [Self::IO] errors.
+    /// Syntactic sugar to build [Self::IO] errors.
     pub fn io(operation: CgroupOperation, path: &Path) -> impl FnOnce(std::io::Error) -> Self {
         move |source| Self::IO {
             operation,
@@ -98,28 +97,21 @@ pub enum DetectError {
 }
 
 /// Cgroupfs or procfs operation that failed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, strum::Display)]
 pub enum CgroupOperation {
     /// Opening a file.
+    #[strum(to_string = "opening cgroup file")]
     Open,
     /// Creating a cgroup.
+    #[strum(to_string = "creating a cgroup")]
     Create,
     /// Removing a cgroup.
+    #[strum(to_string = "removing a cgroup")]
     Remove,
     /// Writing the cgroup kill file.
+    #[strum(to_string = "writing the cgroup kill file")]
     WriteKillFile,
     /// Reading a cgroup file or directory.
+    #[strum(to_string = "reading a cgroup file")]
     Read,
-}
-
-impl fmt::Display for CgroupOperation {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Open => "opening cgroup file",
-            Self::Create => "creating a cgroup",
-            Self::Remove => "removing a cgroup",
-            Self::WriteKillFile => "writing the cgroup kill file",
-            Self::Read => "reading a cgroup file",
-        })
-    }
 }
