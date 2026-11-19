@@ -46,7 +46,7 @@ From the point of view of OpAMP, AC is also an agent. That's why, even though ea
 
 ##### Downloads and updates observability agents (on Kubernetes)
 
-Given the nature of Kubernetes resources, Agent Control is capable of downloading arbitrary versions of the observability agents it is managing. For *on-host*, arbitrary agent downloads and upgrades is not yet supported and AC will only manage the agents already present on the system, be it because they were declared dependencies on the package manager used to install AC (so were installed alongside it), or because they were available before.
+Given the nature of Kubernetes resources, Agent Control is capable of downloading arbitrary versions of the observability agents it is managing. For *on-host*, Agent Control downloads the packages declared by the agent type from an OCI registry, at the version set in the configuration (see the [package manager](./package_manager.md)). An agent type can also reference an executable already present on the system through its `path`.
 
 ##### Remote update for Agent Control
 

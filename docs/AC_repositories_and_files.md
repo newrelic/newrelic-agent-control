@@ -14,7 +14,7 @@ so changes to it will only take effect after AC is restarted.
 
 This is also where the identity private key of AC is stored, inside the `keys` directory.
 
-Notice the file `environment_variables.yaml` that in windows is used to pass environment variables to be injected in the agents.
+Notice the file `environment_variables.yaml`: if present in the local configuration directory, it is loaded at startup on any OS and its variables are injected in the agents.
 
 
 #### Dynamic files
@@ -178,5 +178,5 @@ C:\Program Files\New Relic\newrelic-agent-control\uninstall.ps1
 
 The script:
 1. Stops and deletes the `newrelic-agent-control` Windows service.
-2. Removes the `Program Files\New Relic\newrelic-agent-control` directory (binary, keys, install marker).
-3. Removes the `ProgramData\New Relic\newrelic-agent-control` directory (logs, rendered sub-agent configs, `local-data`).
+2. Removes the `Program Files\New Relic\newrelic-agent-control` directory (binary, keys, `local-data`, install marker).
+3. Removes the `ProgramData\New Relic\newrelic-agent-control` directory (logs, rendered sub-agent configs).

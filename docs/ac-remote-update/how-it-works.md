@@ -1,6 +1,6 @@
 # Remote update
 
-Remote update is a capability of Agent Control that enable updating its version remotely, using Fleet Control. That includes Flux in Kubernetes. However, this feature is not available in all the supported systems yet.
+Remote update is a capability of Agent Control that enables updating its version remotely, using Fleet Control. That includes Flux in Kubernetes. However, this feature is not available in all the supported systems yet.
 
 ## Supported systems
 
@@ -11,7 +11,7 @@ Remote update is a capability of Agent Control that enable updating its version 
 
 ### Kubernetes
 
-In Kubernetes, both the Agent Control version and Flux version can be updated remotely. We provide a [Helm Chart to install Agent Control](https://github.com/newrelic/helm-charts/tree/master/charts/agent-control), which installs the latest version of Agent Control and Flux 2.15.0. There are some caveats.
+In Kubernetes, both the Agent Control version and Flux version can be updated remotely. We provide a [Helm Chart to install Agent Control](https://github.com/newrelic/helm-charts/tree/master/charts/agent-control-bootstrap), which installs the latest version of Agent Control and Flux 2.15.0. There are some caveats.
 
 #### Caveats
 
@@ -54,7 +54,7 @@ Valid version formats follow OCI distribution-spec rules:
 
 #### Configuration
 
-Self-update must be explicitly enabled. See the [`self_update` configuration](../CONFIG.md#self_update) for details.
+Self-update is enabled by default (`self_update.enabled: true`) and can be disabled with `enabled: false`. See the [`self_update` configuration](../CONFIG.md#self_update) for details.
 
 ### Kubernetes
 
@@ -62,13 +62,13 @@ Self-update must be explicitly enabled. See the [`self_update` configuration](..
 
 For Kubernetes, we provide Helm Charts to simplify the installation process. There are three charts:
 
-* `agent-control` - Starts the installation of Agent Control and all the necessary tools.
-* `agent-control-deployment` - This chart is designed to be installed as part of `agent-control` chart, and it installs Agent Control.
-* `agent-control-cd` - This chart is designed to be installed as part of `agent-control` chart, and it installs Flux.
+* `agent-control-bootstrap` - Starts the installation of Agent Control and all the necessary tools.
+* `agent-control-deployment` - This chart is designed to be installed as part of `agent-control-bootstrap` chart, and it installs Agent Control.
+* `agent-control-cd` - This chart is designed to be installed as part of `agent-control-bootstrap` chart, and it installs Flux.
 
 Why do we need three charts?
 
-`agent-control` is there to orchestrate the installation and uninstallation, while the other two charts allow Agent Control handling the remote update of each component.
+`agent-control-bootstrap` is there to orchestrate the installation and uninstallation, while the other two charts allow Agent Control handling the remote update of each component.
 `agent-control-deployment` and `agent-control-cd` charts represent the Agent Control and Flux resources respectively, each chart will be managed by a [HelmRelease](https://fluxcd.io/flux/components/helm/helmreleases/) which represents the desired state of such resources in the cluster.
 That's the reason for having three charts.
 
@@ -76,8 +76,8 @@ The following image shows the installation process.
 
 ![](./images/ac-k8s-installation.png)
 
-1. The client initiates installation by deploying the `agent-control` chart with Helm
-2. The `agent-control` chart creates Kubernetes resources necessary for the installation job and and launches it
+1. The client initiates installation by deploying the `agent-control-bootstrap` chart with Helm
+2. The `agent-control-bootstrap` chart creates Kubernetes resources necessary for the installation job and launches it
 3. This installation job deploys `agent-control-cd` (which installs Flux through `helm upgrade --install`) and executes a CLI tool
 4. The CLI tool creates the CRs representing the `agent-control-cd` release (which takes ownership of the existing installation) and installs the `agent-control-deployment` by creating the corresponding CRs
 5. Finally, `agent-control-deployment` establishes the required resources (rbacs, secrets, config maps, a job to register a system identity, ...) for the pod that will launch the Agent Control binary
@@ -88,8 +88,8 @@ The uninstallation process is a bit different.
 
 ![](./images/ac-k8s-uninstallation.png)
 
-1. The client initiates the uninstallation of `agent-control` chart
-2. The `agent-control` chart creates the uninstallation job
+1. The client initiates the uninstallation of `agent-control-bootstrap` chart
+2. The `agent-control-bootstrap` chart creates the uninstallation job
 3. The uninstallation job executes a CLI
 4. The CLI then uninstalls both the `agent-control-cd` and `agent-control-deployment` making sure that all resources are deleted
    4.1. Deletes Agent Control CRs
@@ -130,7 +130,7 @@ If there's any error, Agent Control will send `Failed` status. If everything wen
 
 ![](./images/update-ac-sequence.png)
 
-The rolling update is an [strategy](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#strategy) implemented by kubernetes that incrementally replaces old pods with new ones. It's done in such a way, that old pods will be kept alive if new ones can't be started. Kubernetes assures it with [Liveness and Startup probes](https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/).
+The rolling update is a [strategy](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#strategy) implemented by kubernetes that incrementally replaces old pods with new ones. It's done in such a way, that old pods will be kept alive if new ones can't be started. Kubernetes assures it with [Liveness and Startup probes](https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/).
 
 ![](./images/rolling-update.png)
 

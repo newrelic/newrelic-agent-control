@@ -5,7 +5,8 @@ For instance, if the Agent Control local configuration includes one sub-agent. E
 
 ```yaml
 agents:
-  nr-infra: newrelic/com.newrelic.infrastructure:0.1.0
+  nr-infra:
+    agent_type: newrelic/com.newrelic.infrastructure:0.1.0
 ```
 
 It will include local configuration for the `nr-infra` agent.
@@ -18,7 +19,8 @@ If the Agent Control described in the previous example receives the following re
 
 ```yaml
 agents:
-  nr-prometheus: newrelic/com.newrelic.prometheus:0.1.0
+  nr-prometheus:
+    agent_type: newrelic/com.newrelic.prometheus:0.1.0
 ```
 
 * It will stop the `nr-infra` agent.
@@ -38,8 +40,10 @@ it will start the corresponding agent with the known local configuration. In oth
 
 ```yaml
 agents:
-  nr-infra: newrelic/com.newrelic.infrastructure:0.1.0
-  nr-prometheus: newrelic/com.newrelic.prometheus:0.1.0
+  nr-infra:
+    agent_type: newrelic/com.newrelic.infrastructure:0.1.0
+  nr-prometheus:
+    agent_type: newrelic/com.newrelic.prometheus:0.1.0
 ```
 
 * Will keep the `nr-prometheus` agent running with the previously informed remote configuration. 

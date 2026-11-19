@@ -19,7 +19,7 @@ which can be useful to debug Tokio tasks.
     Example:
 
     ```bash
-    RUSTFLAGS="--cfg tokio_unstable" LOG_LEVEL="newrelic_agent_control=debug" cargo run --bin newrelic-agent-control-k8s --features tokio-console # ...
+    RUSTFLAGS="--cfg tokio_unstable" NR_AC_LOG__INSECURE_FINE_GRAINED_LEVEL="newrelic_agent_control=debug" cargo run --bin newrelic-agent-control-k8s --features tokio-console # ...
     ```
 
 3. Execute Tokio console

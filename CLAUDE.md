@@ -25,6 +25,7 @@ Building, cross-compilation, running locally, testing (unit, integration, root-r
 Before considering work done:
 - Always run `cargo clippy --workspace --all-targets` and `cargo build`, plus tests for the modules you touched. This mirrors what CI enforces in [`push_pr_checks_tests.yml`](.github/workflows/push_pr_checks_tests.yml).
 - Always check that the code you write abides the code conventions.
+- Always check that `docs/` does not drift from the code you changed: run the `/docs-sync diff` skill (see [`.claude/skills/docs-sync/SKILL.md`](.claude/skills/docs-sync/SKILL.md)), which fixes statements the branch made false. Use plain `/docs-sync` for a full audit of every doc.
 
 ## Agent type definitions
 

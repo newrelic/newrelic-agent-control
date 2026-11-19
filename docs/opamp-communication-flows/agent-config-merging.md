@@ -126,24 +126,30 @@ Example:
 ```yaml
 agentConfig-infra: |
   agents:
-    agentInfra: newrelic/com.newrelic.infrastructure:0.1.0
+    agentInfra:
+      agent_type: newrelic/com.newrelic.infrastructure:0.1.0
 agentConfig-nri-redis: |
   agents:
-    agentNriRedis: newrelic/com.newrelic.infrastructure.nri_redis:1.0.0
+    agentNriRedis:
+      agent_type: newrelic/com.newrelic.infrastructure.nri_redis:1.0.0
 # agentConfig-infra-2: | # This would fail because `agentInfra` would be repeated
 #   agents:
-#     agentInfra: newrelic/com.newrelic.infrastructure:0.1.0
+#     agentInfra:
+#       agent_type: newrelic/com.newrelic.infrastructure:0.1.0
 override.agentConfig: | # This is ignored as any key not prefixed by `agentConfig`
   agents:
-    testingAgent: namespace/name:0.0.100
+    testingAgent:
+      agent_type: namespace/name:0.0.100
 ```
 
 Will become a remote configuration for Agent Control:
 
 ```yaml
 agents:
-  agentInfra: newrelic/com.newrelic.infrastructure:0.1.0
-  agentNriRedis: newrelic/com.newrelic.infrastructure.nri_redis:1.0.0
+  agentInfra:
+    agent_type: newrelic/com.newrelic.infrastructure:0.1.0
+  agentNriRedis:
+    agent_type: newrelic/com.newrelic.infrastructure.nri_redis:1.0.0
 ```
 
 ## See also
