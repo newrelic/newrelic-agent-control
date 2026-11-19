@@ -111,6 +111,10 @@ pub struct InstallationArgs {
     /// Version of the Node.js APM agent package to download from npm in tests
     #[arg(long)]
     pub node_agent_version: Option<String>,
+
+    /// Version of the Python APM agent package to download from PyPI in tests
+    #[arg(long)]
+    pub python_agent_version: Option<String>,
 }
 
 impl InstallationArgs {
