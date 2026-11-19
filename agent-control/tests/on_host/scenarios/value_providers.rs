@@ -49,7 +49,8 @@ deployment:
           kind: file
           text: "${{nr-file:{source}}}"
 "#,
-            source = source_file.display()
+            // Forward slashes keep Windows paths from being read as YAML escape sequences.
+            source = source_file.display().to_string().replace('\\', "/")
         ),
         dirs.local_dir().join(DYNAMIC_AGENT_TYPE_FILENAME),
     );
