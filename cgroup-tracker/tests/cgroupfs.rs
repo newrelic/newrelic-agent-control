@@ -48,7 +48,7 @@ use rstest::rstest;
 use std::fs;
 use std::io::ErrorKind;
 use std::os::unix::process::ExitStatusExt;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 /// A shell with an orphaned grandchild (the subshell exits before the shell goes on), a child in
 /// a new session and a plain background child:
@@ -74,16 +74,16 @@ fn child_execs_inside_cgroup(#[case] hierarchy: Hierarchy) {
     let base = TestBase::new(hierarchy);
     let name = base.cgroup("cat");
     let mut command = Command::new("cat");
-    command.arg("/proc/self/cgroup");
-    base.tracker().prepare(&name, &mut command).unwrap();
+    command.arg("/proc/self/cgroup").stdout(Stdio::piped());
+    let child = base.tracker().cgroup(&name).spawn(command).unwrap();
 
-    let output = command.output().unwrap();
+    let output = child.wait_with_output().unwrap();
 
     // The child reports its own cgroup, so it was attached before running any of its code.
     assert!(output.status.success());
     let proc_cgroup = String::from_utf8(output.stdout).unwrap();
     assert!(
-        base.is_cgroup(&base.tracker().path_of(&name), &proc_cgroup),
+        base.is_cgroup(&base.tracker().cgroup(&name).path(), &proc_cgroup),
         "child ran in {proc_cgroup}"
     );
 }
@@ -102,7 +102,7 @@ fn forks_double_forks_and_setsid_stay_tracked(#[case] hierarchy: Hierarchy) {
     // `setsid` may still be running when the count is reached, so wait for the new session too.
     let mut members = Vec::new();
     wait_until("a member in a new session and an orphaned member", || {
-        members = base.tracker().members(&name).unwrap();
+        members = base.tracker().cgroup(&name).members().unwrap();
         let shell_session = stat(shell).map(|s| s.session);
         let stats: Vec<_> = members.iter().filter_map(|pid| stat(*pid)).collect();
         members.len() == TREE_SIZE
@@ -114,10 +114,10 @@ fn forks_double_forks_and_setsid_stay_tracked(#[case] hierarchy: Hierarchy) {
 
     assert!(members.contains(&shell));
     for pid in members {
-        assert!(base.is_in(pid, &base.tracker().path_of(&name)));
+        assert!(base.is_in(pid, &base.tracker().cgroup(&name).path()));
     }
 
-    base.tracker().kill_and_remove(&name).unwrap();
+    base.tracker().cgroup(&name).kill_and_remove().unwrap();
     child.wait().unwrap();
 }
 
@@ -131,9 +131,9 @@ fn kill_and_remove_kills_whole_tree(#[case] hierarchy: Hierarchy) {
     let mut child = base.spawn(&name, TREE_SCRIPT);
     let members = base.wait_for_members(&name, TREE_SIZE);
 
-    base.tracker().kill_and_remove(&name).unwrap();
+    base.tracker().cgroup(&name).kill_and_remove().unwrap();
 
-    assert!(!base.tracker().path_of(&name).exists());
+    assert!(!base.tracker().cgroup(&name).path().exists());
     assert_eq!(child.wait().unwrap().signal(), Some(Signal::SIGKILL as i32));
     wait_until("every member to exit", || {
         members.iter().all(|pid| !is_alive(*pid))
@@ -156,9 +156,9 @@ fn kill_and_remove_with_unreaped_child(#[case] hierarchy: Hierarchy) {
     });
 
     // The shell is not reaped yet while its child is still running.
-    base.tracker().kill_and_remove(&name).unwrap();
+    base.tracker().cgroup(&name).kill_and_remove().unwrap();
 
-    assert!(!base.tracker().path_of(&name).exists());
+    assert!(!base.tracker().cgroup(&name).path().exists());
     wait_until("every member to exit", || {
         members.iter().all(|pid| !is_alive(*pid))
     });
@@ -176,16 +176,16 @@ fn kill_and_remove_removes_descendant_cgroups(#[case] hierarchy: Hierarchy) {
     let shell = child.id() as i32;
     let members = base.wait_for_members(&name, 2);
     let sleep = *members.iter().find(|pid| **pid != shell).unwrap();
-    let nested = base.tracker().path_of(&name).join("nested");
+    let nested = base.tracker().cgroup(&name).path().join("nested");
     fs::create_dir(&nested).unwrap();
     fs::write(nested.join("cgroup.procs"), sleep.to_string()).unwrap();
     assert!(base.is_in(sleep, &nested));
     // Members of descendant cgroups are still reported.
     assert_eq!(base.wait_for_members(&name, 2), members);
 
-    base.tracker().kill_and_remove(&name).unwrap();
+    base.tracker().cgroup(&name).kill_and_remove().unwrap();
 
-    assert!(!base.tracker().path_of(&name).exists());
+    assert!(!base.tracker().cgroup(&name).path().exists());
     wait_until("every member to exit", || {
         members.iter().all(|pid| !is_alive(*pid))
     });
@@ -202,10 +202,10 @@ fn populated_cgroup_cannot_be_removed(#[case] hierarchy: Hierarchy) {
     let mut child = base.spawn(&name, PAIR_SCRIPT);
     base.wait_for_members(&name, 2);
 
-    let err = fs::remove_dir(base.tracker().path_of(&name)).unwrap_err();
+    let err = fs::remove_dir(base.tracker().cgroup(&name).path()).unwrap_err();
 
     assert_eq!(err.kind(), ErrorKind::ResourceBusy);
-    base.tracker().kill_and_remove(&name).unwrap();
+    base.tracker().cgroup(&name).kill_and_remove().unwrap();
     child.wait().unwrap();
 }
 
@@ -231,14 +231,14 @@ fn tree_survives_parent_death_and_is_readopted(#[case] hierarchy: Hierarchy) {
     assert_eq!(base.wait_for_members(&name, 1), vec![sleep]);
     assert!(is_alive(sleep));
     assert_ne!(stat(sleep).unwrap().ppid, shell);
-    assert!(base.is_in(sleep, &base.tracker().path_of(&name)));
+    assert!(base.is_in(sleep, &base.tracker().cgroup(&name).path()));
 
     // A new tracker, as after a restart, finds the tree and stops it.
     let restarted = CgroupTracker::with_base(base.tracker().base(), hierarchy);
-    assert_eq!(restarted.members(&name).unwrap(), vec![sleep]);
-    restarted.kill_and_remove(&name).unwrap();
+    assert_eq!(restarted.cgroup(&name).members().unwrap(), vec![sleep]);
+    restarted.cgroup(&name).kill_and_remove().unwrap();
 
-    assert!(!restarted.path_of(&name).exists());
+    assert!(!restarted.cgroup(&name).path().exists());
     wait_until("the orphan to exit", || !is_alive(sleep));
 }
 
