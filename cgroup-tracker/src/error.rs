@@ -80,9 +80,9 @@ pub struct InvalidCgroupName {
 /// Failure to resolve the cgroup hierarchy of the current process.
 #[derive(Debug, thiserror::Error)]
 pub enum DetectError {
-    /// No cgroup mount was found.
-    #[error("no cgroup mount found")]
-    NoCgroupMount,
+    /// Neither a `cgroup2` mount nor a v1 `name=systemd` mount was found.
+    #[error("no cgroup2 or v1 `name=systemd` cgroup mount found")]
+    NoSupportedHierarchy,
     /// The process does not belong to any mounted cgroup hierarchy.
     #[error("process is not a member of any mounted cgroup hierarchy")]
     NotInAnyHierarchy,
