@@ -64,6 +64,15 @@ jobs:
           NR_API_KEY: ${{ secrets.E2E_API_KEY }}
           NR_LICENSE_KEY: ${{ secrets.E2E_LICENSE_KEY }}
           NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.NR_SYSTEM_IDENTITY_CLIENT_ID }}
+          # Preload and the APM agents the preload scenario instruments are not in Instrumentation Metadata.
+          # renovate: datasource=docker depName=newrelic/preload-agent-artifacts
+          PRELOAD_VERSION: 0.6.0
+          # renovate: datasource=maven depName=com.newrelic.agent.java:newrelic-java
+          JAVA_AGENT_VERSION: 9.5.0
+          # renovate: datasource=rubygems depName=newrelic_rpm
+          RUBY_AGENT_VERSION: 10.7.1
+          # renovate: datasource=npm depName=newrelic
+          NODE_AGENT_VERSION: 14.11.0
         run: |
           sudo --preserve-env=AGENT_METADATA ${{ github.workspace }}/target/debug/e2e-runner preload-agent \
             --artifacts-package-dir ./dist \
