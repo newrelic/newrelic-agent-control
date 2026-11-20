@@ -86,4 +86,5 @@ jobs:
             --recipes-repo-branch "main" \
             --preload-version "$PRELOAD_VERSION" \
             --java-agent-version "$JAVA_AGENT_VERSION" \
-            --ruby-agent-version "$RUBY_AGENT_VERSION"
+            --ruby-agent-version "$RUBY_AGENT_VERSION" \
+            --node-agent-version "$NODE_AGENT_VERSION"
