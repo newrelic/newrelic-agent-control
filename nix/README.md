@@ -10,10 +10,11 @@ The flake gives every contributor, and CI, the same pinned toolchain and the sam
 | `nix fmt` | Formats Rust and Nix files (treefmt). |
 | `nix flake check` | Formatting, git hooks, `cargo fmt` and `cargo clippy --workspace --all-targets -D warnings`, as in CI. |
 | `nix build` | On-host binaries for the current system. |
-| `nix build .#x86_64-linux-musl` | Static x86_64 Linux binaries, the production target (Linux hosts). |
-| `nix build .#aarch64-linux-musl` | Static aarch64 Linux binaries (Linux hosts). |
+| `nix build .#x86_64-linux-musl` | Static x86_64 Linux binaries, the production target. |
+| `nix build .#aarch64-linux-musl` | Static aarch64 Linux binaries. |
+| `nix build .#x86_64-windows-gnu` | Windows binaries (`.exe`) for the MinGW target `x86_64-pc-windows-gnu`. |
 
-From a Mac, build for Linux through a Linux builder by selecting the system explicitly, e.g. `nix build .#packages.aarch64-linux.aarch64-linux-musl`.
+The musl and Windows builds are cross-compiled with the toolchains of nixpkgs, so they build on Linux and macOS hosts alike, without a Linux builder. The first build on macOS compiles the cross compilers, as they are not in the public binary cache; a shared cache avoids that for everyone else. The MSVC Windows target needs the Microsoft SDK, so it is still built outside Nix.
 
 ## Layout
 
@@ -24,10 +25,10 @@ Each directory is one kind of flake output, and its `default.nix` lists the file
 | `pkgs.nix` | The `pkgs` of every module: nixpkgs with rust-overlay. |
 | `ac/options.nix` | The typed `ac` options, readable from any module as `config.ac.<name>`. |
 | `ac/toolchain.nix` | Defines them: Rust toolchain (version from `Cargo.toml`), crane, source filter and shared build arguments. |
-| `packages/` | `binaries.nix`: native and musl builds of the on-host binaries. |
+| `packages/` | `binaries.nix`: native build of the on-host binaries and cross builds (musl, Windows). |
 | `devshells/` | `dev.nix`: the development shell. |
 | `formatting/` | treefmt: `rustfmt` from the pinned toolchain and `nixfmt`. |
 | `hooks/` | git hooks: treefmt on commit, clippy on push. |
 | `checks/` | CI-equivalent checks run by `nix flake check`: `cargo.nix` has rustfmt and clippy. |
 
-The Windows and Kubernetes binaries are not built by this flake.
+The Kubernetes binaries are not built by this flake.
