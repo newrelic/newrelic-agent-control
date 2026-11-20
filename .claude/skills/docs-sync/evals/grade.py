@@ -9,6 +9,7 @@ status.txt (`git status --short`), and, optionally,
 <iteration-dir>/<eval-name>/with_skill/timing.json ({"total_tokens": N}).
 Writes <iteration-dir>/<eval-name>/with_skill/grading.json and exits 1 if any check fails.
 """
+
 import argparse
 import json
 import re
@@ -21,7 +22,9 @@ FINDING = re.compile(
     r"^\s*L\d+[\d,\-]*\s+\[(misleading|stale|typo)\]|^\|\s*[\d,\-]+\s*\|\s*(misleading|stale|typo)\s*\|",
     re.M | re.I,
 )
-UNLABELED_FINDING = re.compile(r"^\s*L\d+[\d,\-]*\s+[\"`]|^\|\s*[\d,\-]+\s*\|\s*[\"`]", re.M)
+UNLABELED_FINDING = re.compile(
+    r"^\s*L\d+[\d,\-]*\s+[\"`]|^\|\s*[\d,\-]+\s*\|\s*[\"`]", re.M
+)
 EVIDENCE = re.compile(
     r"^\s*code:|^\|\s*[\d,\-]+\s*\|\s*(?:misleading|stale|typo)\s*\|[^|]*\|[^|]*`[^`|]+:\d+(?:-\d+)?`",
     re.M | re.I,
@@ -39,18 +42,29 @@ def run_check(check, report, timing, diff="", status=""):
         hit = [f for f in files if re.search(check["pattern"], f)]
         return not hit, f"edited files matching {check['pattern']!r}: {hit or 'none'}"
     if kind == "diff_added_absent":
-        added = [l[1:] for l in diff.splitlines() if l.startswith("+") and not l.startswith("+++")]
+        added = [
+            l[1:]
+            for l in diff.splitlines()
+            if l.startswith("+") and not l.startswith("+++")
+        ]
         bad = [l for l in added if re.search(check["pattern"], l)]
         return not bad, f"{len(bad)} added line(s) match {check['pattern']!r}"
     if kind == "no_edits":
-        return not diff.strip(), "no doc edits" if not diff.strip() else "docs were edited"
+        return (
+            not diff.strip(),
+            "no doc edits" if not diff.strip() else "docs were edited",
+        )
     if kind == "edits_confined":
         paths = [l[3:].strip() for l in status.splitlines() if l.strip()]
-        bad = [p for p in paths if not (p.startswith("docs/") or p == "docs-sync-audit.md")]
+        bad = [
+            p for p in paths if not (p.startswith("docs/") or p == "docs-sync-audit.md")
+        ]
         return not bad, f"changed paths outside docs/ and the report: {bad or 'none'}"
     if kind == "matches":
         hit = re.search(check["pattern"], report, re.M | re.I)
-        return bool(hit), f"pattern {check['pattern']!r} " + ("found" if hit else "not found")
+        return bool(hit), f"pattern {check['pattern']!r} " + (
+            "found" if hit else "not found"
+        )
     if kind == "has_findings":
         n = len(FINDING.findall(report))
         return n >= check.get("min", 1), f"{n} finding(s)"
@@ -74,7 +88,9 @@ def run_check(check, report, timing, diff="", status=""):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("iteration_dir", type=Path)
-    parser.add_argument("--evals", type=Path, default=Path(__file__).with_name("evals.json"))
+    parser.add_argument(
+        "--evals", type=Path, default=Path(__file__).with_name("evals.json")
+    )
     args = parser.parse_args()
 
     spec = json.loads(args.evals.read_text())
@@ -92,14 +108,19 @@ def main():
         report = report_path.read_text()
         timing_path = run_dir / "timing.json"
         timing = json.loads(timing_path.read_text()) if timing_path.exists() else None
-        diff_path, status_path = run_dir / "outputs" / "docs.diff", run_dir / "outputs" / "status.txt"
+        diff_path, status_path = (
+            run_dir / "outputs" / "docs.diff",
+            run_dir / "outputs" / "status.txt",
+        )
         diff = diff_path.read_text() if diff_path.exists() else ""
         status = status_path.read_text() if status_path.exists() else ""
 
         expectations = []
         for check in ev.get("checks", []) + global_checks:
             passed, evidence = run_check(check, report, timing, diff, status)
-            expectations.append({"text": check["text"], "passed": passed, "evidence": evidence})
+            expectations.append(
+                {"text": check["text"], "passed": passed, "evidence": evidence}
+            )
 
         passed_n = sum(e["passed"] for e in expectations)
         summary = {
@@ -108,11 +129,15 @@ def main():
             "total": len(expectations),
             "pass_rate": passed_n / len(expectations) if expectations else 1.0,
         }
-        (run_dir / "grading.json").write_text(json.dumps({"expectations": expectations, "summary": summary}, indent=2))
+        (run_dir / "grading.json").write_text(
+            json.dumps({"expectations": expectations, "summary": summary}, indent=2)
+        )
 
         failures = [e["text"] for e in expectations if not e["passed"]]
         failed_any |= bool(failures)
-        print(f"{ev['name']:28} {passed_n:>3}/{len(expectations):<4}  {'; '.join(failures)}")
+        print(
+            f"{ev['name']:28} {passed_n:>3}/{len(expectations):<4}  {'; '.join(failures)}"
+        )
 
     sys.exit(1 if failed_any else 0)
 
