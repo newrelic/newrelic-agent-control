@@ -24,12 +24,14 @@ const INSTALL_SCRIPT: &str = include_str!("preload_agent/install.sh");
 const INSTALL_PRELOAD_SCRIPT: &str = include_str!("preload_agent/install_preload.sh");
 const INSTALL_JAVA_AGENT_SCRIPT: &str = include_str!("preload_agent/install_java_agent.sh");
 const INSTALL_RUBY_AGENT_SCRIPT: &str = include_str!("preload_agent/install_ruby_agent.sh");
+const INSTALL_NODE_AGENT_SCRIPT: &str = include_str!("preload_agent/install_node_agent.sh");
 /// Host directory the sample application is written to.
 const SAMPLE_APP_DIR: &str = "/opt/nr-e2e-sample-app";
 const SAMPLE_APP_SOURCE: &str = include_str!("preload_agent/SampleApp.java");
 const SAMPLE_RUBY_APP_SOURCE: &str = include_str!("preload_agent/sample_app.rb");
 /// Gemfile of the sample Ruby application. The Ruby agent attaches through Bundler.
 const SAMPLE_RUBY_GEMFILE: &str = "source 'https://rubygems.org'\n";
+const SAMPLE_NODE_APP_SOURCE: &str = include_str!("preload_agent/sample_app.js");
 /// Agent that only prints a line, built into a jar to be the `-javaagent` marker of the sample app.
 const STUB_AGENT_SOURCE: &str = include_str!("preload_agent/StubAgent.java");
 const STUB_AGENT_MANIFEST: &str = "Premain-Class: StubAgent\n";
@@ -40,6 +42,8 @@ const STUB_AGENT_JAR: &str = "/opt/nr-e2e-sample-app/stub/stub-agent.jar";
 const JAVA_FLEET_DIR: &str = "/var/lib/auto-generated/agents.d/e2e-java";
 /// Same as above, for the Ruby agent and its fleet config.
 const RUBY_FLEET_DIR: &str = "/var/lib/auto-generated/agents.d/e2e-ruby";
+/// Same as above, for the Node.js agent and its fleet config.
+const NODE_FLEET_DIR: &str = "/var/lib/auto-generated/agents.d/e2e-node";
 /// Name the sample app reports and the fleet config applies to.
 const SAMPLE_APP_NAME: &str = "e2e-sample-app";
 /// Not a valid New Relic key, which is enough for the agent to start.
@@ -55,6 +59,8 @@ const PRELOAD_INJECTED_LOG: &str = "pre-load successful";
 const JAVA_AGENT_STARTED_LOG: &str = "Premain startup complete";
 /// Log of the Ruby agent once it starts in the process, shown on stdout with `NEW_RELIC_LOG`.
 const RUBY_AGENT_STARTED_LOG: &str = "Starting the New Relic agent version";
+/// Log of the Node.js agent once it starts in the process, shown on stdout with `NEW_RELIC_LOG`.
+const NODE_AGENT_STARTED_LOG: &str = "Using New Relic for Node.js. Agent version:";
 
 /// Removes everything the scenario put on the host so it does not leak into later processes,
 /// then runs the common test tear down.
@@ -62,7 +68,7 @@ fn tear_down_preload_test() {
     let cleanup = format!(
         "sed -i '\\|^{STAGED_PRELOAD_SO}$|d' /etc/ld.so.preload; \
          [ -s /etc/ld.so.preload ] || rm -f /etc/ld.so.preload; \
-         rm -rf {STAGED_PRELOAD_SO} {HOOK_SCRIPTS_DIR} {SAMPLE_APP_DIR} {JAVA_FLEET_DIR} {RUBY_FLEET_DIR}"
+         rm -rf {STAGED_PRELOAD_SO} {HOOK_SCRIPTS_DIR} {SAMPLE_APP_DIR} {JAVA_FLEET_DIR} {RUBY_FLEET_DIR} {NODE_FLEET_DIR}"
     );
     if let Err(err) = exec_bash_command(&cleanup) {
         debug!("Failed to remove the preload test files from the host: {err}");
@@ -90,6 +96,14 @@ fn java_agent_log() -> String {
     format!("{JAVA_FLEET_DIR}/java_apm_agent/logs/newrelic_agent.log")
 }
 
+fn node_agent_bootstrap() -> String {
+    format!("{NODE_FLEET_DIR}/node_apm_agent/instrumentation/bootstrap.js")
+}
+
+fn node_agent_package_json() -> String {
+    format!("{NODE_FLEET_DIR}/node_apm_agent/instrumentation/node_modules/newrelic/package.json")
+}
+
 fn ruby_agent_strap(version: &str) -> String {
     format!("{RUBY_FLEET_DIR}/ruby_apm_agent/instrumentation/newrelic_rpm-{version}/lib/boot/strap")
 }
@@ -107,6 +121,10 @@ pub fn test_installation_with_preload_agent(args: InstallationArgs) {
         .ruby_agent_version
         .clone()
         .expect("--ruby-agent-version is required for this scenario");
+    let node_agent_version = args
+        .node_agent_version
+        .clone()
+        .expect("--node-agent-version is required for this scenario");
     let recipe_data = RecipeData {
         args,
         ..Default::default()
@@ -137,6 +155,7 @@ pub fn test_installation_with_preload_agent(args: InstallationArgs) {
     write_sample_apps();
     write_fleet_config(JAVA_FLEET_DIR, "java", &java_agent_version);
     write_fleet_config(RUBY_FLEET_DIR, "ruby", &ruby_agent_version);
+    write_fleet_config(NODE_FLEET_DIR, "node", &node_agent_version);
 
     info!("Writing custom preload agent type definition");
     let custom_agent_type_path = format!("{DYNAMIC_AGENT_TYPES_DIR}/preload.yaml");
@@ -175,6 +194,15 @@ variables:
       description: "Directory where the preload library looks for the fleet config and the Ruby agent"
       type: string
       required: true
+  node_agent:
+    version:
+      description: "Version of the Node.js APM agent package to download from npm"
+      type: string
+      required: true
+    dir:
+      description: "Directory where the preload library looks for the fleet config and the Node.js agent"
+      type: string
+      required: true
 deployment:
   packages:
     preload-agent:
@@ -191,6 +219,8 @@ deployment:
           - ${nr-var:java_agent.dir}
           - ${nr-var:ruby_agent.version}
           - ${nr-var:ruby_agent.dir}
+          - ${nr-var:node_agent.version}
+          - ${nr-var:node_agent.dir}
 "#
     .replace("__HOOK_SCRIPTS_DIR__", HOOK_SCRIPTS_DIR);
     exec_bash_command(&format!("mkdir -p {DYNAMIC_AGENT_TYPES_DIR}"))
@@ -220,6 +250,9 @@ java_agent:
 ruby_agent:
   version: {ruby_agent_version}
   dir: {RUBY_FLEET_DIR}
+node_agent:
+  version: {node_agent_version}
+  dir: {NODE_FLEET_DIR}
 "#
         ),
     );
@@ -233,7 +266,8 @@ ruby_agent:
         "preload package installation assertion",
         || {
             assert_preload_agent_installed(&package_dir)?;
-            assert_ruby_agent_installed(&ruby_agent_version)
+            assert_ruby_agent_installed(&ruby_agent_version)?;
+            assert_node_agent_installed()
         },
     );
     info!("Running the sample application with the preload library");
@@ -241,19 +275,19 @@ ruby_agent:
         3,
         Duration::from_secs(5),
         "sample application instrumentation assertion",
-        || assert_sample_apps_instrumented(&ruby_agent_version),
+        || assert_sample_apps_instrumented(&ruby_agent_version, &node_agent_version),
     );
     info!("Test completed successfully");
 }
 
 /// Installs the tools the post download hook scripts and the sample applications need: `unzip`
-/// and a JDK for the Java agent, and `ruby` for the Ruby agent. This must run before the Agent
+/// and a JDK for the Java agent, `ruby` for the Ruby agent, and `nodejs` and `npm` for the Node.js agent. This must run before the Agent
 /// Control installation, which replaces the apt sources with a local repository that stops
 /// `apt-get update` from working.
 fn install_host_dependencies() {
     exec_bash_command(
         "export DEBIAN_FRONTEND=noninteractive; apt-get update -qq \
-         && apt-get install -y -qq unzip default-jdk-headless ruby",
+         && apt-get install -y -qq unzip default-jdk-headless ruby nodejs npm",
     )
     .unwrap_or_else(|err| panic!("Failed to install the host dependencies: {err}"));
 }
@@ -266,6 +300,7 @@ fn write_hook_scripts() {
         ("install_preload.sh", INSTALL_PRELOAD_SCRIPT),
         ("install_java_agent.sh", INSTALL_JAVA_AGENT_SCRIPT),
         ("install_ruby_agent.sh", INSTALL_RUBY_AGENT_SCRIPT),
+        ("install_node_agent.sh", INSTALL_NODE_AGENT_SCRIPT),
     ] {
         write(format!("{HOOK_SCRIPTS_DIR}/{name}"), content);
     }
@@ -296,6 +331,10 @@ fn write_sample_apps() {
     write(
         format!("{SAMPLE_APP_DIR}/sample_app.rb"),
         SAMPLE_RUBY_APP_SOURCE,
+    );
+    write(
+        format!("{SAMPLE_APP_DIR}/sample_app.js"),
+        SAMPLE_NODE_APP_SOURCE,
     );
 }
 
@@ -352,6 +391,16 @@ fn assert_ruby_agent_installed(version: &str) -> TestResult<()> {
     let strap = format!("{}.rb", ruby_agent_strap(version));
     if !Path::new(&strap).exists() {
         return Err(format!("Ruby agent file not found yet at {strap}").into());
+    }
+    Ok(())
+}
+
+/// Checks the files the hook installs for the Node.js agent.
+fn assert_node_agent_installed() -> TestResult<()> {
+    for file in [node_agent_bootstrap(), node_agent_package_json()] {
+        if !Path::new(&file).exists() {
+            return Err(format!("Node agent file not found yet at {file}").into());
+        }
     }
     Ok(())
 }
@@ -521,7 +570,53 @@ fn assert_ruby_sample_app_instrumented(ruby_agent_version: &str) -> TestResult<(
     Ok(())
 }
 
-fn assert_sample_apps_instrumented(ruby_agent_version: &str) -> TestResult<()> {
+/// Runs the Node.js sample application and checks the preload library instruments it with the
+/// Node.js agent installed by the hook, and leaves it alone when no fleet config applies.
+fn assert_node_sample_app_instrumented(node_agent_version: &str) -> TestResult<()> {
+    let bootstrap = node_agent_bootstrap();
+    let run = |app_name: &str| {
+        exec_bash_command(&format!(
+            "cd {SAMPLE_APP_DIR} && {PRELOAD_LOG_ENV}=debug NEW_RELIC_APP_NAME={app_name} \
+             NEW_RELIC_LOG=stdout node sample_app.js 2>&1"
+        ))
+    };
+
+    let instrumented = run(SAMPLE_APP_NAME)?;
+    debug!("Instrumented Node.js sample application run: {instrumented}");
+    for expected in [
+        PRELOAD_INJECTED_LOG,
+        &format!("NODE_OPTIONS: --require {bootstrap}"),
+        &format!("NEW_RELIC_APP_NAME: {SAMPLE_APP_NAME}"),
+        "agent-attached: true",
+        &format!("{NODE_AGENT_STARTED_LOG} {node_agent_version}"),
+    ] {
+        if !stdout_of(&instrumented).contains(expected) {
+            return Err(format!(
+                "Instrumented Node.js sample application output misses '{expected}': {instrumented}"
+            )
+            .into());
+        }
+    }
+
+    // No fleet config applies to this application name: nothing is injected.
+    let unknown_app = run("not-in-any-fleet-config")?;
+    debug!("Node.js sample application run with an unknown name: {unknown_app}");
+    for expected in ["NODE_OPTIONS: \n", "agent-attached: false"] {
+        if !stdout_of(&unknown_app).contains(expected) {
+            return Err(format!(
+                "Node.js application with no fleet config was instrumented, output misses '{expected}': {unknown_app}"
+            )
+            .into());
+        }
+    }
+    Ok(())
+}
+
+fn assert_sample_apps_instrumented(
+    ruby_agent_version: &str,
+    node_agent_version: &str,
+) -> TestResult<()> {
     assert_java_sample_app_instrumented()?;
-    assert_ruby_sample_app_instrumented(ruby_agent_version)
+    assert_ruby_sample_app_instrumented(ruby_agent_version)?;
+    assert_node_sample_app_instrumented(node_agent_version)
 }
