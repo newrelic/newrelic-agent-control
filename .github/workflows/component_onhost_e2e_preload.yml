@@ -74,4 +74,7 @@ jobs:
             --system-identity-client-id "$NR_SYSTEM_IDENTITY_CLIENT_ID" \
             --agent-control-private-key "/tmp/newrelic-agent-control-priv.key" \
             --agent-control-version "0.900.${{ github.run_id }}" \
-            --recipes-repo-branch "main"
+            --recipes-repo-branch "main" \
+            --preload-version "$PRELOAD_VERSION" \
+            --java-agent-version "$JAVA_AGENT_VERSION" \
+            --ruby-agent-version "$RUBY_AGENT_VERSION"
