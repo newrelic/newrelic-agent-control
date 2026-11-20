@@ -1,4 +1,5 @@
 use crate::hierarchy::detect_base;
+use crate::naming::CGROUP_ROOT;
 use crate::{CgroupName, CgroupOperation, CgroupTrackerError, Hierarchy};
 use nix::errno::Errno;
 use nix::sys::signal::{Signal, kill};
@@ -68,6 +69,17 @@ impl CgroupTracker {
             tracker: self,
             name,
         }
+    }
+
+    /// Names of the cgroups the tracker has created, in no particular order. Descendant cgroups
+    /// are not listed, and entries that are not valid [CgroupName]s are skipped.
+    /// Empty if no cgroup was ever created.
+    pub fn list(&self) -> Result<Vec<CgroupName>, CgroupTrackerError> {
+        let names = read_subdirs(&self.base.join(CGROUP_ROOT))?
+            .iter()
+            .filter_map(|path| CgroupName::try_from(path.file_name()?.to_str()?).ok())
+            .collect();
+        Ok(names)
     }
 }
 
@@ -309,6 +321,51 @@ mod tests {
             tracker.cgroup(&name("agent-exec")).path(),
             PathBuf::from("/sys/fs/cgroup/test/_nr-ac/agent-exec")
         );
+    }
+
+    #[test]
+    fn list_returns_created_cgroups() {
+        let (_dir, tracker) = tracker();
+        tracker.cgroup(&name("agent-a")).create().unwrap();
+        tracker.cgroup(&name("agent-b")).create().unwrap();
+
+        let names = tracker.list().unwrap();
+        assert_eq!(names.len(), 2);
+        assert!(names.contains(&name("agent-a")));
+        assert!(names.contains(&name("agent-b")));
+    }
+
+    #[test]
+    fn list_without_cgroups_is_empty() {
+        let (_dir, tracker) = tracker();
+        assert!(tracker.list().unwrap().is_empty());
+    }
+
+    #[test]
+    fn list_excludes_descendant_cgroups() {
+        let (_dir, tracker) = tracker();
+        let name = name("agent-a");
+        tracker.cgroup(&name).create().unwrap();
+        fs::create_dir_all(tracker.cgroup(&name).path().join("child")).unwrap();
+
+        assert_eq!(tracker.list().unwrap(), [name]);
+    }
+
+    #[test]
+    fn list_skips_files_and_invalid_names() {
+        let (_dir, tracker) = tracker();
+        let valid = name("agent-a");
+        tracker.cgroup(&valid).create().unwrap();
+        let root = tracker
+            .cgroup(&valid)
+            .path()
+            .parent()
+            .unwrap()
+            .to_path_buf();
+        fs::create_dir(root.join("not a valid name")).unwrap();
+        fs::write(root.join("agent-file"), "").unwrap();
+
+        assert_eq!(tracker.list().unwrap(), [valid]);
     }
 
     #[test]
