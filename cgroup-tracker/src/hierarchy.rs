@@ -5,14 +5,14 @@ use std::path::{Path, PathBuf};
 /// Kind of cgroup hierarchy the tracker operates on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Hierarchy {
-    /// Unified hierarchy. Supports `cgroup.kill`.
+    /// Unified hierarchy. Supports `cgroup.kill` on Kernel 5,14+.
     V2,
     /// Legacy (or hybrid named) hierarchy. Killing relies on signalling the members.
     V1,
 }
 
 impl Hierarchy {
-    /// Whether the hierarchy provides the `cgroup.kill` interface file.
+    /// Whether the hierarchy may provide the `cgroup.kill` interface file (kernel 5.14+).
     pub fn supports_cgroup_kill(self) -> bool {
         matches!(self, Hierarchy::V2)
     }
@@ -61,7 +61,8 @@ fn resolve_v2(mounts: &[CgroupMount], path: &str) -> Result<PathBuf, DetectError
         .iter()
         .filter(|m| Path::new(path).starts_with(&m.root))
         .max_by_key(|m| m.root.components().count())
-        .unwrap_or(&mounts[0]);
+        .or(mounts.first())
+        .ok_or(DetectError::NoSupportedHierarchy)?;
     resolve(mount, path)
 }
 
