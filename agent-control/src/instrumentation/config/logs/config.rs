@@ -179,6 +179,7 @@ impl Serialize for LogLevel {
 mod tests {
     use std::fs::{self};
 
+    use rstest::rstest;
     use tempfile::tempdir;
     use tracing::{debug_span, error, info, info_span, warn};
     use tracing_subscriber::layer::SubscriberExt;
@@ -190,80 +191,69 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn test_valid_logging_filtering() {
-        struct TestCase {
-            name: &'static str,
-            config: LoggingConfig,
-            expected: &'static str,
-        }
+    /// Directives expected for the logging-enabled crates (see `build.rs`) at the given level.
+    fn enabled_crates_directives(level: &str) -> String {
+        [
+            "newrelic_agent_control",
+            "self_replacer",
+            "resource_detection",
+            "fs",
+            "cgroup_tracker",
+            "opamp_client",
+            "nr_auth",
+        ]
+        .iter()
+        .map(|c| format!("{c}={level}"))
+        .chain(["off".to_string()])
+        .collect::<Vec<_>>()
+        .join(",")
+    }
 
-        impl TestCase {
-            fn run(self) {
-                let env_filter: Result<EnvFilter, LoggingConfigError> =
-                    self.config.logging_filter();
-                assert_eq!(
-                    env_filter.unwrap().to_string(),
-                    self.expected.to_string(),
-                    "{}",
-                    self.name
-                );
-            }
-        }
+    /// Sorts comma separated directives so the comparison does not depend on their order.
+    fn sorted_directives(filter: &str) -> Vec<&str> {
+        let mut directives: Vec<_> = filter.split(',').collect();
+        directives.sort_unstable();
+        directives
+    }
 
-        let test_cases = vec![
-            TestCase {
-                name: "everything default",
-                config: Default::default(),
-                expected: "newrelic_agent_control=info,resource_detection=info,self_replacer=info,opamp_client=info,nr_auth=info,fs=info,off",
-            },
-            TestCase {
-                name: "debug level applies to all known crates",
-                config: LoggingConfig {
-                    level: LogLevel(Level::DEBUG),
-                    ..Default::default()
-                },
-                expected: "newrelic_agent_control=debug,resource_detection=debug,self_replacer=debug,opamp_client=debug,nr_auth=debug,fs=debug,off",
-            },
-            TestCase {
-                name: "insecure fine grained overrides any logging",
-                config: LoggingConfig {
-                    insecure_fine_grained_level: Some("info".into()),
-                    level: LogLevel(Level::DEBUG),
-                    ..Default::default()
-                },
-                expected: "info",
-            },
-            TestCase {
-                name: "empty insecure fine grained does not apply",
-                config: LoggingConfig {
-                    insecure_fine_grained_level: Some("".into()),
-                    ..Default::default()
-                },
-                expected: "newrelic_agent_control=info,resource_detection=info,self_replacer=info,opamp_client=info,nr_auth=info,fs=info,off", // default
-            },
-            TestCase {
-                name: "several specific targets in insecure_fine_grained_level",
-                config: LoggingConfig {
-                    insecure_fine_grained_level: Some(
-                        "newrelic_agent_control=info,opamp_client=debug,off".into(),
-                    ),
-                    level: LogLevel(Level::INFO),
-                    ..Default::default()
-                },
-                expected: "newrelic_agent_control=info,opamp_client=debug,off",
-            },
-            TestCase {
-                name: "parses log level from int",
-                config: LoggingConfig {
-                    insecure_fine_grained_level: Some("newrelic_agent_control=1".into()),
-                    ..Default::default()
-                },
-                expected: "newrelic_agent_control=error",
-            },
-        ];
-
-        test_cases.into_iter().for_each(|tc| tc.run());
+    #[rstest]
+    #[case::default_config(LoggingConfig::default(), enabled_crates_directives("info"))]
+    #[case::debug_level_applies_to_all_known_crates(
+        LoggingConfig { level: LogLevel(Level::DEBUG), ..Default::default() },
+        enabled_crates_directives("debug")
+    )]
+    #[case::insecure_fine_grained_overrides_any_logging(
+        LoggingConfig {
+            insecure_fine_grained_level: Some("info".into()),
+            level: LogLevel(Level::DEBUG),
+            ..Default::default()
+        },
+        "info".to_string()
+    )]
+    #[case::empty_insecure_fine_grained_does_not_apply(
+        LoggingConfig { insecure_fine_grained_level: Some("".into()), ..Default::default() },
+        enabled_crates_directives("info")
+    )]
+    #[case::several_specific_targets_in_insecure_fine_grained_level(
+        LoggingConfig {
+            insecure_fine_grained_level: Some(
+                "newrelic_agent_control=info,opamp_client=debug,off".into(),
+            ),
+            level: LogLevel(Level::INFO),
+            ..Default::default()
+        },
+        "newrelic_agent_control=info,opamp_client=debug,off".to_string()
+    )]
+    #[case::parses_log_level_from_int(
+        LoggingConfig {
+            insecure_fine_grained_level: Some("newrelic_agent_control=1".into()),
+            ..Default::default()
+        },
+        "newrelic_agent_control=error".to_string()
+    )]
+    fn test_valid_logging_filtering(#[case] config: LoggingConfig, #[case] expected: String) {
+        let filter = config.logging_filter().unwrap().to_string();
+        assert_eq!(sorted_directives(&filter), sorted_directives(&expected));
     }
 
     #[test]
