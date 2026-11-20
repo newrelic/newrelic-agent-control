@@ -29,8 +29,8 @@ struct CgroupMount {
 /// Resolves the hierarchy and the cgroup directory of the current process from the content of
 /// `/proc/self/mountinfo` and `/proc/self/cgroup`.
 ///
-/// The unified hierarchy is preferred, which also covers hybrid setups. For v1 the
-/// `name=systemd` hierarchy is preferred, falling back to the first cgroup mount.
+/// The unified hierarchy is preferred, which also covers hybrid setups. For v1 only the
+/// `name=systemd` hierarchy is supported, since it has no controllers and so no side effects.
 pub(crate) fn detect_base(
     mountinfo: impl BufRead,
     self_cgroup: impl BufRead,
@@ -62,13 +62,12 @@ fn resolve_v2(mounts: &[CgroupMount], path: &str) -> Result<PathBuf, DetectError
     resolve(mount, path)
 }
 
-/// Prefers the `name=systemd` hierarchy, falling back to the first cgroup mount.
+/// Uses the `name=systemd` hierarchy, failing if it is not mounted.
 fn resolve_v1(mounts: &[CgroupMount], memberships: &[Membership]) -> Result<PathBuf, DetectError> {
     let mount = mounts
         .iter()
         .find(|m| m.options.iter().any(|o| o == "name=systemd"))
-        .or(mounts.first())
-        .ok_or(DetectError::NoCgroupMount)?;
+        .ok_or(DetectError::NoSupportedHierarchy)?;
     let membership = memberships
         .iter()
         .find(|m| {
@@ -160,22 +159,59 @@ mod tests {
     use assert_matches::assert_matches;
     use rstest::rstest;
 
-    const V2_MOUNTS: &str =
-        "35 25 0:30 / /sys/fs/cgroup rw,nosuid - cgroup2 cgroup2 rw,nsdelegate\n";
-    const V1_MOUNTS: &str = "\
-36 25 0:31 / /sys/fs/cgroup/systemd rw - cgroup cgroup rw,xattr,name=systemd
-37 25 0:32 / /sys/fs/cgroup/cpu,cpuacct rw - cgroup cgroup rw,cpu,cpuacct
-";
     const HYBRID_MOUNTS: &str = "\
 35 25 0:30 / /sys/fs/cgroup/unified rw - cgroup2 cgroup2 rw
 36 25 0:31 / /sys/fs/cgroup/systemd rw - cgroup cgroup rw,xattr,name=systemd
 ";
 
+    // Captured from an Ubuntu 22.04 host booted with cgroup v1 (legacy), inside a systemd scope.
+    const V1_MOUNTS: &str = "\
+38 37 0:33 / /sys/fs/cgroup/systemd rw,nosuid,nodev,noexec,relatime shared:10 - cgroup cgroup rw,xattr,release_agent=/lib/systemd/systemd-cgroups-agent,name=systemd
+42 37 0:37 / /sys/fs/cgroup/memory rw,nosuid,nodev,noexec,relatime shared:15 - cgroup cgroup rw,memory
+43 37 0:38 / /sys/fs/cgroup/freezer rw,nosuid,nodev,noexec,relatime shared:16 - cgroup cgroup rw,freezer
+44 37 0:39 / /sys/fs/cgroup/rdma rw,nosuid,nodev,noexec,relatime shared:17 - cgroup cgroup rw,rdma
+45 37 0:40 / /sys/fs/cgroup/net_cls,net_prio rw,nosuid,nodev,noexec,relatime shared:18 - cgroup cgroup rw,net_cls,net_prio
+46 37 0:41 / /sys/fs/cgroup/hugetlb rw,nosuid,nodev,noexec,relatime shared:19 - cgroup cgroup rw,hugetlb
+47 37 0:42 / /sys/fs/cgroup/cpuset rw,nosuid,nodev,noexec,relatime shared:20 - cgroup cgroup rw,cpuset
+48 37 0:43 / /sys/fs/cgroup/blkio rw,nosuid,nodev,noexec,relatime shared:21 - cgroup cgroup rw,blkio
+49 37 0:44 / /sys/fs/cgroup/pids rw,nosuid,nodev,noexec,relatime shared:22 - cgroup cgroup rw,pids
+50 37 0:45 / /sys/fs/cgroup/cpu,cpuacct rw,nosuid,nodev,noexec,relatime shared:23 - cgroup cgroup rw,cpu,cpuacct
+51 37 0:46 / /sys/fs/cgroup/misc rw,nosuid,nodev,noexec,relatime shared:24 - cgroup cgroup rw,misc
+52 37 0:47 / /sys/fs/cgroup/devices rw,nosuid,nodev,noexec,relatime shared:25 - cgroup cgroup rw,devices
+53 37 0:48 / /sys/fs/cgroup/perf_event rw,nosuid,nodev,noexec,relatime shared:26 - cgroup cgroup rw,perf_event
+";
+    const V1_CGROUP: &str = "\
+13:perf_event:/
+12:devices:/system.slice/run-rcaccada4b18f46ebb5cf8b4e54d49ab1.scope
+11:misc:/
+10:cpu,cpuacct:/system.slice/run-rcaccada4b18f46ebb5cf8b4e54d49ab1.scope
+9:pids:/system.slice/run-rcaccada4b18f46ebb5cf8b4e54d49ab1.scope
+8:blkio:/system.slice/run-rcaccada4b18f46ebb5cf8b4e54d49ab1.scope
+7:cpuset:/
+6:hugetlb:/
+5:net_cls,net_prio:/
+4:rdma:/
+3:freezer:/
+2:memory:/system.slice/run-rcaccada4b18f46ebb5cf8b4e54d49ab1.scope
+1:name=systemd:/system.slice/run-rcaccada4b18f46ebb5cf8b4e54d49ab1.scope
+";
+    // Captured from an Ubuntu 24.04 host (cgroup v2), inside a systemd scope.
+    const V2_MOUNTS: &str = "\
+37 27 0:32 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime shared:10 - cgroup2 cgroup2 rw,nsdelegate,memory_recursiveprot
+";
+    const V2_CGROUP: &str = "0::/system.slice/run-r22c0d05185894b7b863749c969f67a1c.scope\n";
+
     #[rstest]
+    #[case::v1(
+        V1_MOUNTS,
+        V1_CGROUP,
+        "/sys/fs/cgroup/systemd/system.slice/run-rcaccada4b18f46ebb5cf8b4e54d49ab1.scope",
+        Hierarchy::V1
+    )]
     #[case::v2(
         V2_MOUNTS,
-        "0::/system.slice/ac.service\n",
-        "/sys/fs/cgroup/system.slice/ac.service",
+        V2_CGROUP,
+        "/sys/fs/cgroup/system.slice/run-r22c0d05185894b7b863749c969f67a1c.scope",
         Hierarchy::V2
     )]
     #[case::v2_namespace(V2_MOUNTS, "0::/\n", "/sys/fs/cgroup", Hierarchy::V2)]
@@ -184,12 +220,6 @@ mod tests {
         "1:name=systemd:/system.slice/ac.service\n0::/system.slice/ac.service\n",
         "/sys/fs/cgroup/unified/system.slice/ac.service",
         Hierarchy::V2
-    )]
-    #[case::v1_systemd(
-        V1_MOUNTS,
-        "3:cpu,cpuacct:/user\n1:name=systemd:/system.slice/ac.service\n",
-        "/sys/fs/cgroup/systemd/system.slice/ac.service",
-        Hierarchy::V1
     )]
     fn detects(
         #[case] mountinfo: &str,
@@ -235,7 +265,7 @@ mod tests {
     fn no_mount() {
         assert_matches!(
             detect_base("".as_bytes(), "0::/\n".as_bytes()),
-            Err(DetectError::NoCgroupMount)
+            Err(DetectError::NoSupportedHierarchy)
         );
     }
 
@@ -248,6 +278,19 @@ mod tests {
                 assert_eq!(cgroup_path, "/other");
                 assert_eq!(mount_root, PathBuf::from("/ns/root"));
             }
+        );
+    }
+
+    #[test]
+    fn v1_without_systemd_mount() {
+        let mountinfo: String = V1_MOUNTS
+            .lines()
+            .filter(|l| !l.contains("name=systemd"))
+            .map(|l| format!("{l}\n"))
+            .collect();
+        assert_matches!(
+            detect_base(mountinfo.as_bytes(), V1_CGROUP.as_bytes()),
+            Err(DetectError::NoSupportedHierarchy)
         );
     }
 
