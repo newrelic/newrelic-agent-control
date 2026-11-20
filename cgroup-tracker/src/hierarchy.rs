@@ -38,35 +38,46 @@ pub(crate) fn detect_base(
     let (v2_mounts, v1_mounts) = parse_mountinfo(mountinfo);
     let memberships = parse_self_cgroup(self_cgroup);
 
-    if let Some((_, _, path)) = memberships
+    // Unified membership is `0::<path>`; it only counts if a cgroup2 mount exists.
+    let unified_path = memberships
         .iter()
-        .find(|(id, ctrl, _)| *id == "0" && ctrl.is_empty())
-        && !v2_mounts.is_empty()
-    {
-        // The same hierarchy can be mounted several times with different roots. Use the most
-        // specific mount whose root contains our cgroup.
-        let mount = v2_mounts
-            .iter()
-            .filter(|m| Path::new(path).starts_with(&m.root))
-            .max_by_key(|m| m.root.components().count())
-            .unwrap_or(&v2_mounts[0]);
-        return Ok((resolve(mount, path)?, Hierarchy::V2));
-    }
+        .find(|m| m.is_unified())
+        .map(|m| m.path.as_str())
+        .filter(|_| !v2_mounts.is_empty());
 
-    let mount = v1_mounts
+    match unified_path {
+        Some(path) => Ok((resolve_v2(&v2_mounts, path)?, Hierarchy::V2)),
+        None => Ok((resolve_v1(&v1_mounts, &memberships)?, Hierarchy::V1)),
+    }
+}
+
+/// The same hierarchy can be mounted several times with different roots. Use the most
+/// specific mount whose root contains our cgroup.
+fn resolve_v2(mounts: &[CgroupMount], path: &str) -> Result<PathBuf, DetectError> {
+    let mount = mounts
+        .iter()
+        .filter(|m| Path::new(path).starts_with(&m.root))
+        .max_by_key(|m| m.root.components().count())
+        .unwrap_or(&mounts[0]);
+    resolve(mount, path)
+}
+
+/// Prefers the `name=systemd` hierarchy, falling back to the first cgroup mount.
+fn resolve_v1(mounts: &[CgroupMount], memberships: &[Membership]) -> Result<PathBuf, DetectError> {
+    let mount = mounts
         .iter()
         .find(|m| m.options.iter().any(|o| o == "name=systemd"))
-        .or(v1_mounts.first())
+        .or(mounts.first())
         .ok_or(DetectError::NoCgroupMount)?;
-    let path = memberships
+    let membership = memberships
         .iter()
-        .find(|(_, ctrl, _)| {
-            ctrl.split(',')
+        .find(|m| {
+            m.controllers
+                .split(',')
                 .any(|c| mount.options.iter().any(|o| o == c))
         })
-        .map(|(_, _, path)| path)
         .ok_or(DetectError::NotInAnyHierarchy)?;
-    Ok((resolve(mount, path)?, Hierarchy::V1))
+    resolve(mount, &membership.path)
 }
 
 /// Maps the process cgroup path to a directory under the mount, stripping the mount root
@@ -114,18 +125,31 @@ fn parse_mountinfo(mountinfo: impl BufRead) -> (Vec<CgroupMount>, Vec<CgroupMoun
     (v2, v1)
 }
 
-/// Parses `<hierarchy id>:<controllers>:<path>` lines.
-fn parse_self_cgroup(self_cgroup: impl BufRead) -> Vec<(String, String, String)> {
+/// A `<hierarchy id>:<controllers>:<path>` line of `/proc/self/cgroup`.
+struct Membership {
+    id: String,
+    controllers: String,
+    path: String,
+}
+
+impl Membership {
+    /// The cgroup v2 entry has id `0` and no controllers.
+    fn is_unified(&self) -> bool {
+        self.id == "0" && self.controllers.is_empty()
+    }
+}
+
+fn parse_self_cgroup(self_cgroup: impl BufRead) -> Vec<Membership> {
     self_cgroup
         .lines()
         .map_while(Result::ok)
         .filter_map(|line| {
             let mut parts = line.splitn(3, ':');
-            Some((
-                parts.next()?.to_string(),
-                parts.next()?.to_string(),
-                parts.next()?.to_string(),
-            ))
+            Some(Membership {
+                id: parts.next()?.to_string(),
+                controllers: parts.next()?.to_string(),
+                path: parts.next()?.to_string(),
+            })
         })
         .collect()
 }
