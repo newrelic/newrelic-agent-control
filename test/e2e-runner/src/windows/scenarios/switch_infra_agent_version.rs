@@ -21,12 +21,21 @@ const ENV_VARS_FILE: &str =
 
 const UPDATE_FROM_INFRA_AGENT_VERSION: &str = "1.71.4";
 
+/// Agent type version matching the update-from package: later versions also copy files
+/// (e.g. `nrjmx.bat`) that this package does not ship.
+const UPDATE_FROM_INFRA_AGENT_TYPE_VERSION: &str = "1.0.1";
+
 pub fn switch_infra_agent_version(args: InstallationArgs) {
     let AgentMetadata {
         sub_agent_id: infra_sub_agent_id,
-        agent_type_id: infra_agent_type,
+        agent_type_id: update_to_infra_agent_type,
         package_version: update_to_infra_agent_version,
     } = args.agent(AgentKind::InfraAgent);
+    let (agent_type_name, _) = update_to_infra_agent_type
+        .rsplit_once(':')
+        .unwrap_or_else(|| panic!("invalid agent type id '{update_to_infra_agent_type}'"));
+    let update_from_infra_agent_type =
+        format!("{agent_type_name}:{UPDATE_FROM_INFRA_AGENT_TYPE_VERSION}");
     assert!(
         UPDATE_FROM_INFRA_AGENT_VERSION != update_to_infra_agent_version,
         "the resolved infra agent version must be different from the built-in update-from version ({UPDATE_FROM_INFRA_AGENT_VERSION}) for this test to be meaningful."
@@ -61,7 +70,7 @@ pub fn switch_infra_agent_version(args: InstallationArgs) {
 host_id: {test_id}
 agents:
   {infra_sub_agent_id}:
-    agent_type: {infra_agent_type}
+    agent_type: {update_from_infra_agent_type}
 "#
         ),
     );
@@ -116,7 +125,12 @@ version: {UPDATE_FROM_INFRA_AGENT_VERSION}
     // over again.
 
     // Setup infra-agent config with different version
-    info!("Replace infra-agent version");
+    info!("Replace infra-agent agent type and version");
+    config::modify_agents_config(
+        windows::DEFAULT_AC_CONFIG_PATH,
+        &update_from_infra_agent_type,
+        &update_to_infra_agent_type,
+    );
     config::modify_agents_config(
         windows::local_config_path(infra_sub_agent_id),
         UPDATE_FROM_INFRA_AGENT_VERSION,
