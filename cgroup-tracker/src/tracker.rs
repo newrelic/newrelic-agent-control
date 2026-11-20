@@ -387,6 +387,20 @@ mod tests {
             .unwrap();
     }
 
+    #[test]
+    fn kill_and_remove_on_v2_without_kill_file_falls_back_to_signals() {
+        // A tempdir has no `cgroup.kill`, like a kernel older than 5.14.
+        let dir = TempDir::new().unwrap();
+        let tracker = CgroupTracker::with_base(dir.path(), Hierarchy::V2);
+        let name = name("agent-exec");
+        tracker.cgroup(&name).create().unwrap();
+        assert!(!tracker.cgroup(&name).path().join(KILL_FILE).exists());
+
+        tracker.cgroup(&name).kill_and_remove().unwrap();
+
+        assert!(!tracker.cgroup(&name).path().exists());
+    }
+
     /// Records the signalled pids and fails the configured ones.
     struct FakeSignaller {
         failures: HashMap<i32, Errno>,
