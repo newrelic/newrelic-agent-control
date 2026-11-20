@@ -31,6 +31,9 @@ struct CgroupMount {
 ///
 /// The unified hierarchy is preferred, which also covers hybrid setups. For v1 only the
 /// `name=systemd` hierarchy is supported, since it has no controllers and so no side effects.
+///
+/// Probing the well-known `/sys/fs/cgroup` paths with `statfs` (as systemd does) is not used:
+/// the same files that give the process cgroup path also tell the mode (the `statfs` probe would be redundant).
 pub(crate) fn detect_base(
     mountinfo: impl BufRead,
     self_cgroup: impl BufRead,
