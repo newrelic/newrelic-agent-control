@@ -11,11 +11,13 @@ pub const SHARED_WINDOWS_FILESYSTEM_DIR: &str =
     r"C:\ProgramData\New Relic\newrelic-agent-control\shared-filesystem";
 pub const EMBEDDED_LINUX_OHI_BINARIES: [&str; 4] =
     ["nri-prometheus", "nri-docker", "nrjmx.jar", "nrjmx"];
-pub const EMBEDDED_WINDOWS_OHI_BINARIES: [&str; 4] = [
+pub const EMBEDDED_WINDOWS_OHI_BINARIES: [&str; 6] = [
     "nri-prometheus.exe",
     "nr-winpkg.exe",
     "nri-winservices.exe",
     "windows_exporter.exe",
+    "nrjmx.jar",
+    "nrjmx.bat",
 ];
 
 pub const EMBEDDED_LINUX_OHI_CONFIGS: [&str; 1] = ["docker-config.yml"];
