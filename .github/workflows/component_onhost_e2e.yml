@@ -261,6 +261,21 @@ jobs:
             --agent-control-version "0.900.${{ github.run_id }}" `
             --recipes-repo-branch "main"
 
+      - name: Show sub-agent logs
+        if: failure()
+        shell: powershell
+        run: |
+          $base = "C:\ProgramData\New Relic\newrelic-agent-control"
+          foreach ($dir in "$base\log", "$base\filesystem") {
+            Get-ChildItem -Path $dir -Recurse -Include *.log, *.txt -File -ErrorAction SilentlyContinue |
+              Where-Object { $_.FullName -notlike "*\log\agent-control\*" } |
+              ForEach-Object {
+                Write-Host "::group::$($_.FullName)"
+                Get-Content -Path $_.FullName -Tail 200
+                Write-Host "::endgroup::"
+              }
+          }
+
       - name: Report test result to New Relic
         if: always()
         shell: bash
