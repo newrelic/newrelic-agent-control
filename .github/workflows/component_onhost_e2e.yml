@@ -213,6 +213,7 @@ jobs:
           - uninstall-and-reinstall
           - uninstall-locked-directory
           - service-lifecycle
+          - ctrl-break-shutdown
     steps:
       - name: Record job start time
         shell: bash

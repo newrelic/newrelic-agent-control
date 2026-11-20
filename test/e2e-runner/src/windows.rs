@@ -96,5 +96,8 @@ pub fn run_windows_e2e() {
         WindowsScenarios::ServiceLifecycle(args) => {
             scenarios::service_lifecycle::test_service_lifecycle(args);
         }
+        WindowsScenarios::CtrlBreakShutdown(args) => {
+            scenarios::ctrl_break_shutdown::test_ctrl_break_shutdown(args);
+        }
     }
 }

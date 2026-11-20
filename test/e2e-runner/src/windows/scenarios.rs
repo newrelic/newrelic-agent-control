@@ -1,4 +1,5 @@
 pub mod all_ohis_no_service;
+pub mod ctrl_break_shutdown;
 pub mod fleet_control;
 pub mod installation_infra_agent;
 pub mod installation_nrdot;

@@ -1,0 +1,2 @@
+type: enhancement
+message: "On-host (Windows): on shutdown, send CTRL_BREAK_EVENT to the sub-agent's process group before forcefully terminating it."

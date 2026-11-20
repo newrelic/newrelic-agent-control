@@ -134,6 +134,10 @@ enum WindowsScenarios {
     /// the config and asserts the service recovers and reports healthy, then stops the healthy
     /// service and asserts the stop completes gracefully (no new Event ID 7031 entry).
     ServiceLifecycle(InstallationArgs),
+    /// Runs Agent Control as a Windows service with two test sub-agents, one that handles
+    /// CTRL_BREAK_EVENT and one that ignores it, stops the service and asserts the first one
+    /// exits through its handler while the second is only force-killed after the shutdown timeout.
+    CtrlBreakShutdown(InstallationArgs),
 }
 
 #[derive(Parser)]

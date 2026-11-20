@@ -949,8 +949,8 @@ pub mod tests {
         );
     }
 
-    // Unix only: it relies on SIGTERM, and Windows has no graceful termination signal. See
-    // `test_supervisor_stop_kills_running_executable` for the Windows counterpart.
+    // Unix only: it relies on SIGTERM. See `test_supervisor_stop_kills_running_executable` for
+    // the Windows forced-kill counterpart.
     #[cfg(target_family = "unix")]
     #[test]
     fn test_supervisor_stop_terminates_running_executable_gracefully() {
@@ -1010,7 +1010,8 @@ pub mod tests {
         );
     }
 
-    // Windows has no graceful signal: the process tree is killed through its Job Object.
+    // `ping` does not exit on CTRL_BREAK_EVENT, so once the shutdown timeout elapses the process
+    // tree is killed through its Job Object.
     #[cfg(target_family = "windows")]
     #[test]
     fn test_supervisor_stop_kills_running_executable() {
@@ -1037,9 +1038,10 @@ pub mod tests {
         ]
         .map(String::from)
         .to_vec();
-        let executable_data = vec![
-            ExecutableData::new("long-running".to_string(), "cmd".to_string()).with_args(args),
-        ];
+        let mut long_running =
+            ExecutableData::new("long-running".to_string(), "cmd".to_string()).with_args(args);
+        long_running.shutdown_timeout = Duration::from_millis(500);
+        let executable_data = vec![long_running];
 
         let agent_identity = AgentIdentity::from((
             AgentID::try_from("kill-stop-agent").unwrap(),

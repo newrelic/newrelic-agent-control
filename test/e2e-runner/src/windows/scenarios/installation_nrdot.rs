@@ -2,14 +2,15 @@ use crate::common::agent_metadata::{AgentKind, AgentMetadata};
 use crate::common::config::nrdot_config;
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
 use crate::common::health::check_health;
+use crate::common::logs::{expect_file_line_contains, expect_log_line_contains, show_log_tail};
 use crate::common::on_drop::CleanUp;
 use crate::common::test::{retry, retry_panic};
 use crate::common::{InstallationArgs, RecipeData, nrql};
-use crate::windows;
 use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe, tear_down_test};
 use crate::windows::powershell::test_file_exists;
 use crate::windows::scenarios::DEFAULT_STATUS_PORT;
-use crate::windows::service::STATUS_RUNNING;
+use crate::windows::service::{STATUS_RUNNING, stop_service};
+use crate::windows::{self, DEFAULT_LOG_PATH};
 use std::thread;
 use std::time::Duration;
 use tracing::info;
@@ -86,6 +87,47 @@ agents:
     retry_panic(retries, Duration::from_secs(10), "nrql assertion", || {
         nrql::check_query_results_are_not_empty(&recipe_data.args, &nrql_query)
     });
+
+    // Stopping the service stops the collector: Agent Control sends it CTRL_BREAK_EVENT, which Go
+    // delivers as os.Interrupt, and the collector shuts down when it receives it.
+    info!("Stopping Agent Control to check the graceful shutdown of the collector");
+    stop_service(SERVICE_NAME);
+    show_log_tail(&log_file, 40);
+
+    retry_panic(
+        10,
+        Duration::from_secs(1),
+        "collector received the signal",
+        || expect_file_line_contains(&log_file, &["Received signal from OS"]),
+    );
+    retry_panic(
+        10,
+        Duration::from_secs(1),
+        "collector exited after the graceful shutdown signal",
+        || {
+            expect_log_line_contains(
+                DEFAULT_LOG_PATH,
+                &[
+                    "Process exited after the graceful shutdown signal",
+                    nrdot_sub_agent_id,
+                ],
+            )
+        },
+    );
+    // 0xc000013a is the exit status of the OS default handler, i.e. the collector did not handle
+    // the signal itself.
+    assert!(
+        expect_log_line_contains(
+            DEFAULT_LOG_PATH,
+            &[
+                "Process exited after the graceful shutdown signal",
+                nrdot_sub_agent_id,
+                "0xc000013a",
+            ],
+        )
+        .is_err(),
+        "the collector should handle CTRL_BREAK_EVENT, not be ended by the OS default handler"
+    );
 
     info!("Test completed successfully");
 }

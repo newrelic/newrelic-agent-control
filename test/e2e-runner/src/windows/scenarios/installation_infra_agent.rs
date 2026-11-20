@@ -1,6 +1,7 @@
 use crate::common::agent_metadata::{AgentKind, AgentMetadata};
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config, write_agent_local_config};
 use crate::common::health::check_health;
+use crate::common::logs::{expect_log_line_contains, show_log_tail};
 use crate::common::ohi::{
     EMBEDDED_WINDOWS_OHI_BINARIES, SHARED_WINDOWS_FILESYSTEM_DIR, check_ohi_shared_filesystem,
 };
@@ -10,8 +11,8 @@ use crate::common::{InstallationArgs, RecipeData, nrql};
 use crate::windows::install::{SERVICE_NAME, install_agent_control_from_recipe, tear_down_test};
 use crate::windows::powershell::test_file_exists;
 use crate::windows::scenarios::DEFAULT_STATUS_PORT;
-use crate::windows::service::STATUS_RUNNING;
-use crate::windows::{self};
+use crate::windows::service::{STATUS_RUNNING, stop_service};
+use crate::windows::{self, DEFAULT_LOG_PATH};
 use std::thread;
 use std::time::Duration;
 use tracing::info;
@@ -128,6 +129,45 @@ version: {infra_agent_version}
                 &[],
             )
         },
+    );
+
+    // Stopping the service stops the real infra-agent: Agent Control sends it CTRL_BREAK_EVENT
+    // and waits for it to exit before force-killing it. Show what both sides logged about it.
+    info!("Stopping Agent Control to check the graceful shutdown of the infra-agent");
+    stop_service(SERVICE_NAME);
+
+    for path in [
+        windows::sub_agent_log_path(infra_sub_agent_id, "newrelic-infra.log"),
+        format!(
+            "{}newrelic-infra.log",
+            windows::infra_agent_log_path(infra_sub_agent_id)
+        ),
+    ] {
+        show_log_tail(&path, 60);
+    }
+
+    retry_panic(
+        10,
+        Duration::from_secs(1),
+        "graceful shutdown signal sent to the infra-agent",
+        || {
+            expect_log_line_contains(
+                DEFAULT_LOG_PATH,
+                &["Graceful shutdown signal sent", infra_sub_agent_id],
+            )
+        },
+    );
+    let exited_gracefully = expect_log_line_contains(
+        DEFAULT_LOG_PATH,
+        &[
+            "Process exited after the graceful shutdown signal",
+            infra_sub_agent_id,
+        ],
+    )
+    .is_ok();
+    info!(
+        exited_gracefully,
+        "Infra-agent outcome after the graceful shutdown signal"
     );
 
     info!("Test completed successfully");
