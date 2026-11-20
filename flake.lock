@@ -72,6 +72,26 @@
         "type": "github"
       }
     },
+    "nix-vm-test": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1795035975,
+        "narHash": "sha256-MxBdo6y0i2s/C+FBL6bkr4NL3hVw4iurYqF0Ysohydc=",
+        "owner": "numtide",
+        "repo": "nix-vm-test",
+        "rev": "b700f8ab0c3d6d7288a043ee2a1ec73f5a4c5970",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "nix-vm-test",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1794165970,
@@ -93,6 +113,7 @@
         "crane": "crane",
         "flake-parts": "flake-parts",
         "git-hooks": "git-hooks",
+        "nix-vm-test": "nix-vm-test",
         "nixpkgs": "nixpkgs",
         "rust-overlay": "rust-overlay",
         "treefmt-nix": "treefmt-nix"
