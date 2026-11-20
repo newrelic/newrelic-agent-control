@@ -1,0 +1,77 @@
+name: 📞 OnHost preload E2E tests
+
+# Isolated from component_onhost_e2e.yml so that the preload integration, which is not production-ready,
+# cannot fail the e2e runs of unrelated changes. It is only called from push_pr_test_preload_label.yml.
+# Once the preload library is mature, move the scenario into the shared on-host matrix and delete this file.
+
+on:
+  workflow_call:
+    secrets:
+      NR_SYSTEM_IDENTITY_CLIENT_ID:
+        required: true
+      NR_SYSTEM_IDENTITY_PRIVATE_KEY:
+        required: true
+      E2E_ACCOUNT_ID:
+        required: true
+      E2E_API_KEY:
+        required: true
+      E2E_LICENSE_KEY:
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build-packages:
+    name: Build packages
+    uses: ./.github/workflows/component_packages.yml
+    with:
+      pre-release: false
+      skip_sign: true
+      tag_name: 0.900.${{ github.run_id }}
+
+  on-host-linux-preload-e2e:
+    name: OnHost Linux preload E2E tests (amd64)
+    needs: [ build-packages ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: ./.github/actions/agent-versions/load
+        id: agent-versions
+
+      - uses: ./.github/actions/install-rust-toolchain
+      - uses: ./.github/actions/download-artifact-retry
+        with:
+          name: built-binaries-0.900.${{ github.run_id }}
+          path: ./
+      - name: Build e2e-runner binary
+        run: cargo build -p e2e-runner
+
+      # The private key is a multi-line PEM, so it's written straight to a file instead of
+      # $GITHUB_ENV, which only accepts single-line KEY=VALUE entries.
+      - name: Write system identity private key
+        env:
+          NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
+        run: echo "$NR_SYSTEM_IDENTITY_PRIVATE_KEY" > /tmp/newrelic-agent-control-priv.key
+
+      # Scenario-specific flags and their version values are added by the PRs that introduce them.
+      - name: Linux e2e preload-agent
+        env:
+          AGENT_METADATA: ${{ steps.agent-versions.outputs.json }}
+          NR_ACCOUNT_ID: ${{ secrets.E2E_ACCOUNT_ID }}
+          NR_API_KEY: ${{ secrets.E2E_API_KEY }}
+          NR_LICENSE_KEY: ${{ secrets.E2E_LICENSE_KEY }}
+          NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.NR_SYSTEM_IDENTITY_CLIENT_ID }}
+        run: |
+          sudo --preserve-env=AGENT_METADATA ${{ github.workspace }}/target/debug/e2e-runner preload-agent \
+            --artifacts-package-dir ./dist \
+            --nr-api-key "$NR_API_KEY" \
+            --nr-license-key "$NR_LICENSE_KEY" \
+            --nr-account-id "$NR_ACCOUNT_ID" \
+            --nr-region "us" \
+            --system-identity-client-id "$NR_SYSTEM_IDENTITY_CLIENT_ID" \
+            --agent-control-private-key "/tmp/newrelic-agent-control-priv.key" \
+            --agent-control-version "0.900.${{ github.run_id }}" \
+            --recipes-repo-branch "main"
