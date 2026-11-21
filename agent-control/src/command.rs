@@ -296,6 +296,11 @@ impl Command {
         let runner_context = runner_context.inspect_err(|err| log_bootstrap_failure(args, err));
         let (tracer, ac_runner_context) = runner_context?;
 
+        // Sub-agents must be spawned on Agent Control's console for graceful shutdown to reach them.
+        // Doing it here, once tracing is up, reports an allocation failure at startup.
+        #[cfg(target_family = "windows")]
+        let _console = crate::sub_agent::on_host::managed_process::Console::ensure();
+
         Ok((
             tracer,
             Context {

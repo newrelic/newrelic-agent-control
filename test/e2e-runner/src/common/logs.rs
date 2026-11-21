@@ -31,6 +31,34 @@ pub fn show_logs(logs_path: &str) -> TestResult<()> {
     Ok(())
 }
 
+/// Shows the last `lines` lines of the file at `path`. A missing or unreadable file is reported
+/// and not treated as an error, as this is only meant to help debugging.
+pub fn show_log_tail(path: &str, lines: usize) {
+    match fs::read(path) {
+        Ok(content) => {
+            let content = String::from_utf8_lossy(&content);
+            let mut tail: Vec<&str> = content.lines().rev().take(lines).collect();
+            tail.reverse();
+            info!("Showing the last {} lines of '{path}'", tail.len());
+            println!("---\n{}\n---", tail.join("\n"));
+        }
+        Err(err) => info!(%err, "Could not read '{path}'"),
+    }
+}
+
+/// Returns `Ok(())` when at least one line of the file at `path` contains every substring in
+/// `needles`.
+pub fn expect_file_line_contains(path: &str, needles: &[&str]) -> TestResult<()> {
+    let content = fs::read(path).map_err(|e| format!("could not read log file {path}: {e}"))?;
+    if String::from_utf8_lossy(&content)
+        .lines()
+        .any(|line| needles.iter().all(|n| line.contains(n)))
+    {
+        return Ok(());
+    }
+    Err(format!("no line in {path} contains all of {needles:?}").into())
+}
+
 /// Truncates every `*.log` file under `logs_path` (matched as `{logs_path}*.log`) to empty.
 pub fn clear_logs(logs_path: &str) -> TestResult<()> {
     let pattern = format!("{}*.log", logs_path);
