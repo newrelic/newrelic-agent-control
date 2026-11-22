@@ -1,5 +1,5 @@
-# Git hooks: formatting on commit, clippy on push. They are defined here and exposed as a flake
-# check, but not installed by the dev shell (see devshells/dev.nix).
+# Git hooks: formatting, lint and cargo checks on commit. They are defined here and exposed as a
+# flake check; the `hooks` dev shell installs them (see devshells/hooks.nix).
 { inputs, ... }:
 {
   imports = [ inputs.git-hooks.flakeModule ];
@@ -30,6 +30,31 @@
           shellcheck.enable = true;
           actionlint.enable = true;
 
+          yamllint = {
+            enable = false;
+            settings.configPath = ".yamllint.yml";
+          };
+
+          # The default `files` only matches a file named `Dockerfile`.
+          hadolint = {
+            enable = false;
+            files = "(^|/)Dockerfile";
+          };
+
+          deadnix.enable = true;
+          statix.enable = true;
+          check-merge-conflicts.enable = true;
+          check-added-large-files.enable = true;
+          # The opamp and k8s identity tests embed dummy keys on purpose.
+          detect-private-keys = {
+            enable = true;
+            excludes = [
+              "^agent-control/src/cli/k8s/system_identity.rs$"
+              "^agent-control/tests/k8s/tools/agent_control.rs$"
+              "^agent-control/tests/on_host/opamp_auth.rs$"
+            ];
+          };
+
           cargo-check = {
             enable = true;
             package = rustToolchain;
@@ -46,7 +71,16 @@
               extraArgs = "--workspace --tests";
             };
           };
-          settings.rust.check.cargoDeps = pkgs.rustPlatform.importCargoLock { lockFile = ../Cargo.lock; };
+        };
+
+        # git-hooks.nix keeps its whole config block under a `settings` option, hence the repeat.
+        settings.rust.check.cargoDeps = pkgs.rustPlatform.importCargoLock {
+          lockFile = ../Cargo.lock;
+          outputHashes = {
+            "nr-auth-0.7.0" = "sha256-STV902d0gKk7sFVkqaH1bCTv2S3Yzd+tfprq0F1z1w0=";
+            "opamp-client-0.3.0" = "sha256-TyX/GIgsPWbeWxuvRTIKT+Q6z/i/9pHhQPMNewuM2dg=";
+            "proto-0.1.0" = "sha256-TyX/GIgsPWbeWxuvRTIKT+Q6z/i/9pHhQPMNewuM2dg=";
+          };
         };
       };
     };

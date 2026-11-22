@@ -8,13 +8,15 @@ _: {
       ...
     }:
     {
-      devShells.default = config.rustLib.craneLib.devShell {
+      devShells.dev = config.rustLib.craneLib.devShell {
         inputsFrom = [ config.packages.default ];
 
-        # Hooks are defined in hooks/ but not installed on entry: the hooks directory is
-        # shared by all worktrees, and installing there would break those without this flake.
+        # git-hooks.nix defines the hooks and hooks.nix installs them, not this shell: `.git/hooks`
+        # is shared by all worktrees, so installing here would change the commits of worktrees
+        # that are not in the shell.
         packages = [
           config.pre-commit.settings.package
+          config.pre-commit.settings.enabledPackages
           config.treefmt.build.wrapper
           pkgs.actionlint
           pkgs.cargo-deny

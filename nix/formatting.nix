@@ -13,11 +13,25 @@
         projectRootFile = "flake.nix";
         programs = {
           nixfmt.enable = true;
-          taplo.enable = true;
+
+          # YAML only: prettier keeps the blank lines between workflow sections.
+          prettier = {
+            enable = false;
+            includes = [
+              "*.yml"
+              "*.yaml"
+            ];
+          };
+
           rustfmt = {
             enable = true;
             package = rustToolchain;
           };
+
+          shfmt.enable = false;
+          taplo.enable = true;
+          terraform.enable = false;
+          tilt.enable = false;
         };
       };
     };

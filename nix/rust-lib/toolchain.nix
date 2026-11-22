@@ -1,4 +1,4 @@
-# Values of the `ac` options (see options.nix): the Rust toolchain, crane and the sources and
+# Values of the `rustLib` options (see options.nix): the Rust toolchain, crane and the sources and
 # arguments of the builds.
 { inputs, ... }:
 {
