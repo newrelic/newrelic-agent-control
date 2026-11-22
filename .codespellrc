@@ -2,4 +2,4 @@
 check-filenames =
 check-hidden =
 ignore-words-list = crate,NotIn,inout,fpr,AKS
-skip = ./.git,./Cargo.toml
+skip = ./.git,./Cargo.toml,./target
