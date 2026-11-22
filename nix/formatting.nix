@@ -29,7 +29,7 @@
           };
 
           shfmt.enable = false;
-          taplo.enable = true;
+          taplo.enable = false;
           terraform.enable = false;
           tilt.enable = false;
         };
