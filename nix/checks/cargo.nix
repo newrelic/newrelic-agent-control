@@ -4,9 +4,9 @@ _: {
   perSystem =
     { config, ... }:
     let
-      ac = config.ac;
-      inherit (ac) craneLib;
-      workspaceArgs = ac.commonArgs // {
+      inherit (config) rustLib;
+      inherit (rustLib) craneLib;
+      workspaceArgs = rustLib.commonArgs // {
         cargoExtraArgs = "--workspace";
         # Tests rely on debug assertions, as in CI.
         CARGO_PROFILE = "dev";
@@ -23,8 +23,8 @@ _: {
         );
 
         cargo-fmt = craneLib.cargoFmt {
-          inherit (ac) src;
-          inherit (ac.commonArgs) pname version;
+          inherit (rustLib) src;
+          inherit (rustLib.commonArgs) pname version;
         };
       };
     };

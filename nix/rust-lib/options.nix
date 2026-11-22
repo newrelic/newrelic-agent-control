@@ -1,15 +1,13 @@
-# The `ac` options: what the Rust toolchain and build modules offer to the rest of the flake.
-# Declared here, defined in the other files of this directory, read as `config.ac.<name>` from
+# The `rustLib` options: what the Rust toolchain and build modules offer to the rest of the flake.
+# Declared here, defined in the other files of this directory, read as `config.rustLib.<name>` from
 # any perSystem module.
 { lib, ... }:
 let
   inherit (lib) mkOption types;
-  # Values that are not plain data (functions, attribute sets of functions).
-  opaque = types.lazyAttrsOf types.raw;
 in
 {
   perSystem = _: {
-    options.ac = {
+    options.rustLib = {
       rustVersion = mkOption {
         type = types.str;
         readOnly = true;
@@ -29,13 +27,13 @@ in
       };
 
       craneLib = mkOption {
-        type = opaque;
+        type = types.lazyAttrsOf types.raw;
         readOnly = true;
         description = "crane library using `toolchain`.";
       };
 
       mkCraneLib = mkOption {
-        type = types.functionTo opaque;
+        type = types.functionTo (types.lazyAttrsOf types.raw);
         readOnly = true;
         description = "crane library using the toolchain for the list of target triples it is given.";
       };
@@ -47,7 +45,7 @@ in
       };
 
       commonArgs = mkOption {
-        type = opaque;
+        type = types.lazyAttrsOf types.raw;
         readOnly = true;
         description = "Arguments shared by all crane derivations.";
       };

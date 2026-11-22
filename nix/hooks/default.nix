@@ -1,5 +1,0 @@
-{
-  imports = [
-    ./pre-commit.nix
-  ];
-}

@@ -44,7 +44,7 @@
       };
     in
     {
-      config.ac = {
+      config.rustLib = {
         inherit
           rustVersion
           toolchain

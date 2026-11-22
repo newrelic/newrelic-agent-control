@@ -9,14 +9,18 @@ _: {
       ...
     }:
     let
-      ac = config.ac;
+      inherit (config) rustLib;
 
-      onhostArgs = "--package newrelic_agent_control --bin newrelic-agent-control --bin newrelic-agent-control-cli";
+      onhostArgs = lib.concatStringsSep " " [
+        "--package newrelic_agent_control"
+        "--bin newrelic-agent-control"
+        "--bin newrelic-agent-control-cli"
+      ];
 
       mkPackage =
         craneLib: extraArgs:
         let
-          args = ac.commonArgs // extraArgs // { cargoExtraArgs = onhostArgs; };
+          args = rustLib.commonArgs // extraArgs // { cargoExtraArgs = onhostArgs; };
         in
         craneLib.buildPackage (
           args
@@ -44,8 +48,8 @@ _: {
           envTriple = lib.replaceStrings [ "-" ] [ "_" ] triple;
           cc = "${targetCc}/bin/${targetCc.targetPrefix}cc";
         in
-        mkPackage (ac.mkCraneLib [ triple ]) {
-          nativeBuildInputs = ac.commonArgs.nativeBuildInputs ++ [ targetCc ];
+        mkPackage (rustLib.mkCraneLib [ triple ]) {
+          nativeBuildInputs = rustLib.commonArgs.nativeBuildInputs ++ [ targetCc ];
           CARGO_BUILD_TARGET = triple;
           CARGO_BUILD_RUSTFLAGS = "-C target-feature=+crt-static";
           HOST_CC = "${pkgs.stdenv.cc}/bin/cc";
@@ -55,7 +59,7 @@ _: {
     in
     {
       packages = {
-        default = mkPackage ac.craneLib { };
+        default = mkPackage rustLib.craneLib { };
       }
       // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux (lib.mapAttrs (_: mkMusl) muslTargets);
     };

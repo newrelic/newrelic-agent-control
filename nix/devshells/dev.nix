@@ -8,7 +8,7 @@ _: {
       ...
     }:
     {
-      devShells.default = config.ac.craneLib.devShell {
+      devShells.default = config.rustLib.craneLib.devShell {
         inputsFrom = [ config.packages.default ];
 
         # Hooks are defined in hooks/ but not installed on entry: the hooks directory is
@@ -25,8 +25,6 @@ _: {
           pkgs.gnumake
           pkgs.shellcheck
         ];
-
-        RUST_SRC_PATH = "${config.ac.toolchain}/lib/rustlib/src/rust/library";
       };
     };
 }
