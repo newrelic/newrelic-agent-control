@@ -1,6 +1,10 @@
 use crate::error::DetectError;
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
+use tracing::debug;
+
+const MOUNTINFO: &str = "/proc/self/mountinfo";
+const SELF_CGROUP: &str = "/proc/self/cgroup";
 
 /// Kind of cgroup hierarchy the tracker operates on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,8 +42,8 @@ pub(crate) fn detect_base(
     mountinfo: impl BufRead,
     self_cgroup: impl BufRead,
 ) -> Result<(PathBuf, Hierarchy), DetectError> {
-    let (v2_mounts, v1_mounts) = parse_mountinfo(mountinfo);
-    let memberships = parse_self_cgroup(self_cgroup);
+    let (v2_mounts, v1_mounts) = parse_mountinfo(mountinfo)?;
+    let memberships = parse_self_cgroup(self_cgroup)?;
 
     // Unified membership is `0::<path>`; it only counts if a cgroup2 mount exists.
     let unified_path = memberships
@@ -96,12 +100,19 @@ fn resolve(mount: &CgroupMount, cgroup_path: &str) -> Result<PathBuf, DetectErro
 }
 
 /// Returns every `cgroup2` mount and every v1 `cgroup` mount.
-fn parse_mountinfo(mountinfo: impl BufRead) -> (Vec<CgroupMount>, Vec<CgroupMount>) {
+///
+/// Malformed lines are skipped, since only cgroup mounts matter. Read errors are propagated
+/// instead, so a truncated read is not mistaken for a missing mount.
+fn parse_mountinfo(
+    mountinfo: impl BufRead,
+) -> Result<(Vec<CgroupMount>, Vec<CgroupMount>), DetectError> {
     let mut v2 = Vec::new();
     let mut v1 = Vec::new();
-    for line in mountinfo.lines().map_while(Result::ok) {
+    for line in mountinfo.lines() {
+        let line = line.map_err(DetectError::read_proc(MOUNTINFO))?;
         // `<id> <parent> <dev> <root> <mount point> <opts> [optional...] - <fstype> <source> <super opts>`
         let Some((left, right)) = line.split_once(" - ") else {
+            debug!(line, "Skipping malformed mountinfo line");
             continue;
         };
         let left: Vec<&str> = left.split_whitespace().collect();
@@ -109,6 +120,7 @@ fn parse_mountinfo(mountinfo: impl BufRead) -> (Vec<CgroupMount>, Vec<CgroupMoun
         let (Some(root), Some(mount_point), Some(fstype)) =
             (left.get(3), left.get(4), right.first())
         else {
+            debug!(line, "Skipping malformed mountinfo line");
             continue;
         };
         let mount = CgroupMount {
@@ -125,7 +137,7 @@ fn parse_mountinfo(mountinfo: impl BufRead) -> (Vec<CgroupMount>, Vec<CgroupMoun
             _ => {}
         }
     }
-    (v2, v1)
+    Ok((v2, v1))
 }
 
 /// A `<hierarchy id>:<controllers>:<path>` line of `/proc/self/cgroup`.
@@ -142,19 +154,21 @@ impl Membership {
     }
 }
 
-fn parse_self_cgroup(self_cgroup: impl BufRead) -> Vec<Membership> {
-    self_cgroup
-        .lines()
-        .map_while(Result::ok)
-        .filter_map(|line| {
-            let mut parts = line.splitn(3, ':');
-            Some(Membership {
-                id: parts.next()?.to_string(),
-                controllers: parts.next()?.to_string(),
-                path: parts.next()?.to_string(),
-            })
-        })
-        .collect()
+fn parse_self_cgroup(self_cgroup: impl BufRead) -> Result<Vec<Membership>, DetectError> {
+    let mut memberships = Vec::new();
+    for line in self_cgroup.lines() {
+        let line = line.map_err(DetectError::read_proc(SELF_CGROUP))?;
+        let mut parts = line.splitn(3, ':');
+        match (parts.next(), parts.next(), parts.next()) {
+            (Some(id), Some(controllers), Some(path)) => memberships.push(Membership {
+                id: id.to_string(),
+                controllers: controllers.to_string(),
+                path: path.to_string(),
+            }),
+            _ => debug!(line, "Skipping malformed cgroup membership line"),
+        }
+    }
+    Ok(memberships)
 }
 
 #[cfg(test)]
@@ -303,6 +317,28 @@ mod tests {
         assert_matches!(
             detect_base(V1_MOUNTS.as_bytes(), "".as_bytes()),
             Err(DetectError::NotInAnyHierarchy)
+        );
+    }
+
+    #[test]
+    fn skips_malformed_lines() {
+        let mountinfo = format!("garbage line\nshort - cgroup2\n{V2_MOUNTS}");
+        let self_cgroup = format!("garbage\n{V2_CGROUP}");
+        let (_, hierarchy) = detect_base(mountinfo.as_bytes(), self_cgroup.as_bytes()).unwrap();
+        assert_eq!(hierarchy, Hierarchy::V2);
+    }
+
+    #[test]
+    fn propagates_read_errors() {
+        // Invalid UTF-8 makes `lines()` fail.
+        let mountinfo: &[u8] = b"\xff\xfe\n";
+        assert_matches!(
+            detect_base(mountinfo, "0::/\n".as_bytes()),
+            Err(DetectError::ReadProc { file, .. }) => assert_eq!(file, MOUNTINFO)
+        );
+        assert_matches!(
+            detect_base(V2_MOUNTS.as_bytes(), b"\xff\n".as_slice()),
+            Err(DetectError::ReadProc { file, .. }) => assert_eq!(file, SELF_CGROUP)
         );
     }
 }

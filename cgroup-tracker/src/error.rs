@@ -94,6 +94,22 @@ pub enum DetectError {
         /// Root of the selected mount.
         mount_root: PathBuf,
     },
+    /// Reading procfs file failed
+    #[error("reading '{file}': {source}")]
+    ReadProc {
+        /// Procfs file being read.
+        file: &'static str,
+        /// Underlying I/O error.
+        #[source]
+        source: std::io::Error,
+    },
+}
+
+impl DetectError {
+    /// Syntactic sugar to build [Self::ReadProc] errors.
+    pub fn read_proc(file: &'static str) -> impl FnOnce(std::io::Error) -> Self {
+        move |source| Self::ReadProc { file, source }
+    }
 }
 
 /// Cgroupfs or procfs operation that failed.
