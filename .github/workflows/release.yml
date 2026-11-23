@@ -31,7 +31,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish deb to S3 action
-        uses: newrelic/infrastructure-publish-action@83aa43a9b94c66962f2dba57e6d5529bbb0d9269 # v1
+        uses: newrelic/infrastructure-publish-action@83aa43a9b94c66962f2dba57e6d5529bbb0d9269 # v2
         with:
           tag: ${{ inputs.tag || github.event.release.tag_name }}
           app_name: "newrelic-agent-control"
@@ -56,7 +56,7 @@ jobs:
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
 
       - name: Publish rpm to S3 action
-        uses: newrelic/infrastructure-publish-action@83aa43a9b94c66962f2dba57e6d5529bbb0d9269 # v1
+        uses: newrelic/infrastructure-publish-action@83aa43a9b94c66962f2dba57e6d5529bbb0d9269 # v2
         with:
           tag: ${{ inputs.tag || github.event.release.tag_name }}
           app_name: "newrelic-agent-control"
@@ -81,7 +81,7 @@ jobs:
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
 
       - name: Publish windows artifacts
-        uses: newrelic/infrastructure-publish-action@83aa43a9b94c66962f2dba57e6d5529bbb0d9269 # v1
+        uses: newrelic/infrastructure-publish-action@83aa43a9b94c66962f2dba57e6d5529bbb0d9269 # v2
         with:
           tag: ${{ inputs.tag || github.event.release.tag_name }}
           app_name: "newrelic-agent-control"
