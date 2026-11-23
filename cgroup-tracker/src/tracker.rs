@@ -112,6 +112,8 @@ impl CgroupHandle<'_> {
                 source,
             }
         })?;
+        // Moves the child into its own process group (id == child pid), so group signals
+        // reach it and its descendants without also hitting the parent process.
         command.process_group(0);
         // SAFETY: the closure only calls async-signal-safe syscalls (open, write, close) on a
         // `CString` built before the fork, so it neither allocates nor takes locks. Writing `0`
