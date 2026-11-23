@@ -219,6 +219,9 @@ mod tests {
 ";
     const V2_CGROUP: &str = "0::/system.slice/run-r22c0d05185894b7b863749c969f67a1c.scope\n";
 
+    const HYBRID_CGROUP: &str =
+        "1:name=systemd:/system.slice/ac.service\n0::/system.slice/ac.service\n";
+
     #[rstest]
     #[case::v1(
         V1_MOUNTS,
@@ -235,7 +238,7 @@ mod tests {
     #[case::v2_namespace(V2_MOUNTS, "0::/\n", "/sys/fs/cgroup", Hierarchy::V2)]
     #[case::hybrid_prefers_v2(
         HYBRID_MOUNTS,
-        "1:name=systemd:/system.slice/ac.service\n0::/system.slice/ac.service\n",
+        HYBRID_CGROUP,
         "/sys/fs/cgroup/unified/system.slice/ac.service",
         Hierarchy::V2
     )]
