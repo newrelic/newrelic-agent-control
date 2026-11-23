@@ -82,7 +82,7 @@ jobs:
         with:
           version: 0.15.2
 
-      - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
+      - uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
         with:
           tool: cargo-zigbuild@0.23.0
 
@@ -129,7 +129,7 @@ jobs:
         uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7
         with:
           # renovate: datasource=github-releases depName=goreleaser/goreleaser
-          version: v2.20.2
+          version: v2.20.3
           args: release ${{ env.SKIP_UPLOAD_RELEASE }} ${{ env.SKIP_SIGN }} --clean --verbose --timeout 2h
         env:
           GITHUB_TOKEN: ${{ secrets.gh_token }}

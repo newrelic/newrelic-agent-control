@@ -46,11 +46,11 @@ runs:
         echo "AC_REPO_ROOT=$(cd "${{ github.action_path }}/../../.." && { pwd -W 2>/dev/null || pwd; })" >> "$GITHUB_ENV"
         echo "CARGO_TARGET_DIR=${{ runner.temp }}/ohi-agent-runner-target" >> "$GITHUB_ENV"
 
-    - uses: newrelic/newrelic-agent-control/.github/actions/install-rust-toolchain@82762955f26c9c86c1ca9b9bc0ecd33f471c7dfd # main
+    - uses: newrelic/newrelic-agent-control/.github/actions/install-rust-toolchain@082dfb82b0cecb410ea40a790224d5cef51b5366 # main
       with:
         cargo-toml: ${{ env.AC_REPO_ROOT }}/Cargo.toml
 
-    - uses: newrelic/newrelic-agent-control/.github/actions/agent-versions/load@82762955f26c9c86c1ca9b9bc0ecd33f471c7dfd # main
+    - uses: newrelic/newrelic-agent-control/.github/actions/agent-versions/load@082dfb82b0cecb410ea40a790224d5cef51b5366 # main
       id: agent-versions
 
     - name: Build the e2e-runner
