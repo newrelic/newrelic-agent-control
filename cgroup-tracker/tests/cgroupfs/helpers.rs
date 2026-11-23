@@ -147,8 +147,34 @@ impl Drop for TestBase {
             eprintln!("removing {}: {err}", self.tracker.base().display());
         }
         if let Some(mount) = &self.v1_mount {
-            run(Command::new("umount").arg(mount.path()));
+            unmount(mount.path());
         }
+    }
+}
+
+/// Unmounts `path`, retrying while it is busy.
+///
+/// A single attempt is flaky with parallel tests (~3% of runs with one thread per test, failing
+/// with `EBUSY`). Test threads share one process, so a fork in another test can copy descriptors
+/// this test has open on the mount. The child holds them until it execs, which keeps the mount
+/// busy for a few milliseconds. Retrying lets that window close.
+///
+/// Panics if the mount is still busy after [WAIT_TIMEOUT].
+fn unmount(path: &Path) {
+    let deadline = Instant::now() + WAIT_TIMEOUT;
+    loop {
+        let output = Command::new("umount").arg(path).output().unwrap();
+        if output.status.success() {
+            return;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "umount {} failed with {}: {}",
+            path.display(),
+            output.status,
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+        std::thread::sleep(POLL_INTERVAL);
     }
 }
 
