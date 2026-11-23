@@ -211,15 +211,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
-name = "android_system_properties"
-version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae221649c9976a6f6c56ae1facf410f3ddb33cc661c4b7b61020a912d4237fbc"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "annotate-snippets"
 version = "0.12.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -802,20 +793,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "chrono"
-version = "0.4.45"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1aa79e62e7697b8e29b513a68abacf485adcd1fe8284a4316c5ae868e6633327"
-dependencies = [
- "iana-time-zone",
- "js-sys",
- "num-traits",
- "serde",
- "wasm-bindgen",
- "windows-link 0.2.1",
-]
-
-[[package]]
 name = "cipher"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -954,6 +931,18 @@ dependencies = [
  "tracing",
  "tracing-core",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "const-hex"
+version = "1.19.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e59eef12462b0f9b0a3620219be5d639afd79fe39dff0a42c3997061f9298b4"
+dependencies = [
+ "cfg-if",
+ "cpufeatures 0.2.17",
+ "proptest",
+ "serde_core",
 ]
 
 [[package]]
@@ -1489,7 +1478,7 @@ dependencies = [
  "clap",
  "fake-opamp-server",
  "glob",
- "jiff",
+ "jiff 0.2.41",
  "oci-client",
  "oci-test-utils",
  "reqwest",
@@ -2254,30 +2243,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iana-time-zone"
-version = "0.1.65"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e31bc9ad994ba00e440a8aa5c9ef0ec67d5cb5e5cb0cc7f8b744a35b389cc470"
-dependencies = [
- "android_system_properties",
- "core-foundation-sys",
- "iana-time-zone-haiku",
- "js-sys",
- "log",
- "wasm-bindgen",
- "windows-core",
-]
-
-[[package]]
-name = "iana-time-zone-haiku"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f31827a206f56af32e590ba56d5d2d085f558508192593743f16b2306495269f"
-dependencies = [
- "cc",
-]
-
-[[package]]
 name = "icu_collections"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2445,14 +2410,28 @@ version = "0.2.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "175dc66334db3b9ab9985bf8b61cfed50dc16d20964bb47f9e479adcae984a7f"
 dependencies = [
- "jiff-core",
- "jiff-static",
+ "jiff-core 0.1.4",
+ "jiff-static 0.2.41",
  "jiff-tzdb-platform",
  "log",
  "portable-atomic",
  "portable-atomic-util",
  "serde_core",
  "windows-link 0.2.1",
+]
+
+[[package]]
+name = "jiff"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5e77cbfb9fff4798e283c2d69dff39fc2c45e7da017e5ce95b654e46ea41236"
+dependencies = [
+ "jiff-core 1.0.1",
+ "jiff-static 1.0.2",
+ "log",
+ "portable-atomic",
+ "portable-atomic-util",
+ "serde_core",
 ]
 
 [[package]]
@@ -2465,15 +2444,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "jiff-core"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6b46a105a9874634dd96231021526bf24ca04955a5998c59a9c7666e634b7b8"
+dependencies = [
+ "log",
+]
+
+[[package]]
 name = "jiff-static"
 version = "0.2.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c7b1af7547d47354bc438d797e3854601bde8f8d185780c5ba4ab27afa54f1ba"
 dependencies = [
- "jiff-core",
+ "jiff-core 0.1.4",
  "proc-macro2",
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "jiff-static"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9067a0b23e5be3147d56b2dcf652b18e6b1364caca93fb157653b6fbcab23a9"
+dependencies = [
+ "jiff-core 1.0.1",
+ "proc-macro2",
+ "quote",
+ "syn 3.0.10",
 ]
 
 [[package]]
@@ -2631,7 +2631,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab0d13801242174b1f3966907c3f32039f2d6b36c7ce82c61225d66ed5d1eb70"
 dependencies = [
  "base64 0.22.1",
- "jiff",
+ "jiff 0.2.41",
  "serde",
  "serde_json",
 ]
@@ -2681,7 +2681,7 @@ dependencies = [
  "hyper-rustls",
  "hyper-timeout",
  "hyper-util",
- "jiff",
+ "jiff 0.2.41",
  "jsonpath-rust",
  "k8s-openapi",
  "kube-core",
@@ -2711,7 +2711,7 @@ dependencies = [
  "derive_more",
  "form_urlencoded",
  "http 1.5.0",
- "jiff",
+ "jiff 0.2.41",
  "json-patch",
  "k8s-openapi",
  "schemars",
@@ -3007,7 +3007,7 @@ dependencies = [
  "http 1.5.0",
  "http-serde",
  "httpmock",
- "jiff",
+ "jiff 0.2.41",
  "jsonwebtoken",
  "k8s-openapi",
  "kube",
@@ -3118,7 +3118,7 @@ dependencies = [
  "base64 0.23.1",
  "clap",
  "http 1.5.0",
- "jiff",
+ "jiff 0.2.41",
  "jsonwebtoken",
  "rcgen",
  "reqwest",
@@ -3208,17 +3208,19 @@ dependencies = [
 
 [[package]]
 name = "oci-client"
-version = "0.18.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ddc7848d781053285280fcd35aab24c9c0a677e26db4aa4209bd5db57467de0f"
+version = "0.19.0"
+source = "git+https://github.com/oras-project/rust-oci-client.git?rev=0690d8d970e5ef5f36e79aecf11c786312cf7de0#0690d8d970e5ef5f36e79aecf11c786312cf7de0"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "bytes",
- "chrono",
+ "const-hex",
+ "futures-channel",
  "futures-util",
- "hex",
  "http 1.5.0",
  "http-auth",
+ "http-body",
+ "http-body-util",
+ "jiff 1.0.2",
  "oci-spec",
  "olpc-cjson",
  "regex",
@@ -3228,8 +3230,12 @@ dependencies = [
  "sha2",
  "thiserror",
  "tokio",
+ "tower",
  "tracing",
  "unicase",
+ "url",
+ "wasm-bindgen-futures",
+ "web-time",
 ]
 
 [[package]]
@@ -3728,6 +3734,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "proptest"
+version = "1.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8530004ccb15eae51c7e40009fbe317f341f804db54dc033eec1c50be28cfa0"
+dependencies = [
+ "bitflags",
+ "chacha20",
+ "core_detect",
+ "num-traits",
+ "rand 0.10.3",
+ "rand_xorshift",
+ "regex-syntax",
+ "unarray",
+]
+
+[[package]]
 name = "prost"
 version = "0.14.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3926,6 +3948,15 @@ name = "rand_pcg"
 version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb95882a1e14462c69aea9984bb261293ccfe6022ef8de0eda18bd5afb0052df"
+dependencies = [
+ "rand_core 0.10.1",
+]
+
+[[package]]
+name = "rand_xorshift"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "60aa6af80be32871323012e02e6e65f8a7cc7890931ae421d217ad8fe0df2ccf"
 dependencies = [
  "rand_core 0.10.1",
 ]
@@ -5388,6 +5419,12 @@ name = "ucd-trie"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f20bdbfc9915686faa18fb5bbe8b4552778505defbf9f12289beefbc44092a6"
+
+[[package]]
+name = "unarray"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eaea85b334db583fe3274d12b4cd1880032beab409c0d774be044d4480ab9a94"
 
 [[package]]
 name = "unicase"

@@ -152,7 +152,9 @@ name = "newrelic-agent-control-cli"
 path = "src/bin/main_agent_control_onhost_cli.rs"
 
 [features]
-# feature tokio-console allows debugging tokio tasks using tokio-console
+# feature tokio-console allows debugging tokio tasks using tokio-console.
+# Development only, don't enable it in release builds: console-subscriber pulls in `humantime`,
+# which is unmaintained (RUSTSEC-2026-0542).
 tokio-console = ["tokio/full", "tokio/tracing", "dep:console-subscriber"]
 # Disable the need to run AC as root. Useful for testing and development.
 disable-asroot = []
