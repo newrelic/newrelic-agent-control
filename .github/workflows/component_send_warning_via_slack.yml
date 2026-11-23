@@ -22,11 +22,11 @@ jobs:
       - name: Notify failure via Slack (AC channel)
         uses: slackapi/slack-github-action@0bc3581177d9a0f8d555e07689384b376528e8fa # v4.1.0
         with:
-          webhook-type: webhook-trigger
+          webhook: ${{ secrets.slack_webhook_url || secrets.AC_SLACK_WEBHOOK }}
+          webhook-type: incoming-webhook
           payload: |
             {
               "text": ":warning: [${{ inputs.message }}] @hero check <${{ env.GITHUB_JOB_URL }}>"
             }
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.slack_webhook_url || secrets.AC_SLACK_WEBHOOK }}
           GITHUB_JOB_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
