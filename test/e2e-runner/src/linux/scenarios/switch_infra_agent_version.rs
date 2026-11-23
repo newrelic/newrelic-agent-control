@@ -1,6 +1,5 @@
 use crate::common::agent_metadata::{AgentKind, AgentMetadata};
 use crate::common::config::{DEBUG_LOGGING_CONFIG, update_config};
-use crate::common::health::wait_until_healthy;
 use crate::common::ohi::{
     EMBEDDED_LINUX_OHI_BINARIES, EMBEDDED_LINUX_OHI_CONFIGS, SHARED_LINUX_FILESYSTEM_DIR,
     check_ohi_shared_filesystem,
@@ -8,7 +7,6 @@ use crate::common::ohi::{
 use crate::common::on_drop::CleanUp;
 use crate::common::test::retry_panic;
 use crate::common::{InstallationArgs, RecipeData};
-use crate::linux::scenarios::DEFAULT_STATUS_PORT;
 use crate::{
     common::{config, nrql},
     linux::{
@@ -21,17 +19,23 @@ use tracing::info;
 
 const ENV_VARS_FILE: &str = "/etc/newrelic-agent-control/environment_variables.yaml";
 
-/// Agent type compatible with `UPDATE_FROM_INFRA_AGENT_VERSION`; newer agent types require
-/// artifacts that this package version does not ship.
-const UPDATE_FROM_INFRA_AGENT_TYPE: &str = "newrelic/com.newrelic.infrastructure:0.1.0";
 const UPDATE_FROM_INFRA_AGENT_VERSION: &str = "1.71.4";
+
+/// Agent type version matching the update-from package: later versions also copy files
+/// (e.g. `nrjmx`) that this package does not ship.
+const UPDATE_FROM_INFRA_AGENT_TYPE_VERSION: &str = "1.0.1";
 
 pub fn switch_infra_agent_version(args: InstallationArgs) {
     let AgentMetadata {
         sub_agent_id: infra_sub_agent_id,
-        agent_type_id: infra_agent_type,
+        agent_type_id: update_to_infra_agent_type,
         package_version: update_to_infra_agent_version,
     } = args.agent(AgentKind::InfraAgent);
+    let (agent_type_name, _) = update_to_infra_agent_type
+        .rsplit_once(':')
+        .unwrap_or_else(|| panic!("invalid agent type id '{update_to_infra_agent_type}'"));
+    let update_from_infra_agent_type =
+        format!("{agent_type_name}:{UPDATE_FROM_INFRA_AGENT_TYPE_VERSION}");
     assert!(
         UPDATE_FROM_INFRA_AGENT_VERSION != update_to_infra_agent_version,
         "the resolved infra agent version must be different from the built-in update-from version ({UPDATE_FROM_INFRA_AGENT_VERSION}) for this test to be meaningful."
@@ -62,7 +66,7 @@ pub fn switch_infra_agent_version(args: InstallationArgs) {
 host_id: {test_id}
 agents:
   {infra_sub_agent_id}:
-    agent_type: {UPDATE_FROM_INFRA_AGENT_TYPE}
+    agent_type: {update_from_infra_agent_type}
 {DEBUG_LOGGING_CONFIG}
 "#
         ),
@@ -83,7 +87,6 @@ version: {UPDATE_FROM_INFRA_AGENT_VERSION}
     );
 
     linux::service::restart_service(linux::SERVICE_NAME);
-    wait_until_healthy(DEFAULT_STATUS_PORT);
 
     info!("Check infra agent is reporting");
     let nrql_query = format!(
@@ -98,19 +101,12 @@ version: {UPDATE_FROM_INFRA_AGENT_VERSION}
     // Now change the agent type and version for the infra-agent installation, restart AC and check
     // everything all over again.
 
-    info!("Replace infra-agent agent type");
-    update_config(
+    info!("Replace infra-agent agent type and version");
+    config::modify_agents_config(
         linux::DEFAULT_AC_CONFIG_PATH,
-        format!(
-            r#"
-agents:
-  {infra_sub_agent_id}:
-    agent_type: {infra_agent_type}
-"#
-        ),
+        &update_from_infra_agent_type,
+        &update_to_infra_agent_type,
     );
-
-    info!("Replace infra-agent version");
     config::modify_agents_config(
         linux::local_config_path(infra_sub_agent_id),
         UPDATE_FROM_INFRA_AGENT_VERSION,
@@ -118,7 +114,6 @@ agents:
     );
 
     linux::service::restart_service(linux::SERVICE_NAME);
-    wait_until_healthy(DEFAULT_STATUS_PORT);
 
     info!("Check that agent update occurred");
     let nrql_query = format!(
