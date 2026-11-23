@@ -44,7 +44,10 @@ impl CgroupTracker {
         Ok(Self::with_base(base, hierarchy))
     }
 
-    /// Uses an explicit base directory.
+    /// Uses an explicit base directory and hierarchy, skipping detection.
+    ///
+    /// Useful for non-standard cgroup mounts, resuming from a previously detected base, or
+    /// tests using a temporary directory. The base is not validated.
     pub fn with_base(base: impl Into<PathBuf>, hierarchy: Hierarchy) -> Self {
         Self {
             base: base.into(),
