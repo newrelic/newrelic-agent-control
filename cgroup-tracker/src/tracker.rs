@@ -66,22 +66,23 @@ impl CgroupTracker {
     }
 
     /// Handle to the cgroup for `name`. The cgroup is not created until needed.
-    pub fn cgroup<'a>(&'a self, name: &'a CgroupName) -> Cgroup<'a> {
-        Cgroup {
+    pub fn cgroup<'a>(&'a self, name: &'a CgroupName) -> CgroupHandle<'a> {
+        CgroupHandle {
             tracker: self,
             name,
         }
     }
 }
 
-/// A cgroup of a [CgroupTracker], identified by its [CgroupName]. It may not exist on disk yet.
+/// Cheap, short-lived handle to the cgroup named [CgroupName] under a [CgroupTracker].
+/// It borrows both, so build it where it is used. The cgroup may not exist on disk yet.
 #[derive(Debug, Clone, Copy)]
-pub struct Cgroup<'a> {
+pub struct CgroupHandle<'a> {
     tracker: &'a CgroupTracker,
     name: &'a CgroupName,
 }
 
-impl Cgroup<'_> {
+impl CgroupHandle<'_> {
     /// Absolute path of the cgroup. It may not exist yet, see [Self::prepare].
     pub fn path(&self) -> PathBuf {
         self.tracker.base.join(self.name.relative_path())

@@ -14,4 +14,4 @@ mod tracker;
 pub use error::{CgroupOperation, CgroupTrackerError, InvalidCgroupName};
 pub use hierarchy::Hierarchy;
 pub use naming::CgroupName;
-pub use tracker::{Cgroup, CgroupTracker};
+pub use tracker::{CgroupHandle, CgroupTracker};
