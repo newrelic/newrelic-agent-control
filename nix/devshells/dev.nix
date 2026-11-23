@@ -16,7 +16,6 @@ _: {
         # that are not in the shell.
         packages = [
           config.pre-commit.settings.package
-          config.pre-commit.settings.enabledPackages
           config.treefmt.build.wrapper
           pkgs.actionlint
           pkgs.cargo-deny
@@ -26,7 +25,8 @@ _: {
           pkgs.git
           pkgs.gnumake
           pkgs.shellcheck
-        ];
+        ]
+        ++ config.pre-commit.settings.enabledPackages;
       };
     };
 }
