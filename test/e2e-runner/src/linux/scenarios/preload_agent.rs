@@ -26,6 +26,10 @@ const INSTALL_JAVA_AGENT_SCRIPT: &str = include_str!("preload_agent/install_java
 const INSTALL_RUBY_AGENT_SCRIPT: &str = include_str!("preload_agent/install_ruby_agent.sh");
 const INSTALL_NODE_AGENT_SCRIPT: &str = include_str!("preload_agent/install_node_agent.sh");
 const INSTALL_PYTHON_AGENT_SCRIPT: &str = include_str!("preload_agent/install_python_agent.sh");
+/// Bootstrap files the Python install script copies next to the agent, as the preload library
+/// requires them in the instrumentation directory.
+const PYTHON_SITECUSTOMIZE: &str = include_str!("preload_agent/sitecustomize.py");
+const PYTHON_K8S_OPERATOR: &str = include_str!("preload_agent/newrelic_k8s_operator.py");
 /// Host directory the sample application is written to.
 const SAMPLE_APP_DIR: &str = "/opt/nr-e2e-sample-app";
 const SAMPLE_APP_SOURCE: &str = include_str!("preload_agent/SampleApp.java");
@@ -110,8 +114,17 @@ fn node_agent_package_json() -> String {
     format!("{NODE_FLEET_DIR}/node_apm_agent/instrumentation/node_modules/newrelic/package.json")
 }
 
-fn python_agent_package() -> String {
-    format!("{PYTHON_FLEET_DIR}/python_apm_agent/instrumentation/newrelic/__init__.py")
+fn python_instrumentation_dir() -> String {
+    format!("{PYTHON_FLEET_DIR}/python_apm_agent/instrumentation")
+}
+
+fn python_agent_files() -> [String; 3] {
+    let dir = python_instrumentation_dir();
+    [
+        format!("{dir}/sitecustomize.py"),
+        format!("{dir}/newrelic_k8s_operator.py"),
+        format!("{dir}/newrelic/newrelic/__init__.py"),
+    ]
 }
 
 fn ruby_agent_strap(version: &str) -> String {
@@ -339,6 +352,8 @@ fn write_hook_scripts() {
         ("install_ruby_agent.sh", INSTALL_RUBY_AGENT_SCRIPT),
         ("install_node_agent.sh", INSTALL_NODE_AGENT_SCRIPT),
         ("install_python_agent.sh", INSTALL_PYTHON_AGENT_SCRIPT),
+        ("sitecustomize.py", PYTHON_SITECUSTOMIZE),
+        ("newrelic_k8s_operator.py", PYTHON_K8S_OPERATOR),
     ] {
         write(format!("{HOOK_SCRIPTS_DIR}/{name}"), content);
     }
@@ -449,9 +464,10 @@ fn assert_node_agent_installed() -> TestResult<()> {
 
 /// Checks the files the hook installs for the Python agent.
 fn assert_python_agent_installed() -> TestResult<()> {
-    let package = python_agent_package();
-    if !Path::new(&package).exists() {
-        return Err(format!("Python agent file not found yet at {package}").into());
+    for file in python_agent_files() {
+        if !Path::new(&file).exists() {
+            return Err(format!("Python agent file not found yet at {file}").into());
+        }
     }
     Ok(())
 }
@@ -666,7 +682,7 @@ fn assert_node_sample_app_instrumented(node_agent_version: &str) -> TestResult<(
 /// Runs the Python sample application and checks the preload library instruments it with the
 /// Python agent installed by the hook, and leaves it alone when no fleet config applies.
 fn assert_python_sample_app_instrumented(python_agent_version: &str) -> TestResult<()> {
-    let instrumentation_dir = format!("{PYTHON_FLEET_DIR}/python_apm_agent/instrumentation");
+    let instrumentation_dir = python_instrumentation_dir();
     let run = |app_name: &str| {
         exec_bash_command(&format!(
             "cd {SAMPLE_APP_DIR} && {PRELOAD_LOG_ENV}=debug NEW_RELIC_APP_NAME={app_name} \
