@@ -88,6 +88,7 @@ jobs:
           - nri-flex
           - all-ohis-no-service
           - package-upgrade
+          - switch-infra-agent-version
           - uninstall-and-reinstall
           - service-lifecycle
         region:

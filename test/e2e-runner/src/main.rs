@@ -69,6 +69,9 @@ enum LinuxScenarios {
     /// manager (not the OCI self-update path) to the version under test, and verifies the
     /// service is still enabled and running afterward. Regression test for the preremove.sh fix.
     PackageUpgrade(InstallationArgs),
+    /// Starts the infra-agent on a pinned older agent type and package version, then switches both
+    /// to the version under test and verifies the updated agent reports data.
+    SwitchInfraAgentVersion(InstallationArgs),
     /// Installs Agent Control, runs the bundled uninstall.sh, asserts full removal, then
     /// reinstalls and asserts the service is running and enabled.
     UninstallAndReinstall(InstallationArgs),
