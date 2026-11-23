@@ -90,4 +90,4 @@ jobs:
             --java-agent-version "$JAVA_AGENT_VERSION" \
             --ruby-agent-version "$RUBY_AGENT_VERSION" \
             --node-agent-version "$NODE_AGENT_VERSION" \
-            --python-agent-version "PYTHON_AGENT_VERSION"
+            --python-agent-version "$PYTHON_AGENT_VERSION"
