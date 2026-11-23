@@ -3,11 +3,11 @@
 use crate::instrumentation::config::logs::config::{LoggingConfig, LoggingConfigError};
 use crate::instrumentation::config::logs::format::Formatter;
 use crate::instrumentation::tracing::{LayerBox, TracingGuard};
+use crate::instrumentation::tracing_layers::timer::LocalTimer;
 use std::path::PathBuf;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::Layer;
 use tracing_subscriber::fmt::format::PrettyFields;
-use tracing_subscriber::fmt::time::ChronoLocal;
 
 /// Guard that keeps the non-blocking file writer alive while logs are reported; flushes on drop.
 pub type FileTracingExporter = WorkerGuard;
@@ -34,7 +34,7 @@ pub fn file(
                 .with_writer(file_writer)
                 .with_span_events(config.fmt_span_events())
                 .with_target(target)
-                .with_timer(ChronoLocal::new(timestamp_fmt.clone()));
+                .with_timer(LocalTimer::new(timestamp_fmt.clone()));
             let layer = match config.format.formatter {
                 Formatter::Pretty => layer
                     .with_ansi(false) // Disable colors for file

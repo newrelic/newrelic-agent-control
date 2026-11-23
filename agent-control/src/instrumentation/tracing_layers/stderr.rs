@@ -3,9 +3,9 @@
 use crate::instrumentation::config::logs::config::{LoggingConfig, LoggingConfigError};
 use crate::instrumentation::config::logs::format::Formatter;
 use crate::instrumentation::tracing::LayerBox;
+use crate::instrumentation::tracing_layers::timer::LocalTimer;
 use tracing_subscriber::Layer;
 use tracing_subscriber::fmt::format::PrettyFields;
-use tracing_subscriber::fmt::time::ChronoLocal;
 
 /// Returns the [LayerBox] corresponding to the standard error.
 pub fn stderr(config: &LoggingConfig) -> Result<LayerBox, LoggingConfigError> {
@@ -16,7 +16,7 @@ pub fn stderr(config: &LoggingConfig) -> Result<LayerBox, LoggingConfigError> {
         .with_writer(std::io::stderr)
         .with_target(target)
         .with_span_events(config.fmt_span_events())
-        .with_timer(ChronoLocal::new(timestamp_fmt));
+        .with_timer(LocalTimer::new(timestamp_fmt));
 
     let layer = match config.format.formatter {
         Formatter::Pretty => layer

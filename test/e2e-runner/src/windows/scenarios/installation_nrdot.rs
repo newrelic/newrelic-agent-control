@@ -32,7 +32,7 @@ pub fn test_nrdot(args: InstallationArgs) {
 
     let test_id = format!(
         "onhost-e2e-nrdot_{}",
-        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S%.3f")
+        jiff::Zoned::now().strftime("%Y-%m-%d_%H-%M-%S%.3f")
     );
 
     update_config(

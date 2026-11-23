@@ -107,9 +107,9 @@ pub mod tests {
 
     use super::*;
 
-    use chrono::Utc;
     use fake::Fake;
     use fake::faker::lorem::en::Word;
+    use jiff::Timestamp;
     use mockall::mock;
 
     use crate::http::config::HttpConfig;
@@ -140,7 +140,7 @@ pub mod tests {
         Token::new(
             AccessToken::from(Word().fake::<String>()),
             TokenType::Bearer,
-            Utc::now(),
+            Timestamp::now(),
         )
     }
 

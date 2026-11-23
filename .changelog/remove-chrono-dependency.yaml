@@ -1,0 +1,2 @@
+type: dependency
+message: Replaced the unmaintained chrono with jiff. Log timestamps keep accepting strftime patterns in `log.format.timestamp`, but unknown specifiers are now printed literally.

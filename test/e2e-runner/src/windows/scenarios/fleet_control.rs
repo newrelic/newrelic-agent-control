@@ -44,7 +44,7 @@ pub fn test_fleet_control(args: FleetControlInstallationArgs) {
 
     let test_id = format!(
         "onhost-e2e-fleet-control_{}",
-        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S%.3f")
+        jiff::Zoned::now().strftime("%Y-%m-%d_%H-%M-%S%.3f")
     );
 
     info!("Configuring Agent Control for Fleet Control");

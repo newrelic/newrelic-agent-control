@@ -77,7 +77,7 @@ fn command_shutdown_kill_orphan_process() {
     use crate::on_host::tools::windows_process::{is_process_orphan, is_process_running};
 
     let agent_id = "test".to_string().try_into().unwrap();
-    let id = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
+    let id = jiff::Zoned::now().strftime("%Y%m%d_%H%M%S").to_string();
     let cmd = ProcessOrigin::Spawn(OsProcessConfig::new(
         agent_id,
         &ExecutableData {
