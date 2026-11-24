@@ -243,6 +243,27 @@ fn tree_survives_parent_death_and_is_readopted(#[case] hierarchy: Hierarchy) {
     wait_until("the orphan to exit", || !is_alive(sleep));
 }
 
+#[rstest]
+#[case::v2(Hierarchy::V2)]
+#[case::v1(Hierarchy::V1)]
+#[ignore = "requires a writable cgroup v2, and root or a premounted hierarchy for v1"]
+fn create_on_populated_cgroup_keeps_its_members(#[case] hierarchy: Hierarchy) {
+    let base = TestBase::new(hierarchy);
+    let name = base.cgroup("pair");
+    let mut child = base.spawn(&name, PAIR_SCRIPT);
+    let members = base.wait_for_members(&name, 2);
+
+    base.tracker().cgroup(&name).create().unwrap();
+
+    assert_eq!(base.wait_for_members(&name, 2), members);
+    for pid in members {
+        assert!(is_alive(pid));
+        assert!(base.is_in(pid, &base.tracker().cgroup(&name).path()));
+    }
+    base.tracker().cgroup(&name).kill_and_remove().unwrap();
+    child.wait().unwrap();
+}
+
 #[test]
 #[ignore = "requires a writable cgroup v2"]
 fn detect_resolves_own_cgroup_v2() {

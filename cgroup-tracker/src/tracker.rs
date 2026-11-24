@@ -95,7 +95,7 @@ impl CgroupHandle<'_> {
     }
 
     /// Creates the cgroup. Idempotent.
-    fn create(&self) -> Result<(), CgroupTrackerError> {
+    pub fn create(&self) -> Result<(), CgroupTrackerError> {
         let path = self.path();
         fs::create_dir_all(&path).map_err(CgroupTrackerError::io(CgroupOperation::Create, &path))
     }
