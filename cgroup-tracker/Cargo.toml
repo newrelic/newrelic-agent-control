@@ -1,0 +1,22 @@
+[package]
+name = "cgroup-tracker"
+description = "Linux cgroup based tracking of sub-agent process trees"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+
+[dependencies]
+strum = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+nix = { workspace = true, features = ["signal", "fs"] }
+
+[dev-dependencies]
+assert_matches = { workspace = true }
+rstest = { workspace = true }
+tempfile = { workspace = true }
