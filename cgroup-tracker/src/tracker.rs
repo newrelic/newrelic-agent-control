@@ -12,6 +12,7 @@ use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::time::Duration;
+use tracing::debug;
 
 const PROCS_FILE: &str = "cgroup.procs";
 const KILL_FILE: &str = "cgroup.kill";
@@ -153,12 +154,22 @@ impl CgroupHandle<'_> {
     /// Uses `cgroup.kill` when available and falls back to signalling the members.
     pub fn kill_and_remove(&self) -> Result<(), CgroupTrackerError> {
         let path = self.path();
-        for _ in 0..KILL_ATTEMPTS {
+        if !path.exists() {
+            debug!(path = %path.display(), "Cgroup does not exist, nothing to remove");
+            return Ok(());
+        }
+        for attempt in 1..=KILL_ATTEMPTS {
             self.kill_members(&path)?;
             match remove_cgroup_tree(&path) {
                 Ok(()) => break,
                 // Members are still around (e.g. dying or not yet reaped).
                 Err(err) if err.kind() == io::ErrorKind::ResourceBusy => {
+                    debug!(
+                        path = %path.display(),
+                        attempt,
+                        max_attempts = KILL_ATTEMPTS,
+                        "Cgroup is still busy, retrying removal"
+                    );
                     std::thread::sleep(KILL_RETRY_INTERVAL);
                     continue;
                 }
