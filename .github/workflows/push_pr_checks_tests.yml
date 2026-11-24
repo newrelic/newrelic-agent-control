@@ -13,6 +13,7 @@ permissions:
 
 env:
   # Runs the Windows tests that start Agent Control as SYSTEM, which holds SeCreatePermanentPrivilege.
+  # renovate: datasource=github-releases depName=gerardog/gsudo
   GSUDO_VERSION: 2.6.1
 
 concurrency:

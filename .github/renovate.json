@@ -103,6 +103,17 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
+        "/^\\.github/workflows/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n\\s*GSUDO_VERSION: (?<currentValue>\\S+)"
+      ],
+      // The release tags are prefixed with `v` but the Chocolatey package version is not.
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
         "**/eks_cluster/variables.tf"
       ],
       "matchStrings": [
