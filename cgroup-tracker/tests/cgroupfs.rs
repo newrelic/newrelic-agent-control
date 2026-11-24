@@ -62,6 +62,17 @@ const TREE_SIZE: usize = 4;
 /// A shell with a single background child.
 const PAIR_SCRIPT: &str = "sleep 300 & wait";
 
+/// `sh -c <script>` with its stdio detached.
+fn sh(script: &str) -> Command {
+    let mut command = Command::new("sh");
+    command
+        .args(["-c", script])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    command
+}
+
 fn sigkill(pid: i32) {
     kill(Pid::from_raw(pid), Signal::SIGKILL).unwrap();
 }
@@ -262,6 +273,87 @@ fn create_on_populated_cgroup_keeps_its_members(#[case] hierarchy: Hierarchy) {
     }
     base.tracker().cgroup(&name).kill_and_remove().unwrap();
     child.wait().unwrap();
+}
+
+#[rstest]
+#[case::v2(Hierarchy::V2)]
+#[case::v1(Hierarchy::V1)]
+#[ignore = "requires a writable cgroup v2, and root or a premounted hierarchy for v1"]
+fn stopping_one_cgroup_does_not_affect_another(#[case] hierarchy: Hierarchy) {
+    let base = TestBase::new(hierarchy);
+    let stopped = base.cgroup("stopped");
+    let kept = base.cgroup("kept");
+    let mut stopped_child = base.spawn(&stopped, PAIR_SCRIPT);
+    let mut kept_child = base.spawn(&kept, PAIR_SCRIPT);
+    let stopped_members = base.wait_for_members(&stopped, 2);
+    let kept_members = base.wait_for_members(&kept, 2);
+
+    base.tracker().cgroup(&stopped).kill_and_remove().unwrap();
+
+    assert!(!base.tracker().cgroup(&stopped).path().exists());
+    assert_eq!(
+        stopped_child.wait().unwrap().signal(),
+        Some(Signal::SIGKILL as i32)
+    );
+    wait_until("every member of the stopped cgroup to exit", || {
+        stopped_members.iter().all(|pid| !is_alive(*pid))
+    });
+    // The other cgroup keeps its tree, which is still attached to it.
+    assert!(base.tracker().cgroup(&kept).path().exists());
+    assert_eq!(base.wait_for_members(&kept, 2), kept_members);
+    for pid in &kept_members {
+        assert!(is_alive(*pid));
+        assert!(base.is_in(*pid, &base.tracker().cgroup(&kept).path()));
+    }
+    assert!(kept_child.try_wait().unwrap().is_none());
+
+    base.tracker().cgroup(&kept).kill_and_remove().unwrap();
+    assert_eq!(
+        kept_child.wait().unwrap().signal(),
+        Some(Signal::SIGKILL as i32)
+    );
+}
+
+#[rstest]
+#[case::v2(Hierarchy::V2)]
+#[case::v1(Hierarchy::V1)]
+#[ignore = "requires a writable cgroup v2, and root or a premounted hierarchy for v1"]
+fn trackers_pointing_to_the_same_cgroup_share_it(#[case] hierarchy: Hierarchy) {
+    let base = TestBase::new(hierarchy);
+    let name = base.cgroup("shared");
+    let first = base.tracker().clone();
+    let second = CgroupTracker::with_base(base.tracker().base(), hierarchy);
+    assert_eq!(first.cgroup(&name).path(), second.cgroup(&name).path());
+
+    // Each tracker spawns its own child into the same cgroup.
+    let mut first_child = first.cgroup(&name).spawn(sh(PAIR_SCRIPT)).unwrap();
+    let mut second_child = second.cgroup(&name).spawn(sh(PAIR_SCRIPT)).unwrap();
+    let members = base.wait_for_members(&name, 4);
+
+    // Both trackers observe the same members.
+    assert_eq!(second.cgroup(&name).members().unwrap().len(), members.len());
+    for pid in &members {
+        assert!(base.is_in(*pid, &first.cgroup(&name).path()));
+    }
+
+    // Stopping through one tracker takes down what the other one spawned too.
+    second.cgroup(&name).kill_and_remove().unwrap();
+
+    assert!(!first.cgroup(&name).path().exists());
+    assert!(first.cgroup(&name).members().unwrap().is_empty());
+    assert_eq!(
+        first_child.wait().unwrap().signal(),
+        Some(Signal::SIGKILL as i32)
+    );
+    assert_eq!(
+        second_child.wait().unwrap().signal(),
+        Some(Signal::SIGKILL as i32)
+    );
+    wait_until("every member to exit", || {
+        members.iter().all(|pid| !is_alive(*pid))
+    });
+    // Stopping again through the other tracker is a no-op.
+    first.cgroup(&name).kill_and_remove().unwrap();
 }
 
 #[test]
