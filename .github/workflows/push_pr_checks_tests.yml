@@ -424,6 +424,16 @@ jobs:
           restore-strategy: ${{ github.ref == 'refs/heads/main' && 'exact' || 'nearest' }}
           save-cache: true
 
+      # Agent Control refuses to start without SeCreatePermanentPrivilege; this shows whether the
+      # runner account holds it.
+      - if: ${{ matrix.os == 'windows-latest' }}
+        name: Show token privileges
+        shell: pwsh
+        run: |
+          whoami /priv
+          $privilege = whoami /priv | Select-String SeCreatePermanentPrivilege
+          if ($privilege) { "Held: $privilege" } else { "SeCreatePermanentPrivilege is NOT held by $env:USERNAME" }
+
       - name: Run workspace tests excluding the agent control pkg (includes -winAdmin- ignored because it doesn't apply)
         run: cargo test --workspace --exclude 'newrelic_agent_control' --exclude 'cgroup-tracker' --all-targets -- --include-ignored
 
