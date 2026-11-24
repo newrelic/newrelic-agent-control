@@ -3,8 +3,7 @@ installation:
   extraEnv:
     # Configures helm repo add to use the proxy.
     - name: HTTPS_PROXY
-      # we faced an issue with the proxy when using https://, so we use http://
-      # https://github.com/helm/helm/issues/31111
+      # Keep http://. With https://, the Flux OCI client fails against mitmproxy (HTTP/2 negotiation), see below.
       value: http://mitmproxy-service:8080
     # except for in-cluster request.
     - name: "NO_PROXY"
@@ -27,6 +26,8 @@ agentControlCd:
         extraEnv:
           # Configures Flux source-controller to proxy all request.
           - name: HTTPS_PROXY
+            # With https://, Go offers h2 via ALPN to the proxy but then sends an HTTP/1.1 CONNECT. mitmproxy selects h2 and
+            # logs `Invalid HTTP/2 preamble` (Flux OCI: `malformed HTTP status code "protocol"`). Fix: mitmproxy `--set http2=false`.
             value: http://mitmproxy-service:8080
           # except for in-cluster request.
           - name: "NO_PROXY"
@@ -63,6 +64,8 @@ agentControlDeployment:
           claimName: mitm-ca-pvc
 
     proxy:
+      # Agent Control works with http:// and https:// against mitmproxy: it does not announce h2
+      # to the proxy, so it is not hit by the issue described for Flux above.
       url: https://mitmproxy-service:8080
     config:
       authSecret:
