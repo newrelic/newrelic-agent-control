@@ -428,16 +428,6 @@ jobs:
           restore-strategy: ${{ github.ref == 'refs/heads/main' && 'exact' || 'nearest' }}
           save-cache: true
 
-      # Agent Control refuses to start without SeCreatePermanentPrivilege; this shows whether the
-      # runner account holds it.
-      - if: ${{ matrix.os == 'windows-latest' }}
-        name: Show token privileges
-        shell: pwsh
-        run: |
-          whoami /priv
-          $privilege = whoami /priv | Select-String SeCreatePermanentPrivilege
-          if ($privilege) { "Held: $privilege" } else { "SeCreatePermanentPrivilege is NOT held by $env:USERNAME" }
-
       - name: Run workspace tests excluding the agent control pkg (includes -winAdmin- ignored because it doesn't apply)
         run: cargo test --workspace --exclude 'newrelic_agent_control' --all-targets -- --include-ignored
 
@@ -449,7 +439,7 @@ jobs:
         run: bash build/package/preremove_test.sh
 
       # On Windows the tests that start the real binary need SeCreatePermanentPrivilege, which the
-      # runner account lacks, so the integration tests run as SYSTEM (the account of the service).
+      # runner account lacks, so the integration tests run as SYSTEM.
       - if: ${{ matrix.os == 'windows-latest' }}
         name: Install gsudo
         shell: pwsh
