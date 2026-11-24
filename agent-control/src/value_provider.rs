@@ -15,7 +15,6 @@ use crate::k8s::client::{K8sClient, SyncK8sClient};
 use crate::value_provider::aws_secrets_manager::{AwsSecretsManager, AwsSecretsManagerConfig};
 use crate::value_provider::azure_key_vault::{AzureKeyVault, AzureKeyVaultConfig};
 use crate::value_provider::env::Env;
-use crate::value_provider::file::FileProvider;
 use crate::value_provider::gcp_secret_manager::{GcpSecretManager, GcpSecretManagerConfig};
 use crate::value_provider::k8s_configmap::K8sConfigMapProvider;
 use crate::value_provider::k8s_secret::K8sSecretProvider;
