@@ -444,8 +444,45 @@ jobs:
         if: ${{ matrix.os == 'ubuntu-latest' }}
         run: bash build/package/preremove_test.sh
 
-      - name: Run tests agent control integration_test excluding root-required tests (on-host)
+      - if: ${{ matrix.os == 'ubuntu-latest' }}
+        name: Run tests agent control integration_test excluding root-required tests (on-host)
         run: make -C agent-control test/onhost/integration
+
+      # On Windows the tests that start the real binary need SeCreatePermanentPrivilege, which the
+      # runner account lacks, so the integration tests run as SYSTEM (the account of the service).
+      - if: ${{ matrix.os == 'windows-latest' }}
+        name: Build the agent control integration tests (on-host)
+        id: build-integration-tests
+        shell: pwsh
+        run: |
+          $artifacts = cargo test --locked --package newrelic_agent_control --test integration_tests --no-run --message-format=json |
+            ForEach-Object { $_ | ConvertFrom-Json -ErrorAction SilentlyContinue } |
+            Where-Object { $_.reason -eq 'compiler-artifact' -and $_.executable -and $_.target.name -eq 'integration_tests' }
+          if ($LASTEXITCODE -ne 0) { throw "cargo test --no-run failed" }
+          "executable=$(($artifacts | Select-Object -Last 1).executable)" >> $env:GITHUB_OUTPUT
+
+      - if: ${{ matrix.os == 'windows-latest' }}
+        name: Run tests agent control integration_test as SYSTEM (on-host)
+        shell: pwsh
+        env:
+          TEST_EXECUTABLE: ${{ steps.build-integration-tests.outputs.executable }}
+        run: |
+          Set-Content -Path "$env:RUNNER_TEMP\machine-id" -Value 'testing-machine-id'
+          ./.github/workflows/scripts/run_as_system.ps1 `
+            -Executable $env:TEST_EXECUTABLE `
+            -Arguments '--test-threads=1' `
+            -WorkingDirectory "$PWD\agent-control" `
+            -Environment @{ TEST_MACHINE_ID_PATH = "$env:RUNNER_TEMP\machine-id" }
+
+      # The runner account does not hold SeCreatePermanentPrivilege, which is what this test needs.
+      - if: ${{ matrix.os == 'windows-latest' }}
+        name: Run test that Agent Control does not start without SeCreatePermanentPrivilege (on-host)
+        shell: pwsh
+        working-directory: agent-control
+        env:
+          TEST_EXECUTABLE: ${{ steps.build-integration-tests.outputs.executable }}
+        run: |
+          & $env:TEST_EXECUTABLE --ignored --exact on_host::cli::does_not_run_without_create_permanent_privilege
 
       - name: Run tests agent control (k8s)
         run: make -C agent-control test/k8s
