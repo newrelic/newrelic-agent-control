@@ -697,8 +697,7 @@ fn assert_python_sample_app_instrumented(python_agent_version: &str) -> TestResu
         &format!("PYTHONPATH: {instrumentation_dir}"),
         &format!("NEW_RELIC_APP_NAME: {SAMPLE_APP_NAME}"),
         "agent-attached: True",
-        PYTHON_AGENT_STARTED_LOG,
-        python_agent_version,
+        &format!("{PYTHON_AGENT_STARTED_LOG} ({python_agent_version})"),
     ] {
         if !stdout_of(&instrumented).contains(expected) {
             return Err(format!(
