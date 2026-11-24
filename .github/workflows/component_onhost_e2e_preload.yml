@@ -73,6 +73,8 @@ jobs:
           RUBY_AGENT_VERSION: 10.7.1
           # renovate: datasource=npm depName=newrelic
           NODE_AGENT_VERSION: 14.11.0
+          # renovate: datasource=pypi depName=newrelic
+          PYTHON_AGENT_VERSION: 14.3.0
         run: |
           sudo --preserve-env=AGENT_METADATA ${{ github.workspace }}/target/debug/e2e-runner preload-agent \
             --artifacts-package-dir ./dist \
@@ -87,4 +89,5 @@ jobs:
             --preload-version "$PRELOAD_VERSION" \
             --java-agent-version "$JAVA_AGENT_VERSION" \
             --ruby-agent-version "$RUBY_AGENT_VERSION" \
-            --node-agent-version "$NODE_AGENT_VERSION"
+            --node-agent-version "$NODE_AGENT_VERSION" \
+            --python-agent-version "$PYTHON_AGENT_VERSION"
