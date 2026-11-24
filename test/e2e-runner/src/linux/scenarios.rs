@@ -11,6 +11,7 @@ pub mod proxy;
 pub mod remote_config;
 pub mod self_update;
 pub mod service_lifecycle;
+pub mod switch_infra_agent_version;
 pub mod uninstall;
 
 const DEFAULT_STATUS_PORT: u16 = 51200;
