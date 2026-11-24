@@ -6,6 +6,8 @@ use newrelic_agent_control::agent_control::run::AgentControlRunner;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::command::{Command, Context};
 use newrelic_agent_control::utils::is_elevated::is_elevated;
+#[cfg(target_family = "windows")]
+use newrelic_agent_control::utils::privileges::{SE_CREATE_PERMANENT_PRIVILEGE, enable_privilege};
 use std::error::Error;
 use std::process::ExitCode;
 
@@ -69,6 +71,10 @@ fn _main(context: Context) -> Result<(), Box<dyn Error>> {
     if !is_elevated()? {
         return Err("Program must run with elevated permissions".into());
     }
+
+    // Required to create the permanent Job Objects that track sub-agents.
+    #[cfg(target_family = "windows")]
+    enable_privilege(SE_CREATE_PERMANENT_PRIVILEGE)?;
 
     // Create the actual agent control runner with the rest of required configs
     // and the application_event_consumer and capture the result to report the error in windows
