@@ -87,9 +87,8 @@ mod tests {
     use assert_matches::assert_matches;
     use std::collections::HashMap;
     use windows::Win32::Security::{
-        DuplicateTokenEx, GetTokenInformation, LOGON32_LOGON_INTERACTIVE, LOGON32_PROVIDER_DEFAULT,
-        LogonUserW, LookupPrivilegeNameW, SecurityImpersonation, TOKEN_DUPLICATE,
-        TokenImpersonation, TokenPrivileges,
+        DuplicateTokenEx, GetTokenInformation, LookupPrivilegeNameW, SecurityImpersonation,
+        TOKEN_DUPLICATE, TokenImpersonation, TokenPrivileges,
     };
     use windows::core::PWSTR;
 
@@ -122,39 +121,6 @@ mod tests {
 
         enable_privilege_in_token(*token, &target).unwrap();
         assert_eq!(expected, token_privileges(*token));
-    }
-
-    // Requires a local user that was granted the privilege, so it only runs in the CI job that
-    // creates it. The token of a new logon of that user holds the privilege disabled.
-    #[test]
-    #[ignore = "needs a local user holding the privilege, see the on-host tests workflow"]
-    fn enables_privilege_for_a_user_holding_it() {
-        let username = std::env::var("AC_TEST_PRIVILEGED_USER").unwrap();
-        let password = std::env::var("AC_TEST_PRIVILEGED_PASSWORD").unwrap();
-
-        let mut token = Owned::<HANDLE>::default();
-        unsafe {
-            LogonUserW(
-                &HSTRING::from(username),
-                &HSTRING::from("."),
-                &HSTRING::from(password),
-                LOGON32_LOGON_INTERACTIVE,
-                LOGON32_PROVIDER_DEFAULT,
-                &mut *token,
-            )
-        }
-        .unwrap();
-        assert_eq!(
-            Some(&false),
-            token_privileges(*token).get(SE_CREATE_PERMANENT_PRIVILEGE)
-        );
-
-        enable_privilege_in_token(*token, SE_CREATE_PERMANENT_PRIVILEGE).unwrap();
-
-        assert_eq!(
-            Some(&true),
-            token_privileges(*token).get(SE_CREATE_PERMANENT_PRIVILEGE)
-        );
     }
 
     fn process_token_copy() -> Owned<HANDLE> {

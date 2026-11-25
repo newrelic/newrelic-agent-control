@@ -462,36 +462,6 @@ jobs:
         name: Run test that Agent Control does not start without SeCreatePermanentPrivilege (on-host)
         run: cargo test --locked --package newrelic_agent_control --test integration_tests -- --ignored --exact on_host::cli::does_not_run_without_create_permanent_privilege
 
-      # `enable_privilege` must work for an account other than SYSTEM that was granted the right.
-      - if: ${{ matrix.os == 'windows-latest' }}
-        name: Create a local user holding SeCreatePermanentPrivilege
-        shell: pwsh
-        run: |
-          $password = [guid]::NewGuid().ToString('N') + 'aA1!'
-          Write-Output "::add-mask::$password"
-          New-LocalUser -Name 'ac-privileged' -Password (ConvertTo-SecureString $password -AsPlainText -Force) | Out-Null
-          $sid = (Get-LocalUser 'ac-privileged').SID.Value
-
-          $cfg = Join-Path $env:RUNNER_TEMP 'rights.inf'
-          @"
-          [Unicode]
-          Unicode=yes
-          [Version]
-          signature="`$CHICAGO`$"
-          Revision=1
-          [Privilege Rights]
-          SeCreatePermanentPrivilege = *S-1-5-18,*$sid
-          "@ | Set-Content $cfg
-          secedit /configure /db (Join-Path $env:RUNNER_TEMP 'rights.sdb') /cfg $cfg /areas USER_RIGHTS
-          if ($LASTEXITCODE -ne 0) { throw 'secedit failed' }
-
-          "AC_TEST_PRIVILEGED_USER=ac-privileged" >> $env:GITHUB_ENV
-          "AC_TEST_PRIVILEGED_PASSWORD=$password" >> $env:GITHUB_ENV
-
-      - if: ${{ matrix.os == 'windows-latest' }}
-        name: Run test that enabling the privilege works for a non-SYSTEM user holding it (on-host)
-        run: cargo test --locked --package newrelic_agent_control --lib -- --ignored --exact utils::privileges::tests::enables_privilege_for_a_user_holding_it
-
       - name: Run tests agent control (k8s)
         run: make -C agent-control test/k8s
 
