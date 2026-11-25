@@ -1,0 +1,2 @@
+type: enhancement
+message: "On-host (Windows): add the groundwork to open an existing named Job Object only after verifying its owner and DACL, rejecting objects that other accounts could have created or modified."
