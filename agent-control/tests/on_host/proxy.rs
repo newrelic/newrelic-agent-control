@@ -19,7 +19,7 @@ use std::time::Duration;
 /// # Run a simple proxy
 /// $ docker run --rm --name mitmproxy -v /tmp/mitmproxy:/home/mitmproxy/.mitmproxy -p 8080:8080 mitmproxy/mitmproxy mitmdump
 /// # Execute the corresponding test
-/// $ TESTING_PROXY_URL="http://localhost:8080" TESTING_PROXY_CA_DIR=/tmp/mitmproxy TESTING_HOST_GATEWAY="host.docker.internal" cargo test --test integration_tests -- proxy_ --ignored
+/// $ TESTING_PROXY_URL="http://localhost:8080" TESTING_PROXY_CA_DIR=/tmp/mitmproxy TESTING_HOST_GATEWAY="host.docker.internal" cargo nextest run --test integration_tests --run-ignored only proxy_
 /// ```
 // TODO: run this on CI
 #[ignore = "needs proxy up and running"]

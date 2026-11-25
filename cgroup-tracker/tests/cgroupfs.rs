@@ -9,14 +9,14 @@
 //!
 //! ```sh
 //! CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="sudo systemd-run --scope --quiet --collect -p Delegate=yes --" \
-//!   cargo test -p cgroup-tracker --test cgroupfs -- --ignored
+//!   cargo nextest run -p cgroup-tracker --test cgroupfs --run-ignored only
 //! ```
 //!
 //! Only the v2 cases, without root. This needs a systemd user session (`/run/user/<uid>`):
 //!
 //! ```sh
 //! CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="systemd-run --user --scope --quiet --collect -p Delegate=yes --" \
-//!   cargo test -p cgroup-tracker --test cgroupfs -- --ignored --skip _v1
+//!   cargo nextest run -p cgroup-tracker --test cgroupfs --run-ignored only -- --skip _v1
 //! ```
 //!
 //! Use the `CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUNNER` variable on aarch64.
@@ -31,7 +31,7 @@
 //! sudo mkdir /mnt/nr-ac-v1/tests && sudo chown "$USER" /mnt/nr-ac-v1/tests
 //! CGROUP_TRACKER_V1_BASE=/mnt/nr-ac-v1/tests \
 //!   CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="systemd-run --user --scope --quiet --collect -p Delegate=yes --" \
-//!   cargo test -p cgroup-tracker --test cgroupfs -- --ignored
+//!   cargo nextest run -p cgroup-tracker --test cgroupfs --run-ignored only
 //! sudo umount /mnt/nr-ac-v1
 //! ```
 
