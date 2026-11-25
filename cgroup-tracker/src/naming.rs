@@ -4,7 +4,7 @@
 //! creating a directory and its name is a directory name. This holds for both cgroup v2 and v1
 //! (where the tracker uses a single hierarchy), so the same rules apply to either. That is why a
 //! [`CgroupName`] must be a single, valid path segment that doesn't exceed the filesystem limit
-//! for a directory name ([`MAX_LEN`]).
+//! for a directory name, with some headroom ([`MAX_LEN`]).
 //!
 //! Names can't contain `.`. The kernel creates interface files such as `cgroup.procs` or
 //! `memory.max` inside every cgroup directory, and a child cgroup can't share their name. All of
@@ -34,8 +34,9 @@ pub(crate) const CGROUP_ROOT: &str = "_nr-ac";
 /// `<controller>.<file>`, which can't clash with a name since `.` is not allowed.
 const RESERVED_NAMES: &[&str] = &["tasks", "notify_on_release"];
 
-/// Maximum length of a single cgroup directory name.
-const MAX_LEN: usize = 255;
+/// Maximum length of a single cgroup directory name. It is kept below the 255 bytes limit of
+/// common filesystems to leave room for a prefix to be added in the future.
+const MAX_LEN: usize = 200;
 
 /// Name of a cgroup created by the tracker, located at `_nr-ac/<name>`.
 #[derive(Debug, Clone, PartialEq, Eq)]
