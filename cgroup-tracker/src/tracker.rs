@@ -90,7 +90,8 @@ impl CgroupHandle<'_> {
     }
 
     /// Pids of every process in the cgroup and its descendant cgroups.
-    /// Empty if the cgroup does not exist.
+    /// Empty if the cgroup does not exist. Members the kernel reports as pid `0` (outside the
+    /// reader's PID namespace) are omitted, so every returned pid is safe to signal.
     pub fn members(&self) -> Result<Vec<i32>, CgroupTrackerError> {
         member_pids(&self.path())
     }
@@ -248,12 +249,22 @@ fn signal_members(path: &Path, signaller: &impl Signaller) -> Result<(), CgroupT
 }
 
 /// Pids of the cgroup and of its descendant cgroups.
+///
+/// Only positive pids are returned, since callers pass them to `kill`, where `0` targets the
+/// caller's process group and negative values target other groups or every process. A `0` can
+/// show up when:
+/// - the kernel lists members outside the reader's PID namespace (e.g. Agent Control in a
+///   container reading a host cgroup);
+/// - a test uses a regular file as `cgroup.procs`, where attaching writes `0` ("move myself").
+///
+/// The kernel never prints negative pids, so filtering them is only defensive.
 fn member_pids(path: &Path) -> Result<Vec<i32>, CgroupTrackerError> {
     let procs_path = path.join(PROCS_FILE);
     let mut pids = match fs::read_to_string(&procs_path) {
         Ok(content) => content
             .lines()
-            .filter_map(|l| l.trim().parse().ok())
+            .filter_map(|l| l.trim().parse::<i32>().ok())
+            .filter(|pid| *pid > 0)
             .collect(),
         Err(err) if err.kind() == io::ErrorKind::NotFound => Vec::new(),
         Err(err) => {
@@ -304,6 +315,7 @@ fn read_subdirs(path: &Path) -> Result<Vec<PathBuf>, CgroupTrackerError> {
 mod tests {
     use super::*;
     use assert_matches::assert_matches;
+    use rstest::rstest;
     use std::cell::RefCell;
     use std::collections::HashMap;
     use tempfile::TempDir;
@@ -487,6 +499,42 @@ mod tests {
         pids.sort_unstable();
 
         assert_eq!(pids, vec![10, 11, 12]);
+    }
+
+    // `kill(0, ..)` signals the caller's process group and `kill(-1, ..)` every process it may
+    // signal, so non-positive pids must never be reported as members.
+    #[rstest]
+    #[case::zero(&[0], &[])]
+    #[case::zero_among_valid(&[10, 0, 11], &[10, 11])]
+    #[case::negative(&[-1], &[])]
+    #[case::negative_among_valid(&[10, -1, -42, 11], &[10, 11])]
+    fn member_pids_skips_non_positive_pids(#[case] procs: &[i32], #[case] expected: &[i32]) {
+        let (_dir, path) = cgroup_with_members(procs);
+
+        assert_eq!(member_pids(&path).unwrap(), expected);
+    }
+
+    #[test]
+    fn member_pids_skips_non_positive_pids_in_descendant_cgroups() {
+        let (_dir, path) = cgroup_with_members(&[10]);
+        let child = path.join("child");
+        fs::create_dir(&child).unwrap();
+        fs::write(child.join(PROCS_FILE), "0\n12\n").unwrap();
+
+        let mut pids = member_pids(&path).unwrap();
+        pids.sort_unstable();
+
+        assert_eq!(pids, vec![10, 12]);
+    }
+
+    #[test]
+    fn signal_members_never_signals_non_positive_pids() {
+        let (_dir, path) = cgroup_with_members(&[10, 0, -1, 11]);
+        let signaller = FakeSignaller::failing_with([]);
+
+        signal_members(&path, &signaller).unwrap();
+
+        assert_eq!(signaller.calls.take(), vec![10, 11]);
     }
 
     #[test]
