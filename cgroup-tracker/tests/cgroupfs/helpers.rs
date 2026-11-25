@@ -1,6 +1,6 @@
 //! Helpers for the cgroupfs tests.
 
-use cgroup_tracker::{CgroupName, CgroupTracker, Hierarchy};
+use cgroup_tracker::{CgroupName, CgroupTracker, CgroupVersion};
 use std::cell::RefCell;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -33,23 +33,23 @@ pub struct TestBase {
 impl TestBase {
     /// For v2, the base is a child of the cgroup the test process runs in. For v1, it is a child
     /// of the root of a freshly mounted named hierarchy.
-    pub fn new(hierarchy: Hierarchy) -> Self {
+    pub fn new(version: CgroupVersion) -> Self {
         let unique = format!(
-            "test-{hierarchy:?}-{}-{}",
+            "test-{version:?}-{}-{}",
             std::process::id(),
             BASE_COUNTER.fetch_add(1, Ordering::Relaxed)
         );
-        let (base, v1_mount) = match hierarchy {
-            Hierarchy::V2 => {
+        let (base, v1_mount) = match version {
+            CgroupVersion::V2 => {
                 let detected = CgroupTracker::detect().expect("detecting the test process cgroup");
                 assert_eq!(
-                    detected.hierarchy(),
-                    Hierarchy::V2,
+                    detected.version(),
+                    CgroupVersion::V2,
                     "cgroupfs tests need a cgroup v2 host"
                 );
                 (detected.base().join(unique), None)
             }
-            Hierarchy::V1 => match std::env::var_os(V1_BASE_ENV) {
+            CgroupVersion::V1 => match std::env::var_os(V1_BASE_ENV) {
                 // Premounted hierarchy: nothing to mount, so no root is needed.
                 Some(parent) => (PathBuf::from(parent).join(unique), None),
                 None => {
@@ -63,7 +63,7 @@ impl TestBase {
             },
         };
         Self {
-            tracker: CgroupTracker::with_base(base, hierarchy),
+            tracker: CgroupTracker::from_parts(base, version),
             names: RefCell::default(),
             v1_mount,
         }
@@ -118,9 +118,9 @@ impl TestBase {
 
     /// Extracts the path of the tracker hierarchy from `/proc/<pid>/cgroup` content.
     pub fn cgroup_path(&self, proc_cgroup: &str) -> PathBuf {
-        let controllers = match self.tracker.hierarchy() {
-            Hierarchy::V2 => String::new(),
-            Hierarchy::V1 => format!("name={V1_HIERARCHY_NAME}"),
+        let controllers = match self.tracker.version() {
+            CgroupVersion::V2 => String::new(),
+            CgroupVersion::V1 => format!("name={V1_HIERARCHY_NAME}"),
         };
         proc_cgroup
             .lines()

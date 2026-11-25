@@ -6,12 +6,12 @@
 #![cfg(unix)]
 #![deny(missing_docs)]
 
+mod detect;
 mod error;
-mod hierarchy;
 mod naming;
 mod tracker;
 
+pub use detect::CgroupVersion;
 pub use error::{CgroupOperation, CgroupTrackerError, InvalidCgroupName};
-pub use hierarchy::Hierarchy;
 pub use naming::CgroupName;
 pub use tracker::{CgroupHandle, CgroupTracker};

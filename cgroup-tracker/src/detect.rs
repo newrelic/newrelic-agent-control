@@ -6,19 +6,23 @@ use tracing::debug;
 const MOUNTINFO: &str = "/proc/self/mountinfo";
 const SELF_CGROUP: &str = "/proc/self/cgroup";
 
-/// Kind of cgroup hierarchy the tracker operates on.
+/// Cgroup version of the hierarchy the tracker operates on.
+///
+/// This is the hierarchy selected for tracking, not a property of the host: on hybrid setups
+/// (v1 and v2 both mounted) the unified hierarchy is used and reported as [`CgroupVersion::V2`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Hierarchy {
-    /// Unified hierarchy. Supports `cgroup.kill` on Kernel 5,14+.
+pub enum CgroupVersion {
+    /// Unified hierarchy. Supports `cgroup.kill` on kernel 5.14+.
     V2,
-    /// Legacy (or hybrid named) hierarchy. Killing relies on signalling the members.
+    /// Legacy hierarchy, only the `name=systemd` one is supported. Killing relies on signalling
+    /// the members.
     V1,
 }
 
-impl Hierarchy {
+impl CgroupVersion {
     /// Whether the hierarchy may provide the `cgroup.kill` interface file (kernel 5.14+).
     pub fn supports_cgroup_kill(self) -> bool {
-        matches!(self, Hierarchy::V2)
+        matches!(self, CgroupVersion::V2)
     }
 }
 
@@ -41,7 +45,7 @@ struct CgroupMount {
 pub(crate) fn detect_base(
     mountinfo: impl BufRead,
     self_cgroup: impl BufRead,
-) -> Result<(PathBuf, Hierarchy), DetectError> {
+) -> Result<(PathBuf, CgroupVersion), DetectError> {
     let (v2_mounts, v1_mounts) = parse_mountinfo(mountinfo)?;
     let memberships = parse_self_cgroup(self_cgroup)?;
 
@@ -53,8 +57,8 @@ pub(crate) fn detect_base(
         .filter(|_| !v2_mounts.is_empty());
 
     match unified_path {
-        Some(path) => Ok((resolve_v2(&v2_mounts, path)?, Hierarchy::V2)),
-        None => Ok((resolve_v1(&v1_mounts, &memberships)?, Hierarchy::V1)),
+        Some(path) => Ok((resolve_v2(&v2_mounts, path)?, CgroupVersion::V2)),
+        None => Ok((resolve_v1(&v1_mounts, &memberships)?, CgroupVersion::V1)),
     }
 }
 
@@ -140,7 +144,11 @@ fn parse_mountinfo(
     Ok((v2, v1))
 }
 
-/// A `<hierarchy id>:<controllers>:<path>` line of `/proc/self/cgroup`.
+/// One `<hierarchy id>:<controllers>:<path>` line of `/proc/self/cgroup`, describing the
+/// cgroup the process belongs to in a single hierarchy.
+///
+/// `controllers` is a comma-separated list (it may include `name=<name>` for named v1
+/// hierarchies) and is empty for the cgroup v2 entry.
 struct Membership {
     id: String,
     controllers: String,
@@ -154,6 +162,8 @@ impl Membership {
     }
 }
 
+/// Parses `/proc/self/cgroup` content into one [`Membership`] per `id:controllers:path` line.
+/// Malformed lines are skipped.
 fn parse_self_cgroup(self_cgroup: impl BufRead) -> Result<Vec<Membership>, DetectError> {
     let mut memberships = Vec::new();
     for line in self_cgroup.lines() {
@@ -227,30 +237,30 @@ mod tests {
         V1_MOUNTS,
         V1_CGROUP,
         "/sys/fs/cgroup/systemd/system.slice/run-rcaccada4b18f46ebb5cf8b4e54d49ab1.scope",
-        Hierarchy::V1
+        CgroupVersion::V1
     )]
     #[case::v2(
         V2_MOUNTS,
         V2_CGROUP,
         "/sys/fs/cgroup/system.slice/run-r22c0d05185894b7b863749c969f67a1c.scope",
-        Hierarchy::V2
+        CgroupVersion::V2
     )]
-    #[case::v2_namespace(V2_MOUNTS, "0::/\n", "/sys/fs/cgroup", Hierarchy::V2)]
+    #[case::v2_namespace(V2_MOUNTS, "0::/\n", "/sys/fs/cgroup", CgroupVersion::V2)]
     #[case::hybrid_prefers_v2(
         HYBRID_MOUNTS,
         HYBRID_CGROUP,
         "/sys/fs/cgroup/unified/system.slice/ac.service",
-        Hierarchy::V2
+        CgroupVersion::V2
     )]
     fn detects(
         #[case] mountinfo: &str,
         #[case] self_cgroup: &str,
         #[case] expected_base: &str,
-        #[case] expected_hierarchy: Hierarchy,
+        #[case] expected_version: CgroupVersion,
     ) {
-        let (base, hierarchy) = detect_base(mountinfo.as_bytes(), self_cgroup.as_bytes()).unwrap();
+        let (base, version) = detect_base(mountinfo.as_bytes(), self_cgroup.as_bytes()).unwrap();
         assert_eq!(base, PathBuf::from(expected_base));
-        assert_eq!(hierarchy, expected_hierarchy);
+        assert_eq!(version, expected_version);
     }
 
     #[test]
@@ -276,10 +286,10 @@ mod tests {
         "/sys/fs/cgroup/leaf"
     )]
     fn picks_matching_v2_mount(#[case] mountinfo: &str, #[case] expected_base: &str) {
-        let (base, hierarchy) =
+        let (base, version) =
             detect_base(mountinfo.as_bytes(), "0::/ns/root/leaf\n".as_bytes()).unwrap();
         assert_eq!(base, PathBuf::from(expected_base));
-        assert_eq!(hierarchy, Hierarchy::V2);
+        assert_eq!(version, CgroupVersion::V2);
     }
 
     #[test]
@@ -327,8 +337,8 @@ mod tests {
     fn skips_malformed_lines() {
         let mountinfo = format!("garbage line\nshort - cgroup2\n{V2_MOUNTS}");
         let self_cgroup = format!("garbage\n{V2_CGROUP}");
-        let (_, hierarchy) = detect_base(mountinfo.as_bytes(), self_cgroup.as_bytes()).unwrap();
-        assert_eq!(hierarchy, Hierarchy::V2);
+        let (_, version) = detect_base(mountinfo.as_bytes(), self_cgroup.as_bytes()).unwrap();
+        assert_eq!(version, CgroupVersion::V2);
     }
 
     #[test]
