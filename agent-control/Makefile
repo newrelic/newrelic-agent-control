@@ -26,6 +26,14 @@ test/onhost/root/integration:
 	@echo "testing-machine-id" > /tmp/machine-id
 	$(TEST_FIXTURES) cargo $(CARGO_CMD) $(PACKAGE_SA) --test integration_tests _as_root -- --ignored --skip no_root --skip k8s
 
+# The tests create cgroups, which needs a cgroup delegated to the test binary: systemd owns the rest
+# of the hierarchy. Wrap the test binary in a delegated scope to run it, for example:
+# CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="sudo systemd-run --scope --quiet --collect -p Delegate=yes --"
+.PHONY: test/onhost/cgroups/integration
+test/onhost/cgroups/integration:
+	@echo "testing-machine-id" > /tmp/machine-id
+	$(TEST_FIXTURES) cargo $(CARGO_CMD) $(PACKAGE_SA) --test integration_tests cgroups -- --ignored --test-threads=1
+
 .PHONY: test/onhost/oci-registry/integration
 test/onhost/oci-registry/integration:
 	@echo "testing-machine-id" > /tmp/machine-id

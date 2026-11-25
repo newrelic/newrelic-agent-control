@@ -24,6 +24,7 @@ pub struct OnHostAgentControlConfigBuilder {
     proxy: Option<String>,
     self_update: Option<SelfUpdateConfig>,
     agent_types: Option<AgentTypes>,
+    cgroups_enabled: bool,
 }
 
 struct SelfUpdateConfig {
@@ -48,6 +49,7 @@ impl OnHostAgentControlConfigBuilder {
             proxy: None,
             self_update: None,
             agent_types: None,
+            cgroups_enabled: false,
         }
     }
 
@@ -114,6 +116,12 @@ impl OnHostAgentControlConfigBuilder {
         self
     }
 
+    #[cfg(target_os = "linux")]
+    pub fn with_cgroups_enabled(mut self) -> Self {
+        self.cgroups_enabled = true;
+        self
+    }
+
     #[allow(dead_code)]
     pub fn with_proxy(mut self, proxy: impl Into<String>) -> Self {
         self.proxy = Some(proxy.into());
@@ -177,6 +185,12 @@ impl OnHostAgentControlConfigBuilder {
             })
             .unwrap_or_default();
 
+        let experimental_config = if self.cgroups_enabled {
+            "experimental:\n  cgroups:\n    enabled: true"
+        } else {
+            ""
+        };
+
         let agent_control_config = format!(
             r#"
 host_id: integration-test
@@ -187,6 +201,7 @@ host_id: integration-test
 {status_server_config}
 {self_update_config}
 {agent_types_config}
+{experimental_config}
 "#,
         );
 

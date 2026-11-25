@@ -32,9 +32,7 @@ pub struct SupervisedProcess<G> {
     agent_id: AgentID,
     #[cfg(target_family = "unix")]
     shutdown_timeout: Duration,
-    /// Tracked process group the process runs in, killed on a forced stop. Only read on Windows
-    /// until the unix trackers kill their groups too.
-    #[cfg_attr(target_family = "unix", allow(dead_code))]
+    /// Tracked process group the process runs in, killed when the process ends.
     group: G,
     /// Keeps the process object alive so the exit code remains retrievable even after the
     /// process exits quickly and before we get a chance to query it.
@@ -218,6 +216,102 @@ mod tests {
                     current = running;
                 }
             }
+        }
+    }
+
+    #[cfg(target_family = "unix")]
+    mod grouped {
+        use super::*;
+        use crate::sub_agent::on_host::process_group_tracker::ProcessGroupTracker;
+        use crate::sub_agent::on_host::process_group_tracker::tests::{
+            CountingProcessGroup, CountingProcessGroupTracker,
+        };
+
+        fn spawn_in_group(
+            executable: &ExecutableData,
+            tracker: &CountingProcessGroupTracker,
+        ) -> SupervisedProcess<CountingProcessGroup> {
+            let group = tracker
+                .group(&AgentID::AgentControl, &executable.id)
+                .unwrap();
+            SupervisedProcess::spawn(OsProcessConfig::new(
+                AgentID::AgentControl,
+                executable,
+                None,
+                group,
+            ))
+            .unwrap()
+        }
+
+        fn wait_for_exit(process: SupervisedProcess<CountingProcessGroup>) -> ExitStatus {
+            let deadline = Instant::now() + Duration::from_secs(10);
+            let mut current = process;
+            loop {
+                match current.try_wait() {
+                    ProcessState::Exited(exit_status) => break exit_status,
+                    ProcessState::Running(running) => {
+                        assert!(Instant::now() < deadline, "process did not exit in time");
+                        std::thread::sleep(POLL_INTERVAL);
+                        current = running;
+                    }
+                }
+            }
+        }
+
+        #[test]
+        fn natural_exit_kills_the_group_once() {
+            let tracker = CountingProcessGroupTracker::default();
+            let process = spawn_in_group(&ExecutableData::short_lived(), &tracker);
+
+            let exit_status = wait_for_exit(process);
+
+            assert!(exit_status.success());
+            assert_eq!(tracker.kills(), 1);
+        }
+
+        #[test]
+        fn shutdown_kills_the_group_once() {
+            let tracker = CountingProcessGroupTracker::default();
+            let process = spawn_in_group(&ExecutableData::long_running(), &tracker);
+
+            process.shutdown().unwrap();
+
+            assert_eq!(tracker.kills(), 1);
+        }
+
+        #[test]
+        fn force_kill_kills_the_group_once() {
+            let tracker = CountingProcessGroupTracker::default();
+            let process = spawn_in_group(&ExecutableData::long_running(), &tracker);
+
+            let exit_status = process.force_kill().unwrap();
+
+            assert!(!exit_status.success());
+            assert_eq!(tracker.kills(), 1);
+        }
+
+        #[test]
+        fn running_process_does_not_kill_the_group() {
+            let tracker = CountingProcessGroupTracker::default();
+            let process = spawn_in_group(&ExecutableData::long_running(), &tracker);
+
+            let ProcessState::Running(process) = process.try_wait() else {
+                panic!("expected process to be running");
+            };
+
+            assert_eq!(tracker.kills(), 0);
+            process.shutdown().unwrap();
+        }
+
+        #[test]
+        fn a_failing_group_kill_does_not_change_the_exit_status() {
+            let tracker = CountingProcessGroupTracker::with_failing_kill();
+            let process = spawn_in_group(&ExecutableData::short_lived(), &tracker);
+
+            let exit_status = wait_for_exit(process);
+
+            assert!(exit_status.success());
+            assert_eq!(tracker.kills(), 1);
         }
     }
 }

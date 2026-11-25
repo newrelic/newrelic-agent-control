@@ -6,6 +6,8 @@ use crate::agent_control::agent_id::AgentID;
 use crate::sub_agent::on_host::managed_process::spawned_process::log_files::std_streams;
 use crate::sub_agent::on_host::process_group_tracker::TrackedProcessGroup;
 #[cfg(target_family = "unix")]
+use crate::sub_agent::on_host::process_group_tracker::kill_group;
+#[cfg(target_family = "unix")]
 use std::os::unix::process::CommandExt;
 use std::path::PathBuf;
 use std::process::{Child, Command};
@@ -70,7 +72,15 @@ impl<G: TrackedProcessGroup> OsProcessConfig<G> {
     pub fn start(mut self) -> Result<OsProcess<G>, CommandError> {
         let (stdout, stderr) = std_streams(&self.maybe_log_dir)?;
         self.cmd.stdout(stdout).stderr(stderr);
-        let child = self.group.spawn(self.cmd).map_err(CommandError::Tracker)?;
+        let child = match self.group.spawn(self.cmd) {
+            Ok(child) => child,
+            Err(err) => {
+                // A failed spawn can leave the group behind.
+                #[cfg(target_family = "unix")]
+                kill_group(self.group, &self.agent_id);
+                return Err(CommandError::Tracker(err));
+            }
+        };
         Ok(OsProcess {
             agent_id: self.agent_id,
             process: child,
@@ -168,5 +178,22 @@ mod tests {
                 .ok_or_else(|| format!("process output was not appended, got: {content:?}"))
         })
         .unwrap();
+    }
+
+    #[cfg(target_family = "unix")]
+    #[test]
+    fn start_kills_the_group_when_the_spawn_fails() {
+        use crate::sub_agent::on_host::process_group_tracker::ProcessGroupTracker;
+        use crate::sub_agent::on_host::process_group_tracker::tests::CountingProcessGroupTracker;
+
+        let tracker = CountingProcessGroupTracker::default();
+        let exec_data =
+            ExecutableData::new("exec-b".to_string(), "/nonexistent/binary".to_string());
+        let group = tracker.group(&AgentID::AgentControl, "exec-b").unwrap();
+
+        let result = OsProcessConfig::new(AgentID::AgentControl, &exec_data, None, group).start();
+
+        assert!(result.is_err());
+        assert_eq!(tracker.kills(), 1);
     }
 }

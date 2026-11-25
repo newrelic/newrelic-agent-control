@@ -515,6 +515,13 @@ jobs:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUNNER: "sudo systemd-run --scope --quiet --collect -p Delegate=yes --"
         run: cargo test --locked -p cgroup-tracker --test cgroupfs -- --ignored
 
+      - name: Run Agent Control cgroup integration tests
+        env:
+          # Same delegated scope as the cgroupfs tests above, see the comment there.
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: "sudo systemd-run --scope --quiet --collect -p Delegate=yes --"
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUNNER: "sudo systemd-run --scope --quiet --collect -p Delegate=yes --"
+        run: make -C agent-control test/onhost/cgroups/integration
+
   on-host-oci-registry-tests:
     name: tests with oci registry
     # Container operations must run on a linux runner https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idcontainer.

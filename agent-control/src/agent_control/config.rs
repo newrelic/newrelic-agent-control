@@ -101,6 +101,26 @@ pub struct AgentControlConfig {
     /// Reuses the global `oci` registry/auth; see [AgentTypeConfig].
     #[serde(default)]
     pub agent_types: AgentTypeConfig,
+
+    /// Features that are not ready for general use and may change or disappear.
+    #[serde(default)]
+    pub experimental: ExperimentalConfig,
+}
+
+/// Experimental features, all disabled by default.
+#[derive(Debug, Default, Deserialize, PartialEq, Clone)]
+#[serde(default)]
+pub struct ExperimentalConfig {
+    /// Cgroup based tracking of on-host sub-agent processes.
+    pub cgroups: CgroupsConfig,
+}
+
+/// Configuration of the cgroup based process tracking.
+#[derive(Debug, Default, Deserialize, PartialEq, Clone)]
+#[serde(default)]
+pub struct CgroupsConfig {
+    /// Whether on-host sub-agent processes are tracked through cgroups. Linux only.
+    pub enabled: bool,
 }
 
 /// Configuration for the on-host self-update mechanism.
@@ -1405,6 +1425,26 @@ k8s:
             config.proxy.url_as_string(),
             "http://localhost:8080/".to_string()
         )
+    }
+
+    #[test]
+    fn experimental_cgroups_defaults_to_disabled() {
+        let config = serde_saphyr::from_str::<AgentControlConfig>("agents: {}").unwrap();
+
+        assert!(!config.experimental.cgroups.enabled);
+    }
+
+    #[test]
+    fn experimental_cgroups_can_be_enabled() {
+        let config_input = r#"
+agents: {}
+experimental:
+  cgroups:
+    enabled: true
+"#;
+        let config = serde_saphyr::from_str::<AgentControlConfig>(config_input).unwrap();
+
+        assert!(config.experimental.cgroups.enabled);
     }
 
     #[test]

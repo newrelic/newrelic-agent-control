@@ -3015,6 +3015,7 @@ dependencies = [
  "base64 0.23.1",
  "bytes",
  "cfg-if",
+ "cgroup-tracker",
  "chrono",
  "clap",
  "config",

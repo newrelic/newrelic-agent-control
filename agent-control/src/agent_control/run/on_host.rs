@@ -1,7 +1,7 @@
 //! Wiring and entry point for running Agent Control in an on-host environment.
 
 use crate::agent_control::AgentControl;
-use crate::agent_control::config::{AgentControlConfig, OpAMPClientConfig};
+use crate::agent_control::config::{AgentControlConfig, CgroupsConfig, OpAMPClientConfig};
 use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
 use crate::agent_control::config_validator::on_host::SharedFilesystemPathValidator;
 use crate::agent_control::defaults::{
@@ -47,6 +47,8 @@ use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::builder::OnHostSubAgentBuilder;
 use crate::sub_agent::on_host::builder::SupervisorBuilderOnHost;
 use crate::sub_agent::on_host::process_group_tracker::PlatformProcessGroupTracker;
+#[cfg(target_family = "unix")]
+use crate::sub_agent::on_host::process_group_tracker::{CgroupTracker, UnixProcessGroupTracker};
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::utils::time::SystemClock;
 use crate::value_provider::ValueProviders;
@@ -217,9 +219,11 @@ impl AgentControlRunner {
         let supervisor_builder = SupervisorBuilderOnHost {
             logging_base_path: log_dir,
             package_manager: agents_package_manager,
-            // TODO: build the tracker from the experimental configuration once it exists, failing
-            // Agent Control's start if the host cannot support it.
-            process_group_tracker: PlatformProcessGroupTracker::default(),
+            // Built once at startup and cloned into every supervisor, so a host that cannot support
+            // the configured tracker fails Agent Control's start instead of each sub-agent.
+            process_group_tracker: process_group_tracker(
+                &self.bootstrap_config.experimental.cgroups,
+            )?,
         };
 
         let signature_validator = Arc::new(self.signature_validator);
@@ -412,4 +416,33 @@ fn ac_non_identifying_attributes(
     }
 
     attributes
+}
+
+/// Tracks the executables in cgroups when the experimental feature is enabled. A host that cannot
+/// support it fails Agent Control's start.
+#[cfg(target_family = "unix")]
+fn process_group_tracker(config: &CgroupsConfig) -> Result<PlatformProcessGroupTracker, RunError> {
+    if !config.enabled {
+        return Ok(UnixProcessGroupTracker::default());
+    }
+    CgroupTracker::detect()
+        .map(UnixProcessGroupTracker::Cgroup)
+        .map_err(|err| RunError(format!("failed to detect cgroups: {err}")))
+}
+
+#[cfg(target_family = "windows")]
+fn process_group_tracker(_config: &CgroupsConfig) -> Result<PlatformProcessGroupTracker, RunError> {
+    Ok(PlatformProcessGroupTracker::default())
+}
+
+#[cfg(all(test, target_family = "unix"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn disabled_cgroups_use_the_passthrough_tracker() {
+        let tracker = process_group_tracker(&CgroupsConfig::default()).unwrap();
+
+        assert!(matches!(tracker, UnixProcessGroupTracker::Passthrough(_)));
+    }
 }
