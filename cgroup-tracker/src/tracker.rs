@@ -1,5 +1,5 @@
-use crate::hierarchy::detect_base;
-use crate::{CgroupName, CgroupOperation, CgroupTrackerError, Hierarchy};
+use crate::detect::detect_base;
+use crate::{CgroupName, CgroupOperation, CgroupTrackerError, CgroupVersion};
 use nix::errno::Errno;
 use nix::sys::signal::{Signal, kill};
 use nix::sys::stat::Mode;
@@ -16,18 +16,18 @@ use tracing::debug;
 
 const PROCS_FILE: &str = "cgroup.procs";
 const KILL_FILE: &str = "cgroup.kill";
-const KILL_ATTEMPTS: u32 = 50;
+const MAX_KILL_ATTEMPTS: u32 = 50;
 const KILL_RETRY_INTERVAL: Duration = Duration::from_millis(100);
 
 /// Creates, attaches to, kills and removes the cgroups of sub-agent executables.
 #[derive(Debug, Clone)]
 pub struct CgroupTracker {
     base: PathBuf,
-    hierarchy: Hierarchy,
+    version: CgroupVersion,
 }
 
 impl CgroupTracker {
-    /// Detects the hierarchy and base cgroup from `/proc/self`.
+    /// Detects the cgroup version and base cgroup from `/proc/self`.
     pub fn detect() -> Result<Self, CgroupTrackerError> {
         let open_file = |path: &str| {
             File::open(path)
@@ -37,22 +37,22 @@ impl CgroupTracker {
                     Path::new(path),
                 ))
         };
-        let (base, hierarchy) = detect_base(
+        let (base, version) = detect_base(
             open_file("/proc/self/mountinfo")?,
             open_file("/proc/self/cgroup")?,
         )
         .map_err(CgroupTrackerError::Detect)?;
-        Ok(Self::with_base(base, hierarchy))
+        Ok(Self::from_parts(base, version))
     }
 
-    /// Uses an explicit base directory and hierarchy, skipping detection.
+    /// Uses an explicit base directory and cgroup version, skipping detection.
     ///
     /// Useful for non-standard cgroup mounts, resuming from a previously detected base, or
     /// tests using a temporary directory. The base is not validated.
-    pub fn with_base(base: impl Into<PathBuf>, hierarchy: Hierarchy) -> Self {
+    pub fn from_parts(base: impl Into<PathBuf>, version: CgroupVersion) -> Self {
         Self {
             base: base.into(),
-            hierarchy,
+            version,
         }
     }
 
@@ -61,9 +61,9 @@ impl CgroupTracker {
         &self.base
     }
 
-    /// Hierarchy kind the tracker operates on.
-    pub fn hierarchy(&self) -> Hierarchy {
-        self.hierarchy
+    /// Cgroup version the tracker operates on.
+    pub fn version(&self) -> CgroupVersion {
+        self.version
     }
 
     /// Handle to the cgroup for `name`. The cgroup is not created until needed.
@@ -159,7 +159,7 @@ impl CgroupHandle<'_> {
             debug!(path = %path.display(), "Cgroup does not exist, nothing to remove");
             return Ok(());
         }
-        for attempt in 1..=KILL_ATTEMPTS {
+        for attempt in 1..=MAX_KILL_ATTEMPTS {
             self.kill_members(&path)?;
             match remove_cgroup_tree(&path) {
                 Ok(()) => break,
@@ -168,7 +168,7 @@ impl CgroupHandle<'_> {
                     debug!(
                         path = %path.display(),
                         attempt,
-                        max_attempts = KILL_ATTEMPTS,
+                        max_attempts = MAX_KILL_ATTEMPTS,
                         "Cgroup is still busy, retrying removal"
                     );
                     std::thread::sleep(KILL_RETRY_INTERVAL);
@@ -182,7 +182,7 @@ impl CgroupHandle<'_> {
         if path.exists() {
             return Err(CgroupTrackerError::KillTimeout {
                 path,
-                attempts: KILL_ATTEMPTS,
+                attempts: MAX_KILL_ATTEMPTS,
             });
         }
         // Best effort: the shared root cgroup is only removed once no other cgroup is left in it.
@@ -193,7 +193,7 @@ impl CgroupHandle<'_> {
     }
 
     fn kill_members(&self, path: &Path) -> Result<(), CgroupTrackerError> {
-        if self.tracker.hierarchy.supports_cgroup_kill() {
+        if self.tracker.version.supports_cgroup_kill() {
             match OpenOptions::new()
                 .write(true)
                 .open(path.join(KILL_FILE))
@@ -327,13 +327,13 @@ mod tests {
     fn tracker() -> (TempDir, CgroupTracker) {
         let dir = TempDir::new().unwrap();
         // V1 so killing goes through signals, a tempdir has no `cgroup.kill`.
-        let tracker = CgroupTracker::with_base(dir.path(), Hierarchy::V1);
+        let tracker = CgroupTracker::from_parts(dir.path(), CgroupVersion::V1);
         (dir, tracker)
     }
 
     #[test]
     fn path_of_joins_base_and_name() {
-        let tracker = CgroupTracker::with_base("/sys/fs/cgroup/test", Hierarchy::V2);
+        let tracker = CgroupTracker::from_parts("/sys/fs/cgroup/test", CgroupVersion::V2);
         assert_eq!(
             tracker.cgroup(&name("agent-exec")).path(),
             PathBuf::from("/sys/fs/cgroup/test/_nr-ac/agent-exec")
@@ -420,7 +420,7 @@ mod tests {
     fn kill_and_remove_on_v2_without_kill_file_falls_back_to_signals() {
         // A tempdir has no `cgroup.kill`, like a kernel older than 5.14.
         let dir = TempDir::new().unwrap();
-        let tracker = CgroupTracker::with_base(dir.path(), Hierarchy::V2);
+        let tracker = CgroupTracker::from_parts(dir.path(), CgroupVersion::V2);
         let name = name("agent-exec");
         tracker.cgroup(&name).create().unwrap();
         assert!(!tracker.cgroup(&name).path().join(KILL_FILE).exists());

@@ -40,7 +40,7 @@
 #[path = "cgroupfs/helpers.rs"]
 mod helpers;
 
-use cgroup_tracker::{CgroupTracker, Hierarchy};
+use cgroup_tracker::{CgroupTracker, CgroupVersion};
 use helpers::{TestBase, is_alive, stat, wait_until};
 use nix::sys::signal::{Signal, kill};
 use nix::unistd::Pid;
@@ -78,11 +78,11 @@ fn sigkill(pid: i32) {
 }
 
 #[rstest]
-#[case::v2(Hierarchy::V2)]
-#[case::v1(Hierarchy::V1)]
+#[case::v2(CgroupVersion::V2)]
+#[case::v1(CgroupVersion::V1)]
 #[ignore = "requires a writable cgroup v2, and root or a premounted hierarchy for v1"]
-fn child_execs_inside_cgroup(#[case] hierarchy: Hierarchy) {
-    let base = TestBase::new(hierarchy);
+fn child_execs_inside_cgroup(#[case] version: CgroupVersion) {
+    let base = TestBase::new(version);
     let name = base.cgroup("cat");
     let mut command = Command::new("cat");
     command.arg("/proc/self/cgroup").stdout(Stdio::piped());
@@ -100,11 +100,11 @@ fn child_execs_inside_cgroup(#[case] hierarchy: Hierarchy) {
 }
 
 #[rstest]
-#[case::v2(Hierarchy::V2)]
-#[case::v1(Hierarchy::V1)]
+#[case::v2(CgroupVersion::V2)]
+#[case::v1(CgroupVersion::V1)]
 #[ignore = "requires a writable cgroup v2, and root or a premounted hierarchy for v1"]
-fn forks_double_forks_and_setsid_stay_tracked(#[case] hierarchy: Hierarchy) {
-    let base = TestBase::new(hierarchy);
+fn forks_double_forks_and_setsid_stay_tracked(#[case] version: CgroupVersion) {
+    let base = TestBase::new(version);
     let name = base.cgroup("tree");
     let mut child = base.spawn(&name, TREE_SCRIPT);
     let shell = child.id() as i32;
@@ -133,11 +133,11 @@ fn forks_double_forks_and_setsid_stay_tracked(#[case] hierarchy: Hierarchy) {
 }
 
 #[rstest]
-#[case::v2(Hierarchy::V2)]
-#[case::v1(Hierarchy::V1)]
+#[case::v2(CgroupVersion::V2)]
+#[case::v1(CgroupVersion::V1)]
 #[ignore = "requires a writable cgroup v2, and root or a premounted hierarchy for v1"]
-fn kill_and_remove_kills_whole_tree(#[case] hierarchy: Hierarchy) {
-    let base = TestBase::new(hierarchy);
+fn kill_and_remove_kills_whole_tree(#[case] version: CgroupVersion) {
+    let base = TestBase::new(version);
     let name = base.cgroup("tree");
     let mut child = base.spawn(&name, TREE_SCRIPT);
     let members = base.wait_for_members(&name, TREE_SIZE);
@@ -153,11 +153,11 @@ fn kill_and_remove_kills_whole_tree(#[case] hierarchy: Hierarchy) {
 }
 
 #[rstest]
-#[case::v2(Hierarchy::V2)]
-#[case::v1(Hierarchy::V1)]
+#[case::v2(CgroupVersion::V2)]
+#[case::v1(CgroupVersion::V1)]
 #[ignore = "requires a writable cgroup v2, and root or a premounted hierarchy for v1"]
-fn kill_and_remove_with_unreaped_child(#[case] hierarchy: Hierarchy) {
-    let base = TestBase::new(hierarchy);
+fn kill_and_remove_with_unreaped_child(#[case] version: CgroupVersion) {
+    let base = TestBase::new(version);
     let name = base.cgroup("pair");
     let mut child = base.spawn(&name, PAIR_SCRIPT);
     let shell = child.id() as i32;
@@ -178,11 +178,11 @@ fn kill_and_remove_with_unreaped_child(#[case] hierarchy: Hierarchy) {
 }
 
 #[rstest]
-#[case::v2(Hierarchy::V2)]
-#[case::v1(Hierarchy::V1)]
+#[case::v2(CgroupVersion::V2)]
+#[case::v1(CgroupVersion::V1)]
 #[ignore = "requires a writable cgroup v2, and root or a premounted hierarchy for v1"]
-fn kill_and_remove_removes_descendant_cgroups(#[case] hierarchy: Hierarchy) {
-    let base = TestBase::new(hierarchy);
+fn kill_and_remove_removes_descendant_cgroups(#[case] version: CgroupVersion) {
+    let base = TestBase::new(version);
     let name = base.cgroup("pair");
     let mut child = base.spawn(&name, PAIR_SCRIPT);
     let shell = child.id() as i32;
@@ -205,11 +205,11 @@ fn kill_and_remove_removes_descendant_cgroups(#[case] hierarchy: Hierarchy) {
 }
 
 #[rstest]
-#[case::v2(Hierarchy::V2)]
-#[case::v1(Hierarchy::V1)]
+#[case::v2(CgroupVersion::V2)]
+#[case::v1(CgroupVersion::V1)]
 #[ignore = "requires a writable cgroup v2, and root or a premounted hierarchy for v1"]
-fn populated_cgroup_cannot_be_removed(#[case] hierarchy: Hierarchy) {
-    let base = TestBase::new(hierarchy);
+fn populated_cgroup_cannot_be_removed(#[case] version: CgroupVersion) {
+    let base = TestBase::new(version);
     let name = base.cgroup("pair");
     let mut child = base.spawn(&name, PAIR_SCRIPT);
     base.wait_for_members(&name, 2);
@@ -222,11 +222,11 @@ fn populated_cgroup_cannot_be_removed(#[case] hierarchy: Hierarchy) {
 }
 
 #[rstest]
-#[case::v2(Hierarchy::V2)]
-#[case::v1(Hierarchy::V1)]
+#[case::v2(CgroupVersion::V2)]
+#[case::v1(CgroupVersion::V1)]
 #[ignore = "requires a writable cgroup v2, and root or a premounted hierarchy for v1"]
-fn tree_survives_parent_death_and_is_readopted(#[case] hierarchy: Hierarchy) {
-    let base = TestBase::new(hierarchy);
+fn tree_survives_parent_death_and_is_readopted(#[case] version: CgroupVersion) {
+    let base = TestBase::new(version);
     let name = base.cgroup("pair");
     let mut child = base.spawn(&name, PAIR_SCRIPT);
     let shell = child.id() as i32;
@@ -246,7 +246,7 @@ fn tree_survives_parent_death_and_is_readopted(#[case] hierarchy: Hierarchy) {
     assert!(base.is_in(sleep, &base.tracker().cgroup(&name).path()));
 
     // A new tracker, as after a restart, finds the tree and stops it.
-    let restarted = CgroupTracker::with_base(base.tracker().base(), hierarchy);
+    let restarted = CgroupTracker::from_parts(base.tracker().base(), version);
     assert_eq!(restarted.cgroup(&name).members().unwrap(), vec![sleep]);
     restarted.cgroup(&name).kill_and_remove().unwrap();
 
@@ -255,11 +255,11 @@ fn tree_survives_parent_death_and_is_readopted(#[case] hierarchy: Hierarchy) {
 }
 
 #[rstest]
-#[case::v2(Hierarchy::V2)]
-#[case::v1(Hierarchy::V1)]
+#[case::v2(CgroupVersion::V2)]
+#[case::v1(CgroupVersion::V1)]
 #[ignore = "requires a writable cgroup v2, and root or a premounted hierarchy for v1"]
-fn create_on_populated_cgroup_keeps_its_members(#[case] hierarchy: Hierarchy) {
-    let base = TestBase::new(hierarchy);
+fn create_on_populated_cgroup_keeps_its_members(#[case] version: CgroupVersion) {
+    let base = TestBase::new(version);
     let name = base.cgroup("pair");
     let mut child = base.spawn(&name, PAIR_SCRIPT);
     let members = base.wait_for_members(&name, 2);
@@ -276,11 +276,11 @@ fn create_on_populated_cgroup_keeps_its_members(#[case] hierarchy: Hierarchy) {
 }
 
 #[rstest]
-#[case::v2(Hierarchy::V2)]
-#[case::v1(Hierarchy::V1)]
+#[case::v2(CgroupVersion::V2)]
+#[case::v1(CgroupVersion::V1)]
 #[ignore = "requires a writable cgroup v2, and root or a premounted hierarchy for v1"]
-fn stopping_one_cgroup_does_not_affect_another(#[case] hierarchy: Hierarchy) {
-    let base = TestBase::new(hierarchy);
+fn stopping_one_cgroup_does_not_affect_another(#[case] version: CgroupVersion) {
+    let base = TestBase::new(version);
     let stopped = base.cgroup("stopped");
     let kept = base.cgroup("kept");
     let mut stopped_child = base.spawn(&stopped, PAIR_SCRIPT);
@@ -315,14 +315,14 @@ fn stopping_one_cgroup_does_not_affect_another(#[case] hierarchy: Hierarchy) {
 }
 
 #[rstest]
-#[case::v2(Hierarchy::V2)]
-#[case::v1(Hierarchy::V1)]
+#[case::v2(CgroupVersion::V2)]
+#[case::v1(CgroupVersion::V1)]
 #[ignore = "requires a writable cgroup v2, and root or a premounted hierarchy for v1"]
-fn trackers_pointing_to_the_same_cgroup_share_it(#[case] hierarchy: Hierarchy) {
-    let base = TestBase::new(hierarchy);
+fn trackers_pointing_to_the_same_cgroup_share_it(#[case] version: CgroupVersion) {
+    let base = TestBase::new(version);
     let name = base.cgroup("shared");
     let first = base.tracker().clone();
-    let second = CgroupTracker::with_base(base.tracker().base(), hierarchy);
+    let second = CgroupTracker::from_parts(base.tracker().base(), version);
     assert_eq!(first.cgroup(&name).path(), second.cgroup(&name).path());
 
     // Each tracker spawns its own child into the same cgroup.
@@ -361,7 +361,7 @@ fn trackers_pointing_to_the_same_cgroup_share_it(#[case] hierarchy: Hierarchy) {
 fn detect_resolves_own_cgroup_v2() {
     let tracker = CgroupTracker::detect().unwrap();
 
-    assert_eq!(tracker.hierarchy(), Hierarchy::V2);
+    assert_eq!(tracker.version(), CgroupVersion::V2);
     let procs = fs::read_to_string(tracker.base().join("cgroup.procs")).unwrap();
     assert!(
         procs.lines().any(|l| l == std::process::id().to_string()),
