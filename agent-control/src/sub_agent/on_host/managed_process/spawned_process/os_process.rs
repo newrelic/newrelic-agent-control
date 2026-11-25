@@ -96,8 +96,8 @@ impl OsProcess {
     #[cfg(target_family = "windows")]
     pub(crate) fn create_job_object(
         &self,
-    ) -> Result<crate::utils::job_object::JobObject, super::error::CommandError> {
-        let job = crate::utils::job_object::JobObject::new()?;
+    ) -> Result<job_object::JobObject, super::error::CommandError> {
+        let job = job_object::JobObject::new()?;
         job.assign_process(&self.process)?;
         Ok(job)
     }

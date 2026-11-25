@@ -72,7 +72,6 @@ impl Drop for JobObject {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::retry::retry;
     use std::process::Command;
     use std::time::Duration;
 
@@ -88,13 +87,13 @@ mod tests {
             .expect("Failed to assign process to JobObject");
 
         job.kill().unwrap();
-        retry(100, Duration::from_millis(100), || {
+        let exited = (0..100).any(|_| {
             if child.try_wait().is_ok_and(|status| status.is_some()) {
-                Ok::<(), &str>(())
-            } else {
-                Err("process still running")
+                return true;
             }
-        })
-        .expect("Failed to wait on process");
+            std::thread::sleep(Duration::from_millis(100));
+            false
+        });
+        assert!(exited, "Failed to wait on process");
     }
 }

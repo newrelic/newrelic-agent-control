@@ -19,7 +19,7 @@ use std::time::Instant;
 use tracing::warn;
 
 #[cfg(target_family = "windows")]
-use crate::utils::job_object::JobObject;
+use job_object::JobObject;
 #[cfg(target_family = "windows")]
 use windows::process_handle::ProcessHandle;
 

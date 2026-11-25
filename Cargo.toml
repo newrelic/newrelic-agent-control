@@ -9,6 +9,7 @@ members = [
   "wrapper_with_default",
   "self-replacer",
   "cgroup-tracker",
+  "job-object",
   "test/e2e-runner",
   "test/crates/oci-test-utils",
 ]

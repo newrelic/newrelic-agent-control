@@ -18,6 +18,7 @@ const LOGGING_ENABLED_CRATES: &[&str] = &[
     "resource_detection",
     "fs",
     "cgroup_tracker",
+    "job_object",
     // External crates (not workspace members) can also be added here freely.
     "opamp_client",
     "nr_auth",
