@@ -33,11 +33,13 @@ pub enum PrivilegeError {
 }
 
 /// Enables the privilege `name` (e.g. [SE_CREATE_PERMANENT_PRIVILEGE]) in the token of the
-/// current process.
+/// current process. The change applies to the whole process and lasts until it exits. Enabling an
+/// already enabled privilege is a no-op.
 ///
-/// It fails if the token does not hold the privilege, which happens when the account was not
-/// granted the corresponding user right. `NT AUTHORITY\SYSTEM` holds [SE_CREATE_PERMANENT_PRIVILEGE]
-/// by default.
+/// It fails with [PrivilegeError::NotHeld] if the token does not hold the privilege, which happens
+/// when the account was not granted the corresponding user right. `NT AUTHORITY\SYSTEM` holds
+/// [SE_CREATE_PERMANENT_PRIVILEGE] by default. Other [PrivilegeError] variants mean that `name` is
+/// not a valid privilege or that the process token could not be opened or adjusted.
 pub fn enable_privilege(name: &str) -> Result<(), PrivilegeError> {
     let mut token = Owned::<HANDLE>::default();
     unsafe {
