@@ -97,6 +97,39 @@ shared objects"), which is needed to create the permanent Job Objects that track
 enables it in its process token and exits with an error if the token does not hold it. `NT AUTHORITY\SYSTEM` holds it by
 default; any other account must be granted that user right.
 
+The Windows Service created by `install.ps1` runs as `LocalSystem` (`NT AUTHORITY\SYSTEM`), so it already holds the
+privilege. To run the binary by hand as SYSTEM, for example while developing, use an elevated PowerShell session with
+[gsudo](https://github.com/gerardog/gsudo) (this is also how the CI runs the tests):
+
+```powershell
+gsudo --system .\newrelic-agent-control.exe
+```
+
+To run Agent Control as any other account, that account must be granted the privilege first. Changing user rights requires an elevated session (an administrator
+account, started with "Run as administrator"):
+
+1. Open `secpol.msc` (Local Security Policy) and go to _Local Policies_ → _User Rights Assignment_.
+2. Open _Create permanent shared objects_, click _Add User or Group..._ and add the account.
+3. Restart the process running Agent Control (for the Windows Service, restart the service). A token only gets the
+   rights granted at the moment of logon, so processes that were already running do not pick up the change.
+
+On domain-joined machines the same setting can be managed through Group Policy, under the same path.
+
+The same can be done from an elevated PowerShell session with `secedit`:
+
+```powershell
+$sid = (New-Object System.Security.Principal.NTAccount("<account>")).Translate([System.Security.Principal.SecurityIdentifier]).Value
+secedit /export /cfg "$env:TEMP\sec.inf" /areas USER_RIGHTS
+```
+
+Edit `sec.inf`: under `[Privilege Rights]`, append `*<sid>` to the `SeCreatePermanentPrivilege` line, or add the line if it
+is missing. Entries are comma separated, and the `[Unicode]` and `[Version]` sections must be kept as exported. Keep the
+accounts already listed, since `secedit /configure` replaces the whole list. Then apply it:
+
+```powershell
+secedit /configure /db "$env:TEMP\sec.sdb" /cfg "$env:TEMP\sec.inf" /areas USER_RIGHTS
+```
+
 On both Operating Systems, an `environment_variables.yaml` file is created to store environment variables that Agent
 Control will use when running as a service. This file is created at installation time and it is located at the Agent
 Control configuration directory.
