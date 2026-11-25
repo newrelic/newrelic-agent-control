@@ -438,8 +438,10 @@ jobs:
         run: cargo nextest run --workspace --exclude 'newrelic_agent_control' --exclude 'cgroup-tracker' --all-targets --run-ignored all
 
       # Its integration tests need root and run in the `cgroup-tracker-cgroupfs-tests` job.
+      # On Windows the crate compiles to no tests, which nextest treats as an error by default.
       - name: Run cgroup-tracker unit tests
-        run: cargo nextest run --locked -p cgroup-tracker --lib
+        # The crate is empty on Windows.
+        run: cargo nextest run --locked -p cgroup-tracker --lib --no-tests=warn --no-tests=pass
 
       - name: Run tests agent control lib excluding root-required tests (on-host)
         run: make -C agent-control test/onhost
