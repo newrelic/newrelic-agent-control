@@ -451,8 +451,7 @@ jobs:
           # Choco's PATH update doesn't reach later steps, which need gsudo as the cargo target runner.
           Add-Content $env:GITHUB_PATH 'C:\tools\gsudo\Current'
 
-      # On Windows the test binaries run as SYSTEM through the target runner; on Linux the runner is ignored.
-      - name: Run tests agent control integration_test (on-host)
+      - name: Run tests agent control integration_test excluding root-required tests (on-host)
         env:
           CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUNNER: "gsudo --system"
         run: make -C agent-control test/onhost/integration
