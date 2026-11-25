@@ -1,7 +1,8 @@
-//! Enabling of Windows token privileges for the current process.
+//! Enabling of Windows token privileges.
 //!
 //! A privilege listed in a token is usually *disabled*, and Windows only honors it once it has
-//! been enabled in that token. The state is process-wide and lasts for the life of the process.
+//! been enabled in that token. For the process token the state is process-wide and lasts for the
+//! life of the process.
 
 use tracing::debug;
 use windows::Win32::Foundation::{ERROR_NOT_ALL_ASSIGNED, GetLastError, HANDLE, LUID};
@@ -38,10 +39,6 @@ pub enum PrivilegeError {
 /// granted the corresponding user right. `NT AUTHORITY\SYSTEM` holds [SE_CREATE_PERMANENT_PRIVILEGE]
 /// by default.
 pub fn enable_privilege(name: &str) -> Result<(), PrivilegeError> {
-    let mut luid = LUID::default();
-    unsafe { LookupPrivilegeValueW(PCWSTR::null(), &HSTRING::from(name), &mut luid) }
-        .map_err(|source| PrivilegeError::Lookup(name.to_string(), source))?;
-
     let mut token = Owned::<HANDLE>::default();
     unsafe {
         OpenProcessToken(
@@ -52,6 +49,16 @@ pub fn enable_privilege(name: &str) -> Result<(), PrivilegeError> {
     }
     .map_err(PrivilegeError::OpenToken)?;
 
+    enable_privilege_in_token(*token, name)
+}
+
+/// Enables the privilege `name` in `token`, which must have been opened with
+/// `TOKEN_ADJUST_PRIVILEGES` access.
+fn enable_privilege_in_token(token: HANDLE, name: &str) -> Result<(), PrivilegeError> {
+    let mut luid = LUID::default();
+    unsafe { LookupPrivilegeValueW(PCWSTR::null(), &HSTRING::from(name), &mut luid) }
+        .map_err(|source| PrivilegeError::Lookup(name.to_string(), source))?;
+
     let privileges = TOKEN_PRIVILEGES {
         PrivilegeCount: 1,
         Privileges: [LUID_AND_ATTRIBUTES {
@@ -59,8 +66,7 @@ pub fn enable_privilege(name: &str) -> Result<(), PrivilegeError> {
             Attributes: SE_PRIVILEGE_ENABLED,
         }],
     };
-    let adjusted =
-        unsafe { AdjustTokenPrivileges(*token, false, Some(&privileges), 0, None, None) };
+    let adjusted = unsafe { AdjustTokenPrivileges(token, false, Some(&privileges), 0, None, None) };
 
     // The call reports success even when the token does not hold the privilege; that case is
     // only signaled through the last error. It must be read before any other API call.
@@ -80,37 +86,60 @@ mod tests {
     use super::*;
     use assert_matches::assert_matches;
     use std::collections::HashMap;
-    use windows::Win32::Security::{GetTokenInformation, LookupPrivilegeNameW, TokenPrivileges};
+    use windows::Win32::Security::{
+        DuplicateTokenEx, GetTokenInformation, LookupPrivilegeNameW, SecurityImpersonation,
+        TOKEN_DUPLICATE, TokenImpersonation, TokenPrivileges,
+    };
     use windows::core::PWSTR;
 
     #[test]
     fn unknown_privilege_fails() {
-        let err = enable_privilege("SeDoesNotExistPrivilege").unwrap_err();
+        let token = process_token_copy();
+        let err = enable_privilege_in_token(*token, "SeDoesNotExistPrivilege").unwrap_err();
         assert_matches!(err, PrivilegeError::Lookup(_, _));
     }
 
     #[test]
     fn privilege_not_held_by_the_token_fails() {
+        let token = process_token_copy();
         // Held only by `lsass`: neither `SYSTEM` nor administrator tokens have it.
-        let err = enable_privilege("SeCreateTokenPrivilege").unwrap_err();
+        let err = enable_privilege_in_token(*token, "SeCreateTokenPrivilege").unwrap_err();
         assert_matches!(err, PrivilegeError::NotHeld(_));
     }
 
-    // The privileges of the token are shared by the whole process. This is the only test that
-    // changes them, so the requirements are asserted together to avoid synchronizing tests.
     #[test]
     fn enables_only_the_requested_privilege_and_idempotency() {
-        let before = token_privileges();
+        let token = process_token_copy();
+        let before = token_privileges(*token);
         let target = disabled_privilege(&before);
 
-        enable_privilege(&target).unwrap();
+        enable_privilege_in_token(*token, &target).unwrap();
 
         let mut expected = before;
         expected.insert(target.clone(), true);
-        assert_eq!(expected, token_privileges());
+        assert_eq!(expected, token_privileges(*token));
 
-        enable_privilege(&target).unwrap();
-        assert_eq!(expected, token_privileges());
+        enable_privilege_in_token(*token, &target).unwrap();
+        assert_eq!(expected, token_privileges(*token));
+    }
+
+    fn process_token_copy() -> Owned<HANDLE> {
+        let mut token = Owned::<HANDLE>::default();
+        unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_DUPLICATE, &mut *token) }.unwrap();
+
+        let mut copy = Owned::<HANDLE>::default();
+        unsafe {
+            DuplicateTokenEx(
+                *token,
+                TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
+                None,
+                SecurityImpersonation,
+                TokenImpersonation,
+                &mut *copy,
+            )
+        }
+        .unwrap();
+        copy
     }
 
     fn disabled_privilege(privileges: &HashMap<String, bool>) -> String {
@@ -121,16 +150,13 @@ mod tests {
             .expect("the token holds no disabled privilege")
     }
 
-    fn token_privileges() -> HashMap<String, bool> {
-        let mut token = Owned::<HANDLE>::default();
-        unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut *token) }.unwrap();
-
+    fn token_privileges(token: HANDLE) -> HashMap<String, bool> {
         let mut len = 0;
-        let _ = unsafe { GetTokenInformation(*token, TokenPrivileges, None, 0, &mut len) };
+        let _ = unsafe { GetTokenInformation(token, TokenPrivileges, None, 0, &mut len) };
         let mut buffer = vec![0u64; (len as usize).div_ceil(8)];
         unsafe {
             GetTokenInformation(
-                *token,
+                token,
                 TokenPrivileges,
                 Some(buffer.as_mut_ptr().cast()),
                 len,
