@@ -92,6 +92,11 @@ Such service file is packaged in the `.deb` and `.rpm` installers by goreleaser 
 On the other hand, on Windows, Agent Control is expected to run as a Windows Service that is installed using the
 `install.ps1` script that takes care of registering the service and install AC.
 
+On Windows, the account running Agent Control must hold the `SeCreatePermanentPrivilege` privilege ("Create permanent
+shared objects"), which is needed to create the permanent Job Objects that track sub-agents. At startup, Agent Control
+enables it in its process token and exits with an error if the token does not hold it. `NT AUTHORITY\SYSTEM` holds it by
+default; any other account must be granted that user right.
+
 On both Operating Systems, an `environment_variables.yaml` file is created to store environment variables that Agent
 Control will use when running as a service. This file is created at installation time and it is located at the Agent
 Control configuration directory.
