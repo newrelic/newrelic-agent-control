@@ -59,7 +59,7 @@ fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Agent Control must not get past startup if the account does not hold
 /// `SeCreatePermanentPrivilege`. CI runs it with the runner account, which lacks it, while the rest
-/// of the suite runs as `SYSTEM`; anywhere the privilege is held the test is meaningless.
+/// of the suite runs as `SYSTEM`.
 #[cfg(target_family = "windows")]
 #[test]
 #[ignore = "requires an account without SeCreatePermanentPrivilege"]

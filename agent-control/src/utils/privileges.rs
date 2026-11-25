@@ -4,13 +4,13 @@
 //! been enabled in that token. The state is process-wide and lasts for the life of the process.
 
 use tracing::debug;
-use windows::Win32::Foundation::{CloseHandle, ERROR_NOT_ALL_ASSIGNED, GetLastError, HANDLE, LUID};
+use windows::Win32::Foundation::{ERROR_NOT_ALL_ASSIGNED, GetLastError, HANDLE, LUID};
 use windows::Win32::Security::{
     AdjustTokenPrivileges, LUID_AND_ATTRIBUTES, LookupPrivilegeValueW, SE_PRIVILEGE_ENABLED,
     TOKEN_ADJUST_PRIVILEGES, TOKEN_PRIVILEGES, TOKEN_QUERY,
 };
 use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
-use windows::core::{HSTRING, PCWSTR};
+use windows::core::{HSTRING, Owned, PCWSTR};
 
 /// Privilege ("Create permanent shared objects") required to create permanent kernel objects,
 /// such as the named Job Objects used to track sub-agents.
@@ -42,12 +42,12 @@ pub fn enable_privilege(name: &str) -> Result<(), PrivilegeError> {
     unsafe { LookupPrivilegeValueW(PCWSTR::null(), &HSTRING::from(name), &mut luid) }
         .map_err(|source| PrivilegeError::Lookup(name.to_string(), source))?;
 
-    let mut token = HANDLE::default();
+    let mut token = Owned::<HANDLE>::default();
     unsafe {
         OpenProcessToken(
             GetCurrentProcess(),
             TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
-            &mut token,
+            &mut *token,
         )
     }
     .map_err(PrivilegeError::OpenToken)?;
@@ -59,12 +59,12 @@ pub fn enable_privilege(name: &str) -> Result<(), PrivilegeError> {
             Attributes: SE_PRIVILEGE_ENABLED,
         }],
     };
-    let adjusted = unsafe { AdjustTokenPrivileges(token, false, Some(&privileges), 0, None, None) };
+    let adjusted =
+        unsafe { AdjustTokenPrivileges(*token, false, Some(&privileges), 0, None, None) };
 
     // The call reports success even when the token does not hold the privilege; that case is
     // only signaled through the last error. It must be read before any other API call.
     let last_error = unsafe { GetLastError() };
-    let _ = unsafe { CloseHandle(token) };
 
     adjusted.map_err(|source| PrivilegeError::Adjust(name.to_string(), source))?;
     if last_error == ERROR_NOT_ALL_ASSIGNED {
@@ -113,7 +113,6 @@ mod tests {
         assert_eq!(expected, token_privileges());
     }
 
-    /// Name of any privilege held by the token but currently disabled.
     fn disabled_privilege(privileges: &HashMap<String, bool>) -> String {
         privileges
             .iter()
@@ -123,15 +122,15 @@ mod tests {
     }
 
     fn token_privileges() -> HashMap<String, bool> {
-        let mut token = HANDLE::default();
-        unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) }.unwrap();
+        let mut token = Owned::<HANDLE>::default();
+        unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut *token) }.unwrap();
 
         let mut len = 0;
-        let _ = unsafe { GetTokenInformation(token, TokenPrivileges, None, 0, &mut len) };
+        let _ = unsafe { GetTokenInformation(*token, TokenPrivileges, None, 0, &mut len) };
         let mut buffer = vec![0u64; (len as usize).div_ceil(8)];
         unsafe {
             GetTokenInformation(
-                token,
+                *token,
                 TokenPrivileges,
                 Some(buffer.as_mut_ptr().cast()),
                 len,
@@ -139,7 +138,6 @@ mod tests {
             )
         }
         .unwrap();
-        let _ = unsafe { CloseHandle(token) };
 
         let privileges = unsafe { &*buffer.as_ptr().cast::<TOKEN_PRIVILEGES>() };
         let entries = unsafe {
