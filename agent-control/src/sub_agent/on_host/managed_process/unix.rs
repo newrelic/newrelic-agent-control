@@ -1,5 +1,7 @@
 use super::spawned_process::error::CommandError;
+use super::spawned_process::os_process::OsProcess;
 use super::{ProcessState, SupervisedProcess};
+use crate::sub_agent::on_host::process_group_tracker::TrackedProcessGroup;
 use nix::sys::signal::{Signal, kill};
 use nix::sys::wait::{WaitPidFlag, WaitStatus, waitpid};
 use nix::unistd::Pid;
@@ -8,11 +10,22 @@ use std::os::unix::process::ExitStatusExt;
 use std::process::ExitStatus;
 use tracing::warn;
 
-impl SupervisedProcess {
+impl<G: TrackedProcessGroup> SupervisedProcess<G> {
+    /// Supervises a process just spawned by this run. The `Child` handle is dropped on return, the
+    /// process keeps running and is managed by its pid alone.
+    pub(super) fn from_started(os_process: OsProcess<G>) -> Result<Self, CommandError> {
+        Ok(Self {
+            pid: os_process.get_pid(),
+            agent_id: os_process.agent_id().clone(),
+            shutdown_timeout: os_process.shutdown_timeout(),
+            group: os_process.into_group(),
+        })
+    }
+
     /// Non-blocking check of whether the process has exited. Uses `WNOHANG` so `waitpid` returns
     /// immediately; any status that isn't a clean exit or signal termination is treated as still
     /// running, including ptrace stops and `ECHILD` (adopted/re-parented processes).
-    pub fn try_wait(self) -> ProcessState {
+    pub fn try_wait(self) -> ProcessState<G> {
         let pid = Pid::from_raw(self.pid as i32);
         // waitpid(2) with WNOHANG can return ECHILD, EINTR, or EINVAL; see
         // <https://linux.die.net/man/2/waitpid>
@@ -27,8 +40,7 @@ impl SupervisedProcess {
             Ok(status @ (WaitStatus::Exited(..) | WaitStatus::Signaled(..))) => {
                 ProcessState::Exited(Self::raw_exit_status(status))
             }
-            // Not our child: adopted process. Full liveness check will be wired up
-            // when ProcessOrigin::Adopt is implemented.
+            // Not our child: its exit cannot be observed.
             Err(nix::errno::Errno::ECHILD) => ProcessState::Running(self),
             // Remaining errors evaluate to considering the process to be still running,
             // a safer outcome than risking having orphan processes around treated as
@@ -102,13 +114,13 @@ impl SupervisedProcess {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sub_agent::on_host::managed_process::ProcessOrigin;
     use crate::sub_agent::on_host::managed_process::spawned_process::executable_data::ExecutableData;
     use crate::sub_agent::on_host::managed_process::spawned_process::os_process::OsProcessConfig;
+    use crate::sub_agent::on_host::process_group_tracker::PassthroughProcessGroup;
     use nix::unistd::getpgid;
 
-    fn spawn(bin: &str, args: &[&str]) -> SupervisedProcess {
-        ProcessOrigin::Spawn(OsProcessConfig::new(
+    fn spawn(bin: &str, args: &[&str]) -> SupervisedProcess<PassthroughProcessGroup> {
+        SupervisedProcess::spawn(OsProcessConfig::new(
             "test".to_string().try_into().unwrap(),
             &ExecutableData {
                 id: "test".to_string(),
@@ -119,8 +131,8 @@ mod tests {
                 shutdown_timeout: Default::default(),
             },
             None,
+            PassthroughProcessGroup,
         ))
-        .try_into_supervised()
         .unwrap()
     }
 

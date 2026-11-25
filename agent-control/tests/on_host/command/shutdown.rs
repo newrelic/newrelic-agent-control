@@ -1,18 +1,30 @@
-use newrelic_agent_control::sub_agent::on_host::managed_process::ProcessOrigin;
+use newrelic_agent_control::agent_control::agent_id::AgentID;
 #[cfg(target_family = "unix")]
 use newrelic_agent_control::sub_agent::on_host::managed_process::ProcessState;
+use newrelic_agent_control::sub_agent::on_host::managed_process::SupervisedProcess;
 use newrelic_agent_control::sub_agent::on_host::managed_process::spawned_process::executable_data::ExecutableData;
 use newrelic_agent_control::sub_agent::on_host::managed_process::spawned_process::os_process::OsProcessConfig;
 use newrelic_agent_control::sub_agent::on_host::managed_process::spawned_process::restart_policy::RestartPolicy;
+use newrelic_agent_control::sub_agent::on_host::process_group_tracker::{
+    PlatformProcessGroupTracker, ProcessGroupTracker,
+};
 use std::collections::HashMap;
 use std::{thread::sleep, time::Duration};
 
+type TestProcessGroup = <PlatformProcessGroupTracker as ProcessGroupTracker>::Group;
+
+fn test_group(agent_id: &AgentID) -> TestProcessGroup {
+    PlatformProcessGroupTracker::default()
+        .group(agent_id, "test")
+        .unwrap()
+}
+
 #[test]
 fn non_blocking_runner() {
-    let agent_id = "sleep-test".to_string().try_into().unwrap();
+    let agent_id: AgentID = "sleep-test".to_string().try_into().unwrap();
 
     let config = OsProcessConfig::new(
-        agent_id,
+        agent_id.clone(),
         #[cfg(target_family = "unix")]
         &ExecutableData {
             id: "sleep".to_string(),
@@ -32,9 +44,10 @@ fn non_blocking_runner() {
             shutdown_timeout: Default::default(),
         },
         None,
+        test_group(&agent_id),
     );
 
-    let started_cmd = ProcessOrigin::Spawn(config).try_into_supervised().unwrap();
+    let started_cmd = SupervisedProcess::spawn(config).unwrap();
     sleep(Duration::from_millis(500)); // Give the process some room to start
 
     let terminated = started_cmd.shutdown();
@@ -44,8 +57,9 @@ fn non_blocking_runner() {
 #[test]
 #[cfg(target_family = "unix")]
 fn command_shutdown_when_sigterm_is_ignored() {
-    let agent_id = "test".to_string().try_into().unwrap();
-    let cmd = ProcessOrigin::Spawn(OsProcessConfig::new(
+    let agent_id: AgentID = "test".to_string().try_into().unwrap();
+    let group = test_group(&agent_id);
+    let cmd = SupervisedProcess::spawn(OsProcessConfig::new(
         agent_id,
         &ExecutableData {
             id: "test".to_string(),
@@ -56,8 +70,8 @@ fn command_shutdown_when_sigterm_is_ignored() {
             shutdown_timeout: Duration::from_millis(100),
         },
         None,
+        group,
     ))
-    .try_into_supervised()
     .unwrap();
 
     // Confirm the process is running before sending SIGTERM.
@@ -76,10 +90,10 @@ fn command_shutdown_kill_orphan_process() {
     use crate::common::retry::retry;
     use crate::on_host::tools::windows_process::{is_process_orphan, is_process_running};
 
-    let agent_id = "test".to_string().try_into().unwrap();
+    let agent_id: AgentID = "test".to_string().try_into().unwrap();
     let id = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
-    let cmd = ProcessOrigin::Spawn(OsProcessConfig::new(
-        agent_id,
+    let config = OsProcessConfig::new(
+        agent_id.clone(),
         &ExecutableData {
             id: "test".to_string(),
             bin: "powershell".to_string(),
@@ -96,9 +110,9 @@ fn command_shutdown_kill_orphan_process() {
             shutdown_timeout: Duration::from_millis(100),
         },
         None,
-    ))
-    .try_into_supervised()
-    .unwrap();
+        test_group(&agent_id),
+    );
+    let cmd = SupervisedProcess::spawn(config).unwrap();
 
     // Check that we have a leaked process
     retry(30, Duration::from_secs(1), || {
@@ -126,8 +140,10 @@ fn command_shutdown_sigterm_reaches_descendants() {
     let dir = tempfile::tempdir().unwrap();
     let marker = dir.path().join("grandchild_terminated");
 
-    let cmd = ProcessOrigin::Spawn(OsProcessConfig::new(
-        "test".to_string().try_into().unwrap(),
+    let agent_id: AgentID = "test".to_string().try_into().unwrap();
+    let group = test_group(&agent_id);
+    let cmd = SupervisedProcess::spawn(OsProcessConfig::new(
+        agent_id,
         &ExecutableData {
             id: "test".to_string(),
             bin: std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -140,8 +156,8 @@ fn command_shutdown_sigterm_reaches_descendants() {
             shutdown_timeout: Duration::from_millis(500),
         },
         None,
+        group,
     ))
-    .try_into_supervised()
     .unwrap();
 
     // Give the script time to install its traps and fork the grandchild.
