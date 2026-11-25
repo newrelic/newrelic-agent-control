@@ -61,7 +61,7 @@ pub fn test_proxy(args: InstallationArgs) {
     install_agent_control_from_recipe(&recipe_data);
     let test_id = format!(
         "onhost-e2e-proxy_{}",
-        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S%.3f")
+        jiff::Zoned::now().strftime("%Y-%m-%d_%H-%M-%S%.3f")
     );
 
     // Install cli does not support adding infra-agent config yet on windows, so we need to update the config manually

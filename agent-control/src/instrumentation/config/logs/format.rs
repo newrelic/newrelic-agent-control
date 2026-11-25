@@ -7,7 +7,7 @@ use serde::Deserialize;
 pub(crate) struct TimestampFormat(pub(crate) String);
 
 /// Provides a default `TimestampFormat`. The default format is based on
-/// [chrono strftime](https://docs.rs/chrono/latest/chrono/format/strftime/index.html#fn7)
+/// [jiff strftime](https://docs.rs/jiff/latest/jiff/fmt/strftime/index.html)
 ///
 /// # Returns:
 /// A new `TimestampFormat` instance with the format set as "%Y-%m-%dT%H:%M:%S".

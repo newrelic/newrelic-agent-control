@@ -56,7 +56,7 @@ Logs can be configured as follows:
 log:
   format:
     target: true # Defaults to false, includes extra information for debugging purposes
-    timestamp: "%Y-%m-%dT%H:%M:%S" # Defaults to "%Y-%m-%dT%H:%M:%S", details in <https://docs.rs/chrono/0.4.40/chrono/format/strftime/index.html#fn7>
+    timestamp: "%Y-%m-%dT%H:%M:%S" # Defaults to "%Y-%m-%dT%H:%M:%S", details in <https://docs.rs/jiff/latest/jiff/fmt/strftime/index.html>
     ansi_colors: true # Defaults to false, set up ansi-colors in the stderr logs output.
     formatter: json # Defaults to "json". It accepts "json" (newline delimited JSON logs) or "pretty" (human-readable, single-line logs)
   level: debug # Defines the log level, defaults to "info".

@@ -18,7 +18,7 @@ agent_type_protocol_version = "1.0"
 clap = { workspace = true, features = ["derive"] }
 serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["env-filter", "chrono"] }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
 tracing = { workspace = true, features = ["attributes"] }
 ctrlc = { version = "3.5.3", features = ["termination"] }
 serde-saphyr = { workspace = true }
@@ -26,21 +26,22 @@ regex = { workspace = true }
 futures = { version = "0.3.34" }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync"] }
 console-subscriber = { version = "0.5.0", optional = true }
-duration-str = "0.21.0"
+duration-str = { version = "0.21.0", default-features = false, features = ["serde"] }
 http = { workspace = true }
 reqwest = { workspace = true }
 url = { version = "2.5.9", features = ["serde"] }
 actix-web = { workspace = true }
 serde_json = { workspace = true }
 semver = { workspace = true, features = ["serde"] }
-chrono = { workspace = true }
+jiff = { workspace = true }
 base64 = { workspace = true }
 jsonwebtoken = { workspace = true }
 strum = { workspace = true }
 
 # New Relic dependencies (external repos)
 opamp-client = { workspace = true }
-nr-auth = { git = "https://github.com/newrelic/newrelic-auth-rs.git", tag = "0.7.0" }
+# TODO: replace when released
+nr-auth = { git = "https://github.com/newrelic/newrelic-auth-rs.git", branch = "fix/remove-chrono-dependency" }
 # local dependencies
 fs = { path = "../fs" }
 wrapper_with_default = { path = "../wrapper_with_default" }
@@ -151,7 +152,9 @@ name = "newrelic-agent-control-cli"
 path = "src/bin/main_agent_control_onhost_cli.rs"
 
 [features]
-# feature tokio-console allows debugging tokio tasks using tokio-console
+# feature tokio-console allows debugging tokio tasks using tokio-console.
+# Development only, don't enable it in release builds: console-subscriber pulls in `humantime`,
+# which is unmaintained (RUSTSEC-2026-0542).
 tokio-console = ["tokio/full", "tokio/tracing", "dep:console-subscriber"]
 # Disable the need to run AC as root. Useful for testing and development.
 disable-asroot = []

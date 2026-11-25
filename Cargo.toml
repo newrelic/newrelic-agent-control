@@ -43,7 +43,7 @@ schemars = "1.2.3"
 http = "1.5.0"
 predicates = "3.1.4"
 semver = "1.0.28"
-chrono = "0.4.45"
+jiff = "0.2.41"
 jsonwebtoken = { version = "12.0.0", features = ["aws_lc_rs"] }
 reqwest = { version = "0.13.5", features = ["blocking", "socks"] }
 rstest = "0.29.0"
@@ -51,7 +51,8 @@ serial_test = "4.0.1"
 windows = "0.62.2"
 aws-lc-rs = "1.19.0"
 opamp-client = { git = "https://github.com/newrelic/newrelic-opamp-rs.git", tag = "0.3.0" }
-oci-client = { version = "0.18.0", default-features = false }
+# TODO: Temporary unreleased main, replaces chrono with jiff. Switch to the released version once available. Switch to `0.19.0` when released.
+oci-client = { git = "https://github.com/oras-project/rust-oci-client.git", rev = "0690d8d970e5ef5f36e79aecf11c786312cf7de0", default-features = false }
 tokio = "1.54.0"
 base64 = "0.23.1"
 actix-web = { version = "4.20.0", default-features = false }

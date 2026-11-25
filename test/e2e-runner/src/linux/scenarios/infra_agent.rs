@@ -42,7 +42,7 @@ pub fn test_installation_with_infra_agent(args: InstallationArgs) {
 
     let test_id = format!(
         "onhost-e2e-infra-agent_{}",
-        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S%.3f")
+        jiff::Zoned::now().strftime("%Y-%m-%d_%H-%M-%S%.3f")
     );
 
     info!("Setup Agent Control config");

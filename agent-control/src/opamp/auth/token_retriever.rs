@@ -5,7 +5,7 @@ use crate::http::client::HttpClient;
 use crate::http::config::HttpConfig;
 use crate::http::config::ProxyConfig;
 use crate::opamp::secret_retriever;
-use chrono::DateTime;
+use jiff::Timestamp;
 use nr_auth::{
     TokenRetriever, TokenRetrieverError,
     authenticator::HttpAuthenticator,
@@ -123,7 +123,7 @@ impl TokenRetriever for TokenRetrieverNoop {
         Ok(Token::new(
             AccessToken::default(),
             TokenType::Bearer,
-            DateTime::default(),
+            Timestamp::UNIX_EPOCH,
         ))
     }
 }

@@ -6,7 +6,7 @@ use crate::common::docker_hub::{AGENT_TYPES_REPOSITORY, INFRA_AGENT_REPOSITORY};
 use crate::common::nrql::Region;
 use crate::common::oci::OciRegistry;
 use crate::common::runtime::tokio_runtime;
-use chrono::{Local, Timelike};
+use jiff::Zoned;
 use oci_client::Reference;
 use oci_test_utils::{AgentTypeDefinitionMeta, PackageMediaType, PackagePublisher};
 use serde_json::{Value, json};
@@ -78,12 +78,12 @@ impl OhiAgentArgs {
 
 /// Identifies one execution: `H.M.(seconds*1000+millis)`. Valid semver because no part has leading zeros.
 pub fn test_id() -> String {
-    let now = Local::now();
+    let now = Zoned::now();
     format!(
         "{}.{}.{}",
         now.hour(),
         now.minute(),
-        now.second() * 1000 + now.timestamp_subsec_millis()
+        i32::from(now.second()) * 1000 + now.millisecond() as i32
     )
 }
 

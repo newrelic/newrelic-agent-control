@@ -55,7 +55,7 @@ pub fn switch_infra_agent_version(args: InstallationArgs) {
     // Generate unique test ID with timestamp
     let test_id = format!(
         "onhost-e2e-infra-agent_switch-version_windows_{}",
-        chrono::Local::now().format("%Y-%m-%d_%H-%M-%S%.3f")
+        jiff::Zoned::now().strftime("%Y-%m-%d_%H-%M-%S%.3f")
     );
 
     // Set up TEST_ID environment variable

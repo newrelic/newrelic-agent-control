@@ -4,3 +4,4 @@
 pub mod file;
 pub mod otel;
 pub mod stderr;
+pub mod timer;

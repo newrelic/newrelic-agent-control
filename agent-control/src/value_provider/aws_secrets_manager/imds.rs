@@ -4,8 +4,8 @@ use super::AwsSecretsManagerError;
 use crate::http::client::{HttpClient, HttpResponseError};
 use crate::http::config::{HttpConfig, ProxyConfig};
 use aws_credential_types::Credentials;
-use chrono::DateTime;
 use http::Request;
+use jiff::Timestamp;
 use serde::Deserialize;
 use std::{
     sync::{Mutex, PoisonError},
@@ -125,7 +125,9 @@ pub fn fetch_instance_credentials(
     let response: ImdsCredentialsResponse = serde_json::from_str(&body)
         .map_err(|e| AwsSecretsManagerError::DeserializeError(e.to_string()))?;
 
-    let expiry = DateTime::parse_from_rfc3339(&response.expiration)
+    let expiry = response
+        .expiration
+        .parse::<Timestamp>()
         .map_err(|e| AwsSecretsManagerError::DeserializeError(format!("expiration: {e}")))?;
 
     Ok(Credentials::new(
@@ -230,9 +232,7 @@ pub mod tests {
         assert_eq!(credentials.session_token(), Some(SESSION_TOKEN));
         assert_eq!(
             credentials.expiry(),
-            Some(SystemTime::from(
-                DateTime::parse_from_rfc3339(EXPIRATION).unwrap()
-            ))
+            Some(SystemTime::from(EXPIRATION.parse::<Timestamp>().unwrap()))
         );
         token_mock.assert_calls(1);
     }

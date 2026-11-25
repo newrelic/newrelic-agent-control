@@ -3,7 +3,7 @@ use crate::checkers::version::AgentVersion;
 use crate::checkers::version::{VersionCheckError, VersionChecker};
 use crate::k8s::client::K8sObjectKey;
 use crate::k8s::client::{K8sClient, SyncK8sClient};
-use chrono::NaiveDateTime;
+use jiff::Timestamp;
 use kube::api::TypeMeta;
 use serde_json::{Map, Value};
 use std::sync::Arc;
@@ -137,8 +137,7 @@ fn from_history(helm_data: &Map<String, Value>) -> Option<String> {
             // The as_str is needed, using directly the to_string will add an extra \"\"
             let chart_version = item.get("chartVersion")?.as_str()?.to_string();
             let deployment_date = item.get("firstDeployed")?.as_str()?;
-            let parsed_date =
-                NaiveDateTime::parse_from_str(deployment_date, "%Y-%m-%dT%H:%M:%SZ").ok()?;
+            let parsed_date = deployment_date.parse::<Timestamp>().ok()?;
             Some((parsed_date, chart_version))
         })
         .max_by_key(|entry| entry.0)?;
