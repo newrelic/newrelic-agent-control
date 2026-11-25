@@ -453,6 +453,7 @@ jobs:
 
       - name: Run tests agent control integration_test excluding root-required tests (on-host)
         env:
+          # SYSTEM holds SeCreatePermanentPrivilege by default, which Agent Control requires and the `runneradmin` account lacks.
           CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUNNER: "gsudo --system"
         run: make -C agent-control test/onhost/integration
 
@@ -479,6 +480,7 @@ jobs:
     env:
       # `env` passes the fixture explicitly since sudo resets the environment. Ignored on Windows.
       CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: "sudo env TEST_MACHINE_ID_PATH=/tmp/machine-id"
+      # SYSTEM holds SeCreatePermanentPrivilege by default, which Agent Control requires and the `runneradmin` account lacks.
       CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUNNER: "gsudo --system"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
