@@ -440,8 +440,7 @@ jobs:
       # Its integration tests need root and run in the `cgroup-tracker-cgroupfs-tests` job.
       # On Windows the crate compiles to no tests, which nextest treats as an error by default.
       - name: Run cgroup-tracker unit tests
-        # The crate is empty on Windows.
-        run: cargo nextest run --locked -p cgroup-tracker --lib --no-tests=warn --no-tests=pass
+        run: cargo nextest run --locked -p cgroup-tracker --lib --no-tests=pass
 
       - name: Run tests agent control lib excluding root-required tests (on-host)
         run: make -C agent-control test/onhost
