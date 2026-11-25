@@ -94,14 +94,14 @@ mod tests {
 
     #[test]
     fn unknown_privilege_fails() {
-        let token = process_token_copy();
+        let token = duplicate_process_token();
         let err = enable_privilege_in_token(*token, "SeDoesNotExistPrivilege").unwrap_err();
         assert_matches!(err, PrivilegeError::Lookup(_, _));
     }
 
     #[test]
     fn privilege_not_held_by_the_token_fails() {
-        let token = process_token_copy();
+        let token = duplicate_process_token();
         // Held only by `lsass`: neither `SYSTEM` nor administrator tokens have it.
         let err = enable_privilege_in_token(*token, "SeCreateTokenPrivilege").unwrap_err();
         assert_matches!(err, PrivilegeError::NotHeld(_));
@@ -109,21 +109,23 @@ mod tests {
 
     #[test]
     fn enables_only_the_requested_privilege_and_idempotency() {
-        let token = process_token_copy();
-        let before = token_privileges(*token);
-        let target = disabled_privilege(&before);
+        let token = duplicate_process_token();
+        let before = privilege_states(*token);
+        let target = any_disabled_privilege(&before);
 
         enable_privilege_in_token(*token, &target).unwrap();
 
         let mut expected = before;
         expected.insert(target.clone(), true);
-        assert_eq!(expected, token_privileges(*token));
+        assert_eq!(expected, privilege_states(*token));
 
         enable_privilege_in_token(*token, &target).unwrap();
-        assert_eq!(expected, token_privileges(*token));
+        assert_eq!(expected, privilege_states(*token));
     }
 
-    fn process_token_copy() -> Owned<HANDLE> {
+    /// Returns an independent copy of the current process token, with access to query and adjust
+    /// privileges. Adjusting the copy leaves the privileges of the process untouched.
+    fn duplicate_process_token() -> Owned<HANDLE> {
         let mut token = Owned::<HANDLE>::default();
         unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_DUPLICATE, &mut *token) }.unwrap();
 
@@ -142,7 +144,9 @@ mod tests {
         copy
     }
 
-    fn disabled_privilege(privileges: &HashMap<String, bool>) -> String {
+    /// Returns the name of one privilege that is held but currently disabled in `privileges`,
+    /// the output of [privilege_states]. Which one is returned is unspecified.
+    fn any_disabled_privilege(privileges: &HashMap<String, bool>) -> String {
         privileges
             .iter()
             .find(|(_, enabled)| !**enabled)
@@ -150,7 +154,8 @@ mod tests {
             .expect("the token holds no disabled privilege")
     }
 
-    fn token_privileges(token: HANDLE) -> HashMap<String, bool> {
+    /// Returns every privilege listed in `token` (held by it) mapped to whether it is currently enabled.
+    fn privilege_states(token: HANDLE) -> HashMap<String, bool> {
         let mut len = 0;
         let _ = unsafe { GetTokenInformation(token, TokenPrivileges, None, 0, &mut len) };
         let mut buffer = vec![0u64; (len as usize).div_ceil(8)];
@@ -176,14 +181,14 @@ mod tests {
             .iter()
             .map(|entry| {
                 (
-                    privilege_name(&entry.Luid),
+                    lookup_privilege_name(&entry.Luid),
                     entry.Attributes.0 & SE_PRIVILEGE_ENABLED.0 != 0,
                 )
             })
             .collect()
     }
 
-    fn privilege_name(luid: &LUID) -> String {
+    fn lookup_privilege_name(luid: &LUID) -> String {
         let mut name = [0u16; 128];
         let mut len = name.len() as u32;
         unsafe {
