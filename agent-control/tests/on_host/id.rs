@@ -243,8 +243,8 @@ agents:
         start_agent_control_with_custom_config(dirs.base_paths(), AGENT_CONTROL_MODE_ON_HOST);
 
     retry(30, Duration::from_secs(1), || {
-        // Check that the process is running with this exact command
-        if find_processes_by_pattern("sleep_60").is_empty() {
+        // Check that the process is running with the interpolated host id
+        if find_processes_by_pattern("fixed-host-id").is_empty() {
             Err("process not found".into())
         } else {
             Ok(())
