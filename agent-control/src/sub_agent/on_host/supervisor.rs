@@ -782,7 +782,6 @@ pub mod tests {
     };
     use crate::sub_agent::on_host::process_group_tracker::tests::{
         FailingProcessGroupTracker, TestProcessGroupTracker, test_process_config,
-        test_process_group_tracker,
     };
     use crate::sub_agent::supervisor::Supervisor;
     use crate::utils::retry::retry;
@@ -834,7 +833,7 @@ pub mod tests {
             SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
-            test_process_group_tracker(),
+            TestProcessGroupTracker::default(),
         );
 
         let (publisher, consumer) = pub_sub();
@@ -934,7 +933,7 @@ pub mod tests {
             SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
-            test_process_group_tracker(),
+            TestProcessGroupTracker::default(),
         );
 
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
@@ -1004,7 +1003,7 @@ pub mod tests {
             SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
-            test_process_group_tracker(),
+            TestProcessGroupTracker::default(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1074,7 +1073,7 @@ pub mod tests {
             SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
-            test_process_group_tracker(),
+            TestProcessGroupTracker::default(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1113,7 +1112,7 @@ pub mod tests {
             SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
-            test_process_group_tracker(),
+            TestProcessGroupTracker::default(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1180,7 +1179,7 @@ declared-dir:
             SubAgentFileLoggingConfig::disabled(),
             filesystem,
             SharedFileSystem::test_empty(),
-            test_process_group_tracker(),
+            TestProcessGroupTracker::default(),
         );
 
         let (publisher, _consumer) = pub_sub();
@@ -1229,7 +1228,7 @@ declared-dir:
             SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
-            test_process_group_tracker(),
+            TestProcessGroupTracker::default(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1286,7 +1285,7 @@ declared-dir:
             },
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
-            test_process_group_tracker(),
+            TestProcessGroupTracker::default(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1324,10 +1323,16 @@ declared-dir:
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
+        let health_config = OnHostHealthConfig {
+            interval: HealthCheckInterval::from(Duration::from_millis(50)),
+            initial_delay: InitialDelay::from(Duration::ZERO),
+            timeout: HealthCheckTimeout::from(Duration::from_secs(1)),
+            checks: vec![OnHostHealthCheckDefinition::Process],
+        };
         let agent = NotStartedSupervisorOnHost::<_, FailingProcessGroupTracker>::new(
             agent_identity,
             executables,
-            None,
+            Some(health_config),
             get_empty_packages(),
             None,
             MockPackageManager::new_arc(),
@@ -1340,13 +1345,27 @@ declared-dir:
             FailingProcessGroupTracker,
         );
 
-        let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
+        let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
         for thread_context in agent.thread_contexts {
             while !thread_context.is_thread_finished() {
                 thread::sleep(Duration::from_millis(15));
             }
         }
+
+        // A failing group is reported as a failing spawn.
+        let mut unhealthy_reported = false;
+        while let Ok(event) = sub_agent_internal_consumer.as_ref().try_recv() {
+            if let SubAgentInternalEvent::AgentHealthInfo(health) = event
+                && !health.is_healthy()
+                && health
+                    .last_error()
+                    .is_some_and(|error| error.contains("invalid name"))
+            {
+                unhealthy_reported = true;
+            }
+        }
+        assert!(unhealthy_reported, "expected an unhealthy event");
 
         // The log file is only created when the process is spawned.
         assert!(
@@ -1385,7 +1404,7 @@ declared-dir:
             SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
-            test_process_group_tracker(),
+            TestProcessGroupTracker::default(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1446,7 +1465,7 @@ declared-dir:
             SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
-            test_process_group_tracker(),
+            TestProcessGroupTracker::default(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1504,7 +1523,7 @@ declared-dir:
             SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
-            test_process_group_tracker(),
+            TestProcessGroupTracker::default(),
         );
 
         let (health_publisher, health_consumer) = pub_sub();
@@ -1575,7 +1594,7 @@ declared-dir:
             SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
-            test_process_group_tracker(),
+            TestProcessGroupTracker::default(),
         );
 
         let (health_publisher, health_consumer) = pub_sub();
@@ -1707,7 +1726,7 @@ declared-dir:
             SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
-            test_process_group_tracker(),
+            TestProcessGroupTracker::default(),
         )
     }
 
@@ -1820,7 +1839,7 @@ declared-dir:
             },
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
-            test_process_group_tracker(),
+            TestProcessGroupTracker::default(),
         );
 
         let (pub_internal, _sub_internal) = pub_sub();
@@ -1927,7 +1946,7 @@ declared-dir:
             },
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
-            test_process_group_tracker(),
+            TestProcessGroupTracker::default(),
         )
     }
 
@@ -2020,7 +2039,7 @@ declared-dir:
             },
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
-            test_process_group_tracker(),
+            TestProcessGroupTracker::default(),
         );
 
         let (pub_internal, _sub_internal) = pub_sub();
@@ -2150,7 +2169,7 @@ declared-dir:
             },
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
-            test_process_group_tracker(),
+            TestProcessGroupTracker::default(),
         );
 
         let (pub_internal, _sub_internal) = pub_sub();
@@ -2262,7 +2281,7 @@ declared-dir:
             SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
-            test_process_group_tracker(),
+            TestProcessGroupTracker::default(),
         );
 
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
@@ -2336,7 +2355,7 @@ declared-dir:
             SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
-            test_process_group_tracker(),
+            TestProcessGroupTracker::default(),
         );
 
         let (pub_internal, _sub_internal) = pub_sub();

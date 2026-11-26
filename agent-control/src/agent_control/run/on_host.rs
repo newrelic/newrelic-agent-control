@@ -217,10 +217,8 @@ impl AgentControlRunner {
         let supervisor_builder = SupervisorBuilderOnHost {
             logging_base_path: log_dir,
             package_manager: agents_package_manager,
-            // Built once at startup and cloned into every supervisor. This is where the
-            // experimental configuration picks the tracker, and where trackers that need to inspect
-            // the host (e.g. detect the cgroup hierarchy) do it, so a host that cannot support them
-            // fails Agent Control's start instead of each sub-agent.
+            // TODO: build the tracker from the experimental configuration once it exists, failing
+            // Agent Control's start if the host cannot support it.
             process_group_tracker: PlatformProcessGroupTracker::default(),
         };
 

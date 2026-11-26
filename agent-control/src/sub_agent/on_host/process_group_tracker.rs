@@ -25,10 +25,16 @@ pub type PlatformProcessGroupTracker = JobObjectProcessGroupTracker;
 pub struct ProcessGroupTrackerError(String);
 
 /// Keeps the processes of every executable in a group the operating system can kill together.
+///
+/// A group is the operating system object (e.g. a Job Object) that holds the processes of one
+/// executable of an agent. Agent Control keeps it to stop the whole process tree, and trackers
+/// that give groups a stable identity can also use it to find the processes of a previous
+/// Agent Control run and adopt them.
 pub trait ProcessGroupTracker: Clone + Send + 'static {
     type Group: TrackedProcessGroup;
 
-    /// Group of the processes of one executable of an agent.
+    /// Group of the processes of one executable of an agent. `agent_id` and `exec_id` identify
+    /// the executable, so trackers with named groups get the same group on every run.
     fn group(
         &self,
         agent_id: &AgentID,
@@ -78,17 +84,13 @@ pub mod tests {
 
     pub type TestProcessGroup = <TestProcessGroupTracker as ProcessGroupTracker>::Group;
 
-    pub fn test_process_group_tracker() -> TestProcessGroupTracker {
-        TestProcessGroupTracker::default()
-    }
-
     /// Process config that runs on every target.
     pub fn test_process_config(
         agent_id: AgentID,
         executable_data: &ExecutableData,
         maybe_log_dir: Option<PathBuf>,
     ) -> OsProcessConfig<TestProcessGroup> {
-        let group = test_process_group_tracker()
+        let group = TestProcessGroupTracker::default()
             .group(&agent_id, &executable_data.id)
             .expect("a test group can always be created");
         OsProcessConfig::new(agent_id, executable_data, maybe_log_dir, group)
