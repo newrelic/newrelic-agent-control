@@ -252,7 +252,7 @@ jobs:
       - if: ${{ matrix.command == 'xwin build' }}
         name: Install cargo-xwin
         # renovate: datasource=crate depName=cargo-xwin
-        run: cargo install --locked cargo-xwin --version 0.23.1 --force
+        run: cargo install --locked cargo-xwin --version 0.24.2 --force
 
       - name: Build release binaries for ${{ matrix.target }}
         run: |
