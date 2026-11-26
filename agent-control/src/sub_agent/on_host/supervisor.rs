@@ -663,30 +663,32 @@ fn wait_exit<G: TrackedProcessGroup>(
                 }
                 break Ok(WaitOutcome::Exited(exit_status));
             }
-            // Busy waiting is avoided with `is_cancelled_with_timeout`
             ProcessState::Running(running) => {
-                if let Some(cancellation) =
-                    stop_consumer.cancellation_with_timeout(WAIT_FOR_EXIT_TIMEOUT)
-                {
-                    if detach_on_stop && cancellation == CancellationMessage::AgentControlExit {
+                // Busy waiting is avoided with `cancellation_with_timeout`
+                match stop_consumer.cancellation_with_timeout(WAIT_FOR_EXIT_TIMEOUT) {
+                    Some(CancellationMessage::AgentControlExit) if detach_on_stop => {
                         info!(%agent_id, %exec_id, "Detaching from executable");
                         break Ok(WaitOutcome::Detached);
                     }
-                    info!(%agent_id, %exec_id, "Stopping executable");
-                    let exit_status = running.shutdown().inspect_err(
-                        |err| error!(%agent_id, %exec_id, "Failed to terminate executable: {err}"),
-                    )?;
-                    info!(%agent_id, %exec_id, "Executable terminated");
-                    break Ok(WaitOutcome::Stopped(exit_status));
+                    Some(CancellationMessage::Stop | CancellationMessage::AgentControlExit) => {
+                        info!(%agent_id, %exec_id, "Stopping executable");
+                        let exit_status = running.shutdown().inspect_err(
+                            |err| error!(%agent_id, %exec_id, "Failed to terminate executable: {err}"),
+                        )?;
+                        info!(%agent_id, %exec_id, "Executable terminated");
+                        break Ok(WaitOutcome::Stopped(exit_status));
+                    }
+                    None => {
+                        // Publish healthy status once after the process has been running
+                        // for an arbitrary long time without issues.
+                        if !healthy_already_published && Instant::now() > deadline {
+                            debug!(%agent_id, %exec_id, "{}", format!("Informing executable as healthy after running for {} seconds", healthy_publish_delay.as_secs()));
+                            health_handler.inspect(|h| h.publish_healthy());
+                            healthy_already_published = true;
+                        }
+                        process = running;
+                    }
                 }
-                // Publish healthy status once after the process has been running
-                // for an arbitrary long time without issues.
-                if !healthy_already_published && Instant::now() > deadline {
-                    debug!(%agent_id, %exec_id, "{}", format!("Informing executable as healthy after running for {} seconds", healthy_publish_delay.as_secs()));
-                    health_handler.inspect(|h| h.publish_healthy());
-                    healthy_already_published = true;
-                }
-                process = running;
             }
         }
     }
