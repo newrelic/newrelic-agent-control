@@ -24,13 +24,8 @@ pub struct JobObject {
 }
 
 impl JobObject {
-    /// Creates a new JobObject with the "kill on job close" configuration.
-    pub fn new() -> Result<Self, JobObjectError> {
-        Self::with_kill_on_close(true)
-    }
-
     /// Creates a new JobObject, terminating its processes on close or drop only if `kill_on_close`.
-    pub fn with_kill_on_close(kill_on_close: bool) -> Result<Self, JobObjectError> {
+    pub fn new(kill_on_close: bool) -> Result<Self, JobObjectError> {
         unsafe {
             let handle = CreateJobObjectW(None, None)
                 .map_err(|e| JobObjectError(format!("creating JobObject: {e}")))?;
@@ -92,7 +87,7 @@ mod tests {
 
     #[test]
     fn test_job_object_without_kill_on_close_leaves_process_running_when_dropped() {
-        let job = JobObject::with_kill_on_close(false).expect("Failed to create JobObject");
+        let job = JobObject::new(false).expect("Failed to create JobObject");
         // `ping` runs for ~15s without a console, unlike `timeout` which exits right away without one.
         let mut child = Command::new("ping")
             .args(["-n", "16", "127.0.0.1"])
@@ -112,7 +107,7 @@ mod tests {
 
     #[test]
     fn test_job_object_kills_process() {
-        let job = JobObject::new().expect("Failed to create JobObject");
+        let job = JobObject::new(true).expect("Failed to create JobObject");
         let mut child = Command::new("cmd")
             .args(["/C", "timeout", "/T", "15"])
             .spawn()

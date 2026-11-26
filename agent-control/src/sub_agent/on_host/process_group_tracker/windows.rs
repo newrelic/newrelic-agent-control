@@ -32,7 +32,7 @@ impl ProcessGroupTracker for JobObjectProcessGroupTracker {
         _agent_id: &AgentID,
         _exec_id: &str,
     ) -> Result<JobObjectProcessGroup, ProcessGroupTrackerError> {
-        JobObject::with_kill_on_close(self.kill_on_close)
+        JobObject::new(self.kill_on_close)
             .map(JobObjectProcessGroup)
             .map_err(|err| ProcessGroupTrackerError(err.to_string()))
     }

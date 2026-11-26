@@ -83,7 +83,7 @@ impl ProcessGroup {
         }
         #[cfg(target_family = "windows")]
         {
-            let job_object = JobObject::new().map_err(|e| ProcessGroupError(e.to_string()))?;
+            let job_object = JobObject::new(true).map_err(|e| ProcessGroupError(e.to_string()))?;
             job_object
                 .assign_process(child)
                 .map_err(|e| ProcessGroupError(e.to_string()))?;
