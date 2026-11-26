@@ -90,14 +90,17 @@ pub mod tests {
     use std::thread::{sleep, spawn};
     use std::time::{Duration, Instant};
 
-    fn sub_agent_stopping_in(stop_time: Duration) -> MockStartedSubAgent {
+    /// A mock sub-agent that takes `exit_duration` to finish after being notified that Agent
+    /// Control is exiting: the handle it returns only joins once that time has passed.
+    fn sub_agent_exiting_after(exit_duration: Duration) -> MockStartedSubAgent {
         let mut sub_agent = MockStartedSubAgent::new();
         sub_agent
             .expect_on_agent_control_exit()
             .once()
             .return_once(move || {
+                // The thread stands for the sub-agent runtime that takes a while to finish.
                 Ok(SubAgentJoinHandle(spawn(move || {
-                    sleep(stop_time);
+                    sleep(exit_duration);
                     Ok(())
                 })))
             });
@@ -113,9 +116,9 @@ pub mod tests {
         let mut sub_agents = StartedSubAgents::default();
         for i in 0..20 {
             let id = format!("fast-{i}").try_into().unwrap();
-            sub_agents.insert(id, sub_agent_stopping_in(fast));
+            sub_agents.insert(id, sub_agent_exiting_after(fast));
         }
-        sub_agents.insert("slow".try_into().unwrap(), sub_agent_stopping_in(slow));
+        sub_agents.insert("slow".try_into().unwrap(), sub_agent_exiting_after(slow));
 
         let start = Instant::now();
         sub_agents.on_agent_control_exit();
