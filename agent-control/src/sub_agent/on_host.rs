@@ -2,4 +2,5 @@
 
 pub mod builder;
 pub mod managed_process;
+pub mod process_group_tracker;
 pub mod supervisor;

@@ -31,7 +31,8 @@ use crate::sub_agent::on_host::managed_process::spawned_process::log_files::{
 };
 use crate::sub_agent::on_host::managed_process::spawned_process::os_process::OsProcessConfig;
 use crate::sub_agent::on_host::managed_process::spawned_process::restart_policy::RestartPolicy;
-use crate::sub_agent::on_host::managed_process::{ProcessOrigin, ProcessState, SupervisedProcess};
+use crate::sub_agent::on_host::managed_process::{ProcessState, SupervisedProcess};
+use crate::sub_agent::on_host::process_group_tracker::{ProcessGroupTracker, TrackedProcessGroup};
 use crate::sub_agent::supervisor::{Supervisor, SupervisorStarter};
 use crate::utils::thread_context::{
     NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
@@ -88,9 +89,10 @@ pub struct InstallPackageError {
 }
 
 /// A running on-host supervisor owning its executable, health, and version threads.
-pub struct StartedSupervisorOnHost<PM>
+pub struct StartedSupervisorOnHost<PM, PGT>
 where
     PM: PackageManager,
+    PGT: ProcessGroupTracker,
 {
     /// Handles to the running supervisor threads (executables and checkers).
     pub thread_contexts: Vec<StartedThreadContext>,
@@ -104,6 +106,8 @@ where
     pub logging_base_path: PathBuf,
     /// The agent's filesystem.
     pub filesystem: FileSystem,
+    /// Keeps the processes of each executable in a group.
+    pub process_group_tracker: PGT,
 }
 
 /// A running health checker and the publisher executables use to report their health to it.
@@ -113,9 +117,10 @@ struct RunningHealthChecker {
 }
 
 /// An on-host supervisor ready to be started.
-pub struct NotStartedSupervisorOnHost<PM>
+pub struct NotStartedSupervisorOnHost<PM, PGT>
 where
     PM: PackageManager,
+    PGT: ProcessGroupTracker,
 {
     agent_identity: AgentIdentity,
     executables: Vec<ExecutableData>,
@@ -126,13 +131,15 @@ where
     reported_version_package: Option<PackageID>,
     filesystem: FileSystem,
     shared_filesystem: SharedFileSystem,
+    process_group_tracker: PGT,
 }
 
-impl<PM> SupervisorStarter for NotStartedSupervisorOnHost<PM>
+impl<PM, PGT> SupervisorStarter for NotStartedSupervisorOnHost<PM, PGT>
 where
     PM: PackageManager,
+    PGT: ProcessGroupTracker,
 {
-    type Supervisor = StartedSupervisorOnHost<PM>;
+    type Supervisor = StartedSupervisorOnHost<PM, PGT>;
     type Error = SupervisorError;
 
     fn start(
@@ -155,9 +162,10 @@ where
     }
 }
 
-impl<PM> Supervisor for StartedSupervisorOnHost<PM>
+impl<PM, PGT> Supervisor for StartedSupervisorOnHost<PM, PGT>
 where
     PM: PackageManager,
+    PGT: ProcessGroupTracker,
 {
     type ApplyError = SupervisorError;
     type StopError = ThreadContextStopperError;
@@ -175,6 +183,7 @@ where
             internal_publisher,
             thread_contexts,
             logging_base_path,
+            process_group_tracker,
             ..
         } = self;
 
@@ -217,6 +226,7 @@ where
             },
             onhost_config.filesystem,
             onhost_config.shared_filesystem,
+            process_group_tracker,
         );
 
         starter.check_subagent_version(internal_publisher.clone());
@@ -231,9 +241,10 @@ where
     }
 }
 
-impl<PM> NotStartedSupervisorOnHost<PM>
+impl<PM, PGT> NotStartedSupervisorOnHost<PM, PGT>
 where
     PM: PackageManager,
+    PGT: ProcessGroupTracker,
 {
     /// Creates the directory where the sub-agent writes its logs (`${nr-path:log_dir}`). It is only
     /// created when missing: on Windows, creating an existing directory resets its ACL to
@@ -261,6 +272,7 @@ where
         file_logging_config: SubAgentFileLoggingConfig,
         filesystem: FileSystem,
         shared_filesystem: SharedFileSystem,
+        process_group_tracker: PGT,
     ) -> Self {
         NotStartedSupervisorOnHost {
             agent_identity,
@@ -272,6 +284,7 @@ where
             reported_version_package,
             filesystem,
             shared_filesystem,
+            process_group_tracker,
         }
     }
 
@@ -370,7 +383,7 @@ where
     fn spin_up(
         self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> Result<StartedSupervisorOnHost<PM>, SupervisorError> {
+    ) -> Result<StartedSupervisorOnHost<PM, PGT>, SupervisorError> {
         // Ensure all top-level non-declared files and dirs are deleted.
         if let Err(err) = self
             .filesystem
@@ -406,10 +419,7 @@ where
                 let maybe_health_publisher = maybe_health_checker
                     .as_ref()
                     .map(|hc| hc.health_publisher.clone());
-                // TODO: once PID-file / cgroup inspection is in place, pass
-                // Some(ProcessOrigin::Adopt(...)) when a process from a previous AC run is
-                // still alive; None otherwise always spawns fresh.
-                self.start_process_thread(e, maybe_health_publisher, None)
+                self.start_process_thread(e, maybe_health_publisher)
             })
             .collect();
         // Track the health checker thread alongside the executable ones, so that stopping or
@@ -423,6 +433,7 @@ where
             internal_publisher: sub_agent_internal_publisher,
             logging_base_path: self.file_logging_config.base_path,
             filesystem: self.filesystem,
+            process_group_tracker: self.process_group_tracker,
         })
     }
 
@@ -430,7 +441,6 @@ where
         &self,
         executable_data: &ExecutableData,
         health_publisher: Option<EventPublisher<(String, HealthWithStartTime)>>,
-        process_supervision_operation: Option<ProcessOrigin>,
     ) -> StartedThreadContext {
         let mut restart_policy = executable_data.restart_policy.clone();
         let exec_data = executable_data.clone();
@@ -440,14 +450,13 @@ where
             .enabled
             .then(|| agent_log_dir(&self.file_logging_config.base_path, &agent_id));
 
+        let process_group_tracker = self.process_group_tracker.clone();
         let dispatch = dispatcher::get_default(|d: &Dispatch| d.clone());
 
         let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
             let _guard = dispatcher::set_default(&dispatch);
 
             let exec_id = exec_data.id.clone();
-            // Consumed on the first iteration; every subsequent restart always spawns.
-            let mut process_supervision_operation = process_supervision_operation;
 
             let mut i = 0;
             let mut last_error: Option<String>;
@@ -468,15 +477,18 @@ where
                     .map(|hp| HealthHandler::new(exec_id.clone(), hp));
 
                 info!(%agent_id, %exec_id, "Starting executable");
-                let process_origin = process_supervision_operation.take().unwrap_or_else(|| {
-                    ProcessOrigin::Spawn(OsProcessConfig::new(
-                        agent_id.clone(),
-                        &exec_data,
-                        maybe_log_dir.clone(),
-                    ))
-                });
-                let executable_result = process_origin
-                    .try_into_supervised()
+                let supervised_process = process_group_tracker
+                    .group(&agent_id, &exec_id)
+                    .map_err(CommandError::Tracker)
+                    .and_then(|group| {
+                        SupervisedProcess::spawn(OsProcessConfig::new(
+                            agent_id.clone(),
+                            &exec_data,
+                            maybe_log_dir.clone(),
+                            group,
+                        ))
+                    });
+                let executable_result = supervised_process
                     .inspect_err(
                         |err| warn!(%agent_id, %exec_id, "Failed to start executable: {err}"),
                     )
@@ -590,8 +602,8 @@ fn stop_supervisor_threads(
 }
 
 /// Waits for the command to complete or be cancelled
-fn wait_exit(
-    command: SupervisedProcess,
+fn wait_exit<G: TrackedProcessGroup>(
+    command: SupervisedProcess<G>,
     stop_consumer: &EventConsumer<CancellationMessage>,
     healthy_publish_delay: Duration,
     health_handler: Option<&HealthHandler>,
@@ -768,6 +780,9 @@ pub mod tests {
     use crate::sub_agent::on_host::managed_process::spawned_process::restart_policy::{
         Backoff, RestartPolicy,
     };
+    use crate::sub_agent::on_host::process_group_tracker::tests::{
+        FailingProcessGroupTracker, TestProcessGroupTracker, test_process_config,
+    };
     use crate::sub_agent::supervisor::Supervisor;
     use crate::utils::retry::retry;
     use opamp_client::operation::settings::DescriptionValueType;
@@ -808,7 +823,7 @@ pub mod tests {
             ("plugin-b".to_string(), test_package_with_version("2.3.4")),
         ]);
 
-        let supervisor = NotStartedSupervisorOnHost::new(
+        let supervisor = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
             agent_identity,
             vec![],
             None,
@@ -818,6 +833,7 @@ pub mod tests {
             SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            TestProcessGroupTracker::default(),
         );
 
         let (publisher, consumer) = pub_sub();
@@ -907,7 +923,7 @@ pub mod tests {
             AgentID::try_from("spawn-failure-agent").unwrap(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
-        let supervisor = NotStartedSupervisorOnHost::new(
+        let supervisor = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
             agent_identity,
             executable_data,
             Some(health_config),
@@ -917,6 +933,7 @@ pub mod tests {
             SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            TestProcessGroupTracker::default(),
         );
 
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
@@ -976,7 +993,7 @@ pub mod tests {
             AgentID::try_from("graceful-stop-agent").unwrap(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
-        let supervisor = NotStartedSupervisorOnHost::new(
+        let supervisor = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
             agent_identity,
             executable_data,
             None,
@@ -986,6 +1003,7 @@ pub mod tests {
             SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            TestProcessGroupTracker::default(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1045,7 +1063,7 @@ pub mod tests {
             AgentID::try_from("kill-stop-agent").unwrap(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
-        let supervisor = NotStartedSupervisorOnHost::new(
+        let supervisor = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
             agent_identity,
             executable_data,
             None,
@@ -1055,6 +1073,7 @@ pub mod tests {
             SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            TestProcessGroupTracker::default(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1083,7 +1102,7 @@ pub mod tests {
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent = NotStartedSupervisorOnHost::new(
+        let agent = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
             agent_identity,
             executables,
             None,
@@ -1093,6 +1112,7 @@ pub mod tests {
             SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            TestProcessGroupTracker::default(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1149,7 +1169,7 @@ declared-dir:
             "start-test-agent".to_owned().try_into().unwrap(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
-        let supervisor = NotStartedSupervisorOnHost::new(
+        let supervisor = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
             agent_identity,
             vec![],
             None,
@@ -1159,6 +1179,7 @@ declared-dir:
             SubAgentFileLoggingConfig::disabled(),
             filesystem,
             SharedFileSystem::test_empty(),
+            TestProcessGroupTracker::default(),
         );
 
         let (publisher, _consumer) = pub_sub();
@@ -1197,7 +1218,7 @@ declared-dir:
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent = NotStartedSupervisorOnHost::new(
+        let agent = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
             agent_identity,
             executables,
             None,
@@ -1207,6 +1228,7 @@ declared-dir:
             SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            TestProcessGroupTracker::default(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1250,7 +1272,7 @@ declared-dir:
         let stdout_log =
             agent_log_dir(logging_dir.path(), &agent_identity.id).join(STDOUT_LOG_FILE_NAME);
 
-        let agent = NotStartedSupervisorOnHost::new(
+        let agent = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
             agent_identity,
             executables,
             None,
@@ -1263,6 +1285,7 @@ declared-dir:
             },
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            TestProcessGroupTracker::default(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1280,6 +1303,73 @@ declared-dir:
 
         let stdout = fs::read_to_string(&stdout_log).expect("stdout log should exist");
         assert!(stdout.contains("NR-command"), "unexpected stdout: {stdout}");
+    }
+
+    #[test]
+    fn test_supervisor_does_not_spawn_an_executable_without_group() {
+        let backoff = Backoff::default()
+            .with_initial_delay(Duration::new(0, 100))
+            .with_max_retries(1)
+            .with_last_retry_interval(Duration::new(30, 0));
+        let agent_identity = AgentIdentity::from((
+            UniqueAgentID::build().into(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
+        ));
+        let logging_dir = tempfile::tempdir().unwrap();
+        let stdout_log =
+            agent_log_dir(logging_dir.path(), &agent_identity.id).join(STDOUT_LOG_FILE_NAME);
+        let executables = vec![
+            build_test_exec_data(r#"{"id":"no-group","path":"echo","args":["NR-no-group"]}"#)
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
+        ];
+
+        let health_config = OnHostHealthConfig {
+            interval: HealthCheckInterval::from(Duration::from_millis(50)),
+            initial_delay: InitialDelay::from(Duration::ZERO),
+            timeout: HealthCheckTimeout::from(Duration::from_secs(1)),
+            checks: vec![OnHostHealthCheckDefinition::Process],
+        };
+        let agent = NotStartedSupervisorOnHost::<_, FailingProcessGroupTracker>::new(
+            agent_identity,
+            executables,
+            Some(health_config),
+            get_empty_packages(),
+            None,
+            MockPackageManager::new_arc(),
+            SubAgentFileLoggingConfig {
+                enabled: true,
+                base_path: logging_dir.path().to_path_buf(),
+            },
+            FileSystem::test_empty(),
+            SharedFileSystem::test_empty(),
+            FailingProcessGroupTracker,
+        );
+
+        let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
+        let agent = agent.start(sub_agent_internal_publisher).expect("no error");
+
+        // A failing group is reported as a failing spawn.
+        retry(30, Duration::from_millis(100), || {
+            while let Ok(event) = sub_agent_internal_consumer.as_ref().try_recv() {
+                if let SubAgentInternalEvent::AgentHealthInfo(health) = event
+                    && !health.is_healthy()
+                    && health
+                        .last_error()
+                        .is_some_and(|error| error.contains("invalid name"))
+                {
+                    return Ok(());
+                }
+            }
+            Err(())
+        })
+        .expect("expected an unhealthy event");
+        agent.stop().expect("failed to stop");
+
+        // The log file is only created when the process is spawned.
+        assert!(
+            !stdout_log.exists(),
+            "the executable was spawned without a group"
+        );
     }
 
     #[test]
@@ -1302,7 +1392,7 @@ declared-dir:
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent = NotStartedSupervisorOnHost::new(
+        let agent = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
             agent_identity,
             executables,
             None,
@@ -1312,6 +1402,7 @@ declared-dir:
             SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            TestProcessGroupTracker::default(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1362,7 +1453,7 @@ declared-dir:
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent = NotStartedSupervisorOnHost::new(
+        let agent = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
             agent_identity,
             executables,
             None,
@@ -1372,6 +1463,7 @@ declared-dir:
             SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            TestProcessGroupTracker::default(),
         );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -1419,7 +1511,7 @@ declared-dir:
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent = NotStartedSupervisorOnHost::new(
+        let agent = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
             agent_identity,
             executables,
             None,
@@ -1429,6 +1521,7 @@ declared-dir:
             SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            TestProcessGroupTracker::default(),
         );
 
         let (health_publisher, health_consumer) = pub_sub();
@@ -1437,7 +1530,7 @@ declared-dir:
 
         let executable_thread_contexts = executables_clone
             .iter()
-            .map(|e| agent.start_process_thread(e, Some(health_publisher.clone()), None));
+            .map(|e| agent.start_process_thread(e, Some(health_publisher.clone())));
 
         for thread_context in executable_thread_contexts {
             while !thread_context.is_thread_finished() {
@@ -1489,7 +1582,7 @@ declared-dir:
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent = NotStartedSupervisorOnHost::new(
+        let agent = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
             agent_identity,
             executables,
             None,
@@ -1499,6 +1592,7 @@ declared-dir:
             SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            TestProcessGroupTracker::default(),
         );
 
         let (health_publisher, health_consumer) = pub_sub();
@@ -1507,7 +1601,7 @@ declared-dir:
 
         let executable_thread_contexts = executables_clone
             .iter()
-            .map(|e| agent.start_process_thread(e, Some(health_publisher.clone()), None));
+            .map(|e| agent.start_process_thread(e, Some(health_publisher.clone())));
 
         for thread_context in executable_thread_contexts {
             while !thread_context.is_thread_finished() {
@@ -1552,8 +1646,7 @@ declared-dir:
 
         let agent_id = AgentID::AgentControl;
         let command =
-            ProcessOrigin::Spawn(OsProcessConfig::new(agent_id.clone(), &exec_data, None))
-                .try_into_supervised()
+            SupervisedProcess::spawn(test_process_config(agent_id.clone(), &exec_data, None))
                 .unwrap();
 
         let (health_publisher, health_consumer) = pub_sub();
@@ -1617,8 +1710,8 @@ declared-dir:
 
     fn build_supervisor_without_health(
         exec: ExecutableData,
-    ) -> NotStartedSupervisorOnHost<MockPackageManager> {
-        NotStartedSupervisorOnHost::new(
+    ) -> NotStartedSupervisorOnHost<MockPackageManager, TestProcessGroupTracker> {
+        NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
             AgentIdentity::from((
                 "echo-process".to_owned().try_into().unwrap(),
                 AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
@@ -1631,6 +1724,7 @@ declared-dir:
             SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            TestProcessGroupTracker::default(),
         )
     }
 
@@ -1680,8 +1774,7 @@ declared-dir:
 
         let agent_id = AgentID::AgentControl;
         let command =
-            ProcessOrigin::Spawn(OsProcessConfig::new(agent_id.clone(), &exec_data, None))
-                .try_into_supervised()
+            SupervisedProcess::spawn(test_process_config(agent_id.clone(), &exec_data, None))
                 .unwrap();
 
         let (health_publisher, health_consumer) = pub_sub();
@@ -1731,7 +1824,7 @@ declared-dir:
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let supervisor = NotStartedSupervisorOnHost::new(
+        let supervisor = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
             agent_identity.clone(),
             vec![exec_data_1],
             None,
@@ -1744,6 +1837,7 @@ declared-dir:
             },
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            TestProcessGroupTracker::default(),
         );
 
         let (pub_internal, _sub_internal) = pub_sub();
@@ -1832,12 +1926,12 @@ declared-dir:
 
     fn build_supervisor_with_logging_path(
         logging_path: PathBuf,
-    ) -> NotStartedSupervisorOnHost<MockPackageManager> {
+    ) -> NotStartedSupervisorOnHost<MockPackageManager, TestProcessGroupTracker> {
         let agent_identity = AgentIdentity::from((
             AgentID::try_from("test-agent".to_string()).unwrap(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
-        NotStartedSupervisorOnHost::new(
+        NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
             agent_identity,
             vec![],
             None,
@@ -1850,6 +1944,7 @@ declared-dir:
             },
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            TestProcessGroupTracker::default(),
         )
     }
 
@@ -1929,7 +2024,7 @@ declared-dir:
         ));
 
         // Start with logging DISABLED
-        let supervisor = NotStartedSupervisorOnHost::new(
+        let supervisor = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
             agent_identity.clone(),
             vec![exec_data_1],
             None,
@@ -1942,6 +2037,7 @@ declared-dir:
             },
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            TestProcessGroupTracker::default(),
         );
 
         let (pub_internal, _sub_internal) = pub_sub();
@@ -2058,7 +2154,7 @@ declared-dir:
         ));
 
         // Start with logging ENABLED
-        let supervisor = NotStartedSupervisorOnHost::new(
+        let supervisor = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
             agent_identity.clone(),
             vec![exec_data_1],
             None,
@@ -2071,6 +2167,7 @@ declared-dir:
             },
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            TestProcessGroupTracker::default(),
         );
 
         let (pub_internal, _sub_internal) = pub_sub();
@@ -2172,7 +2269,7 @@ declared-dir:
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let supervisor = NotStartedSupervisorOnHost::new(
+        let supervisor = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
             agent_identity,
             vec![],
             Some(health_config),
@@ -2182,6 +2279,7 @@ declared-dir:
             SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            TestProcessGroupTracker::default(),
         );
 
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
@@ -2245,7 +2343,7 @@ declared-dir:
         ));
 
         // Start with logging DISABLED
-        let supervisor = NotStartedSupervisorOnHost::new(
+        let supervisor = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
             agent_identity.clone(),
             vec![exec_data_1],
             None,
@@ -2255,6 +2353,7 @@ declared-dir:
             SubAgentFileLoggingConfig::disabled(),
             FileSystem::test_empty(),
             SharedFileSystem::test_empty(),
+            TestProcessGroupTracker::default(),
         );
 
         let (pub_internal, _sub_internal) = pub_sub();

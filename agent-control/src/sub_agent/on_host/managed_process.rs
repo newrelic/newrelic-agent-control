@@ -1,5 +1,4 @@
-//! A process supervised by Agent Control, either spawned by it or adopted from a previous
-//! instance, exposing the operations the supervisor needs regardless of its origin.
+//! A process supervised by Agent Control, exposing the operations the supervisor needs.
 
 pub mod spawned_process;
 
@@ -9,6 +8,7 @@ mod unix;
 mod windows;
 
 use crate::agent_control::agent_id::AgentID;
+use crate::sub_agent::on_host::process_group_tracker::TrackedProcessGroup;
 use spawned_process::{error::CommandError, os_process::OsProcessConfig};
 use std::process::ExitStatus;
 #[cfg(target_family = "unix")]
@@ -19,68 +19,23 @@ use std::time::Instant;
 use tracing::warn;
 
 #[cfg(target_family = "windows")]
-use job_object::JobObject;
-#[cfg(target_family = "windows")]
 use windows::process_handle::ProcessHandle;
 
 const POLL_INTERVAL: Duration = Duration::from_millis(100);
-
-/// The origin of a process that Agent Control will supervise.
-///
-/// Once [`ProcessOrigin::try_into_supervised`] is called, the result is a [`SupervisedProcess`]
-/// ready to be managed regardless of how it was acquired.
-// An `Adopt { pid, agent_id, shutdown_timeout }` variant will be added once per-instance
-// bookkeeping (PID files, cgroup inspection) is in place.
-pub enum ProcessOrigin {
-    /// Start a new process from the given config.
-    Spawn(OsProcessConfig),
-}
-
-impl ProcessOrigin {
-    /// Resolves the origin and returns a [`SupervisedProcess`] ready to be managed.
-    pub fn try_into_supervised(self) -> Result<SupervisedProcess, CommandError> {
-        match self {
-            Self::Spawn(config) => {
-                let os_process = config.start()?;
-                let pid = os_process.get_pid();
-                let agent_id = os_process.agent_id().clone();
-                #[cfg(target_family = "unix")]
-                let shutdown_timeout = os_process.shutdown_timeout();
-                #[cfg(target_family = "windows")]
-                let job_object = os_process.create_job_object()?;
-                // `from_os_process` opens a secondary handle while OsProcess is still alive,
-                // pinning the process object so the exit code stays retrievable after detach.
-                #[cfg(target_family = "windows")]
-                let process_handle = ProcessHandle::from_os_process(&os_process)?;
-                // Note: os_process is dropped here, closing the Child handle. The spawned
-                // process keeps running; from this point it is managed by PID alone.
-                Ok(SupervisedProcess {
-                    pid,
-                    agent_id,
-                    #[cfg(target_family = "unix")]
-                    shutdown_timeout,
-                    #[cfg(target_family = "windows")]
-                    job_object,
-                    #[cfg(target_family = "windows")]
-                    process_handle,
-                })
-            }
-        }
-    }
-}
 
 /// A process supervised by Agent Control that has not yet exited.
 ///
 /// Invariant: the underlying OS process is alive. Transitions to an exit status via
 /// [`Self::try_wait`] or [`Self::shutdown`].
-pub struct SupervisedProcess {
+pub struct SupervisedProcess<G> {
     pid: u32,
     agent_id: AgentID,
     #[cfg(target_family = "unix")]
     shutdown_timeout: Duration,
-    /// Job Object used to terminate the entire process tree on Windows.
-    #[cfg(target_family = "windows")]
-    job_object: JobObject,
+    /// Tracked process group the process runs in, killed on a forced stop. Only read on Windows
+    /// until the unix trackers kill their groups too.
+    #[cfg_attr(target_family = "unix", allow(dead_code))]
+    group: G,
     /// Keeps the process object alive so the exit code remains retrievable even after the
     /// process exits quickly and before we get a chance to query it.
     #[cfg(target_family = "windows")]
@@ -88,14 +43,20 @@ pub struct SupervisedProcess {
 }
 
 /// Result of a non-blocking liveness check.
-pub enum ProcessState {
+pub enum ProcessState<G> {
     /// The process is still running; ownership of the [`SupervisedProcess`] is returned.
-    Running(SupervisedProcess),
+    Running(SupervisedProcess<G>),
     /// The process has exited.
     Exited(ExitStatus),
 }
 
-impl SupervisedProcess {
+impl<G: TrackedProcessGroup> SupervisedProcess<G> {
+    /// Starts a new process from the config and supervises it.
+    pub fn spawn(config: OsProcessConfig<G>) -> Result<Self, CommandError> {
+        // TODO OsProcess abstraction doesn't seem to help much, remove it in the future.
+        config.start().and_then(Self::from_started)
+    }
+
     pub fn shutdown(self) -> Result<ExitStatus, CommandError> {
         cfg_select! {
             target_family = "windows" => {
@@ -142,12 +103,14 @@ mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
     use crate::sub_agent::on_host::managed_process::spawned_process::executable_data::ExecutableData;
-    use crate::sub_agent::on_host::managed_process::spawned_process::os_process::OsProcessConfig;
+    use crate::sub_agent::on_host::process_group_tracker::tests::{
+        TestProcessGroup, test_process_config,
+    };
     use std::time::Instant;
 
     /// Blocking wait used only in Windows tests to verify exit-code retrieval via `ProcessHandle`.
     #[cfg(target_family = "windows")]
-    impl SupervisedProcess {
+    impl SupervisedProcess<TestProcessGroup> {
         pub(crate) fn wait(self) -> Result<ExitStatus, spawned_process::error::CommandError> {
             let mut current = self;
             loop {
@@ -189,10 +152,9 @@ mod tests {
             }
         }
 
-        fn spawn(&self) -> (SupervisedProcess, u32) {
+        fn spawn(&self) -> (SupervisedProcess<TestProcessGroup>, u32) {
             let process =
-                ProcessOrigin::Spawn(OsProcessConfig::new(AgentID::AgentControl, self, None))
-                    .try_into_supervised()
+                SupervisedProcess::spawn(test_process_config(AgentID::AgentControl, self, None))
                     .unwrap();
             let pid = process.pid;
             (process, pid)

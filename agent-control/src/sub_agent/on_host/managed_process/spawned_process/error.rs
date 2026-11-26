@@ -4,8 +4,7 @@ use std::fmt::Debug;
 use std::path::PathBuf;
 use thiserror::Error;
 
-#[cfg(target_family = "windows")]
-use job_object::JobObjectError;
+use crate::sub_agent::on_host::process_group_tracker::ProcessGroupTrackerError;
 
 /// Errors produced while managing an OS process.
 #[derive(Error, Debug)]
@@ -28,8 +27,7 @@ pub enum CommandError {
         source: std::io::Error,
     },
 
-    /// A Windows Job Object operation failed.
-    #[cfg(target_family = "windows")]
+    /// A process tracker operation failed.
     #[error("{0}")]
-    JobObjectError(#[from] JobObjectError),
+    Tracker(ProcessGroupTrackerError),
 }
