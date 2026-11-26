@@ -145,7 +145,10 @@ where
     pub package_manager: Arc<PM>,
     /// Keeps the processes of each executable in a group.
     pub process_group_tracker: PGT,
-    /// Whether the supervised processes must be left running when Agent Control exits.
+    /// Whether Agent Control leaves the supervised processes running when it exits.
+    ///
+    /// This only decides what Agent Control does: it cannot prevent a service manager from killing
+    /// them afterwards, as the packaged systemd unit does (`KillMode=mixed`).
     pub detach_on_stop: bool,
 }
 
