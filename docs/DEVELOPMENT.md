@@ -341,10 +341,19 @@ Running tests for the agent control lib excluding root-required tests (on-host)
 make -C agent-control test/onhost
 ```
 
-Run tests agent control integration tests excluding root-required tests.
+Run tests agent control integration tests excluding root-required tests. They run in parallel with
+[cargo-nextest](https://nexte.st), which must be installed first (`cargo install cargo-nextest --locked`).
+Each test's output is captured and only printed if it fails. See [`.config/nextest.toml`](../.config/nextest.toml)
+for the settings.
 
 ```sh
 make -C agent-control test/onhost/integration
+```
+
+To print the output of every test, use `--no-capture`, which also runs tests one at a time:
+
+```sh
+TEST_MACHINE_ID_PATH=/tmp/machine-id cargo nextest run --package newrelic_agent_control --test integration_tests --no-capture
 ```
 
 #### Tests that require root user
