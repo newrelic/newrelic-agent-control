@@ -485,8 +485,8 @@ mod tests {
     fn test_execute_binary_without_args() {
         let (_temp_dir, _script_path, executor) = setup_test_script("unused");
 
-        // Use a simple binary that doesn't require arguments (true always succeeds)
-        let post_download_hook = create_post_download_hook("/usr/bin/true".to_string(), vec![]);
+        // Use a simple binary, found in PATH, that doesn't require arguments (true always succeeds)
+        let post_download_hook = create_post_download_hook("true".to_string(), vec![]);
 
         let result = executor.execute(&post_download_hook);
 
