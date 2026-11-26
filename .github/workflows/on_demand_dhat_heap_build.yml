@@ -74,7 +74,7 @@ jobs:
       - name: Install cargo-xwin and go-winres
         run: |
           # renovate: datasource=crate depName=cargo-xwin
-          cargo install --locked cargo-xwin --version 0.23.1 --force
+          cargo install --locked cargo-xwin --version 0.24.0 --force
           go install github.com/tc-hib/go-winres@v0.3.3
 
       - name: Build dhat-heap Windows binaries
