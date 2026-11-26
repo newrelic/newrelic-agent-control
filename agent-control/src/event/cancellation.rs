@@ -34,7 +34,11 @@ impl EventConsumer<CancellationMessage> {
     }
 
     /// Like [`Self::is_cancelled_with_timeout`], returning the cancellation message received.
-    /// A disconnection is reported as [`CancellationMessage::Stop`].
+    ///
+    /// A disconnection is reported as [`CancellationMessage::Stop`]: the owner went away without
+    /// saying why, which does not mean that Agent Control is exiting. Treating it as
+    /// [`CancellationMessage::AgentControlExit`] could leave processes running with nothing
+    /// supervising them while Agent Control keeps running.
     pub(crate) fn cancellation_with_timeout(
         &self,
         timeout: Duration,

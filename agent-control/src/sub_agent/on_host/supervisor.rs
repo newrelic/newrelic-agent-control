@@ -1793,6 +1793,40 @@ declared-dir:
     }
 
     #[test]
+    fn test_wait_exit_stops_the_executable_when_the_cancellation_channel_disconnects() {
+        let exec_data = cfg_select! {
+            target_family = "unix" => ExecutableData::new("sleep".to_owned(), "sleep".to_owned())
+                .with_args(vec!["30".to_owned()]),
+            target_family = "windows" => ExecutableData::new("ping".to_owned(), "ping".to_owned())
+                .with_args(vec!["-n".to_owned(), "30".to_owned(), "127.0.0.1".to_owned()]),
+        };
+        let agent_id = AgentID::AgentControl;
+        let command =
+            SupervisedProcess::spawn(test_process_config(agent_id.clone(), &exec_data, None))
+                .unwrap();
+
+        // The owner of the thread goes away without sending any message.
+        let (stop_publisher, stop_consumer) = pub_sub::<CancellationMessage>();
+        drop(stop_publisher);
+
+        // Even detaching from the executables on exit, a disconnection is not an exit request.
+        let outcome = wait_exit(
+            command,
+            &stop_consumer,
+            true,
+            Duration::ZERO,
+            None,
+            &agent_id,
+            &exec_data.id,
+        );
+
+        assert!(
+            matches!(outcome, Ok(WaitOutcome::Stopped(_))),
+            "the executable should have been stopped, not left running"
+        );
+    }
+
+    #[test]
     fn test_wait_on_exit_publish_healthy_once() {
         #[cfg(target_family = "unix")]
         let exec_data = ExecutableData::new("sleep".to_owned(), "sleep".to_owned())

@@ -355,7 +355,7 @@ where
                         match opamp_event_res {
                             Err(e) => {
                                 debug!(error = %e, select_arm = "sub_agent_opamp_consumer", "Channel closed");
-                                break;
+                                break stop_supervisor(supervisor);
                             },
                             Ok(OpAMPEvent::RemoteConfigReceived(config)) => {
                                 debug!(
@@ -383,17 +383,15 @@ where
                         match sub_agent_internal_event_res {
                             Err(e) => {
                                 debug!(error = %e, select_arm = "sub_agent_internal_consumer", "Channel closed");
-                                break;
+                                break stop_supervisor(supervisor);
                             },
                             Ok(SubAgentInternalEvent::StopRequested) => {
                                 debug!(select_arm = "sub_agent_internal_consumer", "StopRequested");
-                                stop_supervisor(supervisor);
-                                break;
+                                break stop_supervisor(supervisor);
                             },
                             Ok(SubAgentInternalEvent::AgentControlExiting) => {
                                 debug!(select_arm = "sub_agent_internal_consumer", "AgentControlExiting");
-                                exit_supervisor(supervisor);
-                                break;
+                                break exit_supervisor(supervisor);
                             },
                             Ok(SubAgentInternalEvent::AgentHealthInfo(health))=>{
                                 debug!(select_arm = "sub_agent_internal_consumer", ?health, "AgentHealthInfo");
@@ -1158,6 +1156,9 @@ deployment:
         config_repository: Arc<InMemoryConfigRepository>,
     ) -> TestSubAgent {
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
+        // The publisher is dropped when this function returns, so the runtime of the sub-agent
+        // finds the OpAMP channel closed. `test_closed_opamp_channel_stops_the_supervisor` relies
+        // on it: keeping the publisher alive would make that test wait forever.
         let (_sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
 
         let agent_type_registry: Arc<Registry> =
@@ -1372,6 +1373,40 @@ deployment:
             .unwrap()
             .join()
             .unwrap();
+    }
+
+    #[test]
+    fn test_closed_opamp_channel_stops_the_supervisor() {
+        let config_repository = Arc::new(InMemoryConfigRepository::default());
+        config_repository
+            .store_remote(
+                &TestAgent::id(),
+                ResourceOwnership::SubAgent(
+                    TestAgent::agent_type_definition().agent_type_id().clone(),
+                ),
+                &RemoteConfig {
+                    config: TestAgent::valid_config_yaml(),
+                    hash: TestAgent::hash(),
+                    state: ConfigState::Applied,
+                },
+            )
+            .unwrap();
+
+        let mut started_supervisor = MockSupervisor::new();
+        started_supervisor.should_stop();
+        let mut supervisor_starter = MockSupervisorStarter::new();
+        supervisor_starter.should_start(started_supervisor);
+        let mut supervisor_builder = MockSupervisorBuilder::new();
+        supervisor_builder
+            .expect_build_supervisor()
+            .once()
+            .return_once(|_| Ok(supervisor_starter));
+
+        // `test_sub_agent` drops the OpAMP publisher, so the runtime finds the channel closed and
+        // ends on its own, without a stop or exit request.
+        let sub_agent = test_sub_agent(None, supervisor_builder, config_repository).run();
+
+        SubAgentJoinHandle(sub_agent.runtime).join().unwrap();
     }
 
     #[test]
