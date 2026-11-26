@@ -25,6 +25,11 @@
       url = "github:cachix/git-hooks.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    nix-vm-test = {
+      url = "github:numtide/nix-vm-test";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =

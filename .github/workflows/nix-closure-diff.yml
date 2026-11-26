@@ -1,0 +1,88 @@
+name: Nix closure diff
+
+# Comments on pull requests that change the flake inputs or the Nix code with the package
+# versions that changed in the dev shell, to review what an input bump brings along.
+
+on:
+  pull_request:
+    paths:
+      - flake.nix
+      - flake.lock
+      - nix/**
+      - .github/workflows/nix-closure-diff.yml
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  dev-shell:
+    name: dev shell versions
+    # Pull requests from forks get a read-only token and cannot comment.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      SHELL_ATTR: devShells.x86_64-linux.default
+      MARKER: "<!-- nix-closure-diff -->"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: Mic92/hestia@dfed9ced335d28978ba74e513939a10db1f71025 # v3.1.0
+        with:
+          upstream-cache-filter: "true"
+
+      - name: Build the dev shell of the base and of the pull request
+        id: build
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          echo "head=$(nix build --no-link --print-out-paths ".#$SHELL_ATTR")" >> "$GITHUB_OUTPUT"
+          # The base has no flake yet when this pull request introduces it.
+          if git cat-file -e "$BASE_SHA:flake.nix" 2>/dev/null; then
+            git worktree add "$RUNNER_TEMP/base" "$BASE_SHA"
+            echo "base=$(nix build --no-link --print-out-paths "path:$RUNNER_TEMP/base#$SHELL_ATTR")" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Diff the closures
+        id: diff
+        env:
+          BASE: ${{ steps.build.outputs.base }}
+          HEAD: ${{ steps.build.outputs.head }}
+        run: |
+          {
+            echo "report<<EOF"
+            if [ -z "$BASE" ]; then
+              echo "The base branch has no flake, so there is nothing to compare with."
+            elif [ "$BASE" = "$HEAD" ]; then
+              echo "The dev shell is unchanged."
+            else
+              nix run --inputs-from . nixpkgs#dix -- --color never "$BASE" "$HEAD"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create or update the comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          REPORT: ${{ steps.diff.outputs.report }}
+        run: |
+          fence='```'
+          body=$(printf '%s\n### Dev shell changes\n\nCompared with %s, for x86_64-linux.\n\n%s\n%s\n%s\n' \
+            "$MARKER" "$BASE_REF" "$fence" "$REPORT" "$fence")
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+            --jq "map(select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$MARKER\")))) | first | .id // empty")
+          if [ -n "$id" ]; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$body"
+          else
+            gh api --method POST "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -f body="$body"
+          fi
