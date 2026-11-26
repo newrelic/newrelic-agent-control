@@ -98,17 +98,23 @@ Control configuration directory.
 
 #### Leaving sub-agents running when Agent Control stops (experimental)
 
-By default, when Agent Control stops (termination signal, Windows service stop or self-update restart) it terminates
-the processes of its on-host sub-agents. The hidden `--experimental-detach-sub-agents-on-stop` flag makes Agent Control
-exit without terminating them. It is off by default and not shown in `--help`.
+When Agent Control stops (termination signal, Windows service stop or self-update restart) it terminates the processes
+of its on-host sub-agents by default. The hidden `--experimental-detach-sub-agents-on-stop` flag, off by default, makes Agent Control exit without terminating them. Sub-agents that are removed or reconfigured while
+Agent Control runs are always terminated.
+
+What happens to the processes when Agent Control stops:
+
+| Where Agent Control runs | Without the flag | With the flag |
+| ----------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Linux, started directly | Terminated: `SIGTERM` to the process group, then `SIGKILL` after the timeout | Left running |
+| Linux, packaged `systemd` unit | Terminated by Agent Control | Left running by Agent Control, but `systemd` (`KillMode=mixed`) kills the rest of the service |
+| Windows | Terminated through the Job Object | Left running: the Job Object is created without "kill on close" |
 
 Limitations while this is experimental:
 
 - A new Agent Control instance does not adopt the processes left running: it starts new ones next to them.
-- On Linux, the packaged `systemd` unit uses `KillMode=mixed`, so `systemd` still kills the remaining processes of the
-  service when Agent Control exits. The flag only keeps the processes alive when Agent Control is not run under such
-  a unit.
-- On Windows the processes survive because their Job Object is created without "kill on close".
+- The flag only decides what Agent Control does when it stops. It cannot prevent a service manager from killing the
+  processes afterwards.
 
 ### Kubernetes
 
