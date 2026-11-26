@@ -160,11 +160,6 @@ where
         })
     }
 
-    /// It sends a stop signal and waits until the thread handle is joined.
-    pub fn stop_blocking(self) -> Result<T, ThreadContextStopperError> {
-        self.cancel_blocking(CancellationMessage::Stop)
-    }
-
     /// It sends the given cancellation message and waits until the thread handle is joined.
     pub(crate) fn cancel_blocking(
         self,
@@ -202,7 +197,7 @@ where
     fn stop(self) -> Result<(), ThreadContextStopperError> {
         let stopped_threads = self
             .into_iter()
-            .map(StartedThreadContext::stop_blocking)
+            .map(|thread| thread.cancel_blocking(CancellationMessage::Stop))
             .collect::<Vec<_>>();
 
         stopped_threads
@@ -227,6 +222,13 @@ pub mod tests {
     impl StartedThreadContext {
         pub fn is_thread_finished(&self) -> bool {
             self.join_handle.is_finished()
+        }
+    }
+
+    impl<T: Send + 'static> StartedThreadContext<T> {
+        /// It sends a stop signal and waits until the thread handle is joined.
+        pub fn stop_blocking(self) -> Result<T, ThreadContextStopperError> {
+            self.cancel_blocking(CancellationMessage::Stop)
         }
     }
 
