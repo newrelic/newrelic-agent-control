@@ -21,8 +21,12 @@ use crate::instrumentation::tracing::{
 use crate::on_host::file_store::FileStore;
 use crate::utils::binary_metadata::binary_metadata;
 use crate::utils::env_var::load_env_yaml_file;
+#[cfg(not(feature = "disable-asroot"))]
+use crate::utils::is_elevated::is_elevated;
 use crate::values::ConfigRepo;
 use clap::{Parser, Subcommand};
+#[cfg(target_family = "windows")]
+use job_object::{SE_CREATE_PERMANENT_PRIVILEGE, enable_privilege};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 #[cfg(target_family = "windows")]
