@@ -1,5 +1,4 @@
 use newrelic_agent_control::sub_agent::on_host::managed_process::ProcessOrigin;
-#[cfg(target_family = "unix")]
 use newrelic_agent_control::sub_agent::on_host::managed_process::ProcessState;
 use newrelic_agent_control::sub_agent::on_host::managed_process::spawned_process::executable_data::ExecutableData;
 use newrelic_agent_control::sub_agent::on_host::managed_process::spawned_process::os_process::OsProcessConfig;
@@ -156,4 +155,187 @@ fn command_shutdown_sigterm_reaches_descendants() {
         sleep(Duration::from_millis(50));
     }
     assert!(marker.exists(), "grandchild did not receive SIGTERM");
+}
+
+#[cfg(target_family = "windows")]
+mod ctrl_break {
+    use super::*;
+    use crate::common::retry::retry;
+    use newrelic_agent_control::sub_agent::on_host::managed_process::SupervisedProcess;
+    use std::path::Path;
+    use std::time::Instant;
+
+    const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(20);
+
+    fn spawn_ctrl_break_child(
+        dir: &Path,
+        mode: &str,
+        shutdown_timeout: Duration,
+    ) -> SupervisedProcess {
+        let script =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/on_host/data/ctrl_break_handler.ps1");
+        let process = ProcessOrigin::Spawn(OsProcessConfig::new(
+            "test".to_string().try_into().unwrap(),
+            &ExecutableData {
+                id: "test".to_string(),
+                bin: "powershell".to_string(),
+                args: vec![
+                    "-NoProfile".to_string(),
+                    "-ExecutionPolicy".to_string(),
+                    "Bypass".to_string(),
+                    "-File".to_string(),
+                    script.display().to_string(),
+                    dir.display().to_string(),
+                    mode.to_string(),
+                ],
+                env: Default::default(),
+                restart_policy: Default::default(),
+                shutdown_timeout,
+            },
+            None,
+        ))
+        .try_into_supervised()
+        .unwrap();
+
+        // The handler must be installed before shutdown, otherwise the event is lost.
+        retry(60, Duration::from_millis(500), || {
+            if dir.join("ready").exists() {
+                Ok(())
+            } else {
+                Err("Handler not installed yet".into())
+            }
+        });
+        process
+    }
+
+    #[test]
+    fn shutdown_delivers_ctrl_break_and_returns_before_timeout() {
+        let dir = tempfile::tempdir().unwrap();
+        let process = spawn_ctrl_break_child(dir.path(), "handle", SHUTDOWN_TIMEOUT);
+
+        let start = Instant::now();
+        process.shutdown().unwrap();
+
+        assert!(
+            dir.path().join("got_break").exists(),
+            "the child did not receive CTRL_BREAK_EVENT"
+        );
+        assert!(
+            start.elapsed() < SHUTDOWN_TIMEOUT,
+            "graceful shutdown should not wait for the timeout"
+        );
+    }
+
+    #[test]
+    fn shutdown_force_kills_when_ctrl_break_is_ignored() {
+        let dir = tempfile::tempdir().unwrap();
+        let process = spawn_ctrl_break_child(dir.path(), "ignore", SHUTDOWN_TIMEOUT);
+
+        let start = Instant::now();
+        process.shutdown().unwrap();
+
+        assert!(!dir.path().join("got_break").exists());
+        assert!(
+            start.elapsed() >= SHUTDOWN_TIMEOUT,
+            "the process should be force killed only after the timeout"
+        );
+    }
+
+    #[test]
+    fn shutdown_ctrl_break_reaches_descendants() {
+        let dir = tempfile::tempdir().unwrap();
+        let process =
+            spawn_ctrl_break_child(dir.path(), "ignore_with_child", Duration::from_secs(2));
+
+        // The root ignores CTRL_BREAK, so the marker can only be written if the event was
+        // delivered to the whole process group.
+        process.shutdown().unwrap();
+
+        let marker = dir.path().join("child").join("got_break");
+        retry(10, Duration::from_millis(500), || {
+            if marker.exists() {
+                Ok(())
+            } else {
+                Err("Descendant did not receive CTRL_BREAK".into())
+            }
+        });
+    }
+
+    /// All processes share Agent Control's console, but `CTRL_BREAK` only reaches the group it is
+    /// sent to.
+    #[test]
+    fn shutdown_ctrl_break_does_not_reach_other_processes() {
+        let dir = tempfile::tempdir().unwrap();
+        let (dir_a, dir_b) = (dir.path().join("a"), dir.path().join("b"));
+        std::fs::create_dir(&dir_a).unwrap();
+        std::fs::create_dir(&dir_b).unwrap();
+        let process_a = spawn_ctrl_break_child(&dir_a, "handle", SHUTDOWN_TIMEOUT);
+        let process_b = spawn_ctrl_break_child(&dir_b, "handle", SHUTDOWN_TIMEOUT);
+
+        process_a.shutdown().unwrap();
+        assert!(dir_a.join("got_break").exists());
+
+        // B handles CTRL_BREAK by exiting, so it must still be running and not have seen it.
+        let process_b = match process_b.try_wait() {
+            ProcessState::Running(process) => process,
+            ProcessState::Exited(status) => panic!("the other process exited: {status}"),
+        };
+        assert!(!dir_b.join("got_break").exists());
+
+        process_b.shutdown().unwrap();
+        assert!(dir_b.join("got_break").exists());
+    }
+
+    /// Every executable of every sub-agent is stopped from its own supervisor thread, so many
+    /// `shutdown` calls signal at once. Prints how long each of them took.
+    #[test]
+    fn concurrent_shutdowns_deliver_ctrl_break_to_every_process() {
+        const AGENTS: usize = 16;
+        let dir = tempfile::tempdir().unwrap();
+        let dirs: Vec<_> = (0..AGENTS)
+            .map(|i| {
+                let d = dir.path().join(i.to_string());
+                std::fs::create_dir(&d).unwrap();
+                d
+            })
+            .collect();
+
+        // Like the supervisor, each thread spawns and stops its own process.
+        let barrier = std::sync::Barrier::new(AGENTS);
+        let start = Instant::now();
+        let durations: Vec<Duration> = std::thread::scope(|scope| {
+            let threads: Vec<_> = dirs
+                .iter()
+                .map(|d| {
+                    let barrier = &barrier;
+                    scope.spawn(move || {
+                        let process = spawn_ctrl_break_child(d, "handle", SHUTDOWN_TIMEOUT);
+                        barrier.wait();
+                        let start = Instant::now();
+                        process.shutdown().unwrap();
+                        start.elapsed()
+                    })
+                })
+                .collect();
+            threads.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+        println!(
+            "{AGENTS} agents spawned and stopped in {:?}, per shutdown: min {:?}, max {:?}",
+            start.elapsed(),
+            durations.iter().min().unwrap(),
+            durations.iter().max().unwrap(),
+        );
+
+        for d in &dirs {
+            assert!(
+                d.join("got_break").exists(),
+                "{} did not receive CTRL_BREAK_EVENT",
+                d.display()
+            );
+        }
+        assert!(
+            durations.iter().all(|d| *d < SHUTDOWN_TIMEOUT),
+            "no shutdown should have waited for the timeout: {durations:?}"
+        );
+    }
 }
