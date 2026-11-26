@@ -100,7 +100,6 @@
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n\\s*(?:run: )?cargo install[^\\n]+--version (?<currentValue>\\S+)"
       ]
     },
-    // Tools installed with `taiki-e/install-action` (`tool: cargo-<name>@<version>`).
     {
       "customType": "regex",
       "managerFilePatterns": [
