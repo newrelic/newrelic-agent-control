@@ -417,6 +417,15 @@ impl Command {
         try_init_stderr_tracing(&LoggingConfig::default())
             .map_err(|e| format!("failed to initialize tracing: {e}"))?;
 
+        #[cfg(not(feature = "disable-asroot"))]
+        if !is_elevated()? {
+            return Err("Program must run with elevated permissions".into());
+        }
+
+        // Required to create the permanent Job Objects that track sub-agents.
+        #[cfg(target_family = "windows")]
+        enable_privilege(SE_CREATE_PERMANENT_PRIVILEGE)?;
+
         let verified_config =
             check_config(args).map_err(|err| format!("configuration check failed: {err}"))?;
 
