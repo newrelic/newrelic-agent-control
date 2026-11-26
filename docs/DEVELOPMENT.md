@@ -277,15 +277,22 @@ Install-Module -Name PSScriptAnalyzer -Scope CurrentUser
 
 ### General
 
+Tests run in parallel with [cargo-nextest](https://nexte.st), which must be installed first
+(`cargo install cargo-nextest --locked`). Each test runs in its own process and its output is captured and only
+printed if it fails. See [`.config/nextest.toml`](../.config/nextest.toml) for the settings. Doctests are not supported
+by nextest and run with `cargo test --doc`, and coverage (`make coverage`) also runs with `cargo test`.
+
 ```sh
-cargo test --workspace --exclude 'newrelic_agent_control' --all-targets
+cargo nextest run --workspace --exclude 'newrelic_agent_control' --all-targets
 ```
 
 On Windows some of the tests need elevated permissions and are ignored by default but can be executed by adding:
 
 ```sh
-cargo test --workspace --exclude 'newrelic_agent_control' --all-targets -- --include-ignored
+cargo nextest run --workspace --exclude 'newrelic_agent_control' --all-targets --run-ignored all
 ```
+
+To print the output of every test, add `--no-capture`, which also runs tests one at a time.
 
 We have `Makefile`s containing targets for testing. [Inspect them](../agent-control/Makefile) for more details.
 Those `Makefile`s are not prepared to use `Powershell` or `cmd`. They assume bash is present in the system.
@@ -303,19 +310,10 @@ Running tests for the agent control lib excluding root-required tests (on-host)
 make -C agent-control test/onhost
 ```
 
-Run tests agent control integration tests excluding root-required tests. They run in parallel with
-[cargo-nextest](https://nexte.st), which must be installed first (`cargo install cargo-nextest --locked`).
-Each test's output is captured and only printed if it fails. See [`.config/nextest.toml`](../.config/nextest.toml)
-for the settings.
+Run tests agent control integration tests excluding root-required tests.
 
 ```sh
 make -C agent-control test/onhost/integration
-```
-
-To print the output of every test, use `--no-capture`, which also runs tests one at a time:
-
-```sh
-TEST_MACHINE_ID_PATH=/tmp/machine-id cargo nextest run --package newrelic_agent_control --test integration_tests --no-capture
 ```
 
 #### Tests that require root user

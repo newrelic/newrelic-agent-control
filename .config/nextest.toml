@@ -7,6 +7,12 @@
 # Report tests running longer than 60s and kill them after 5 minutes.
 slow-timeout = { period = "60s", terminate-after = 5 }
 
+# Tests against a Kubernetes cluster wait on Helm releases and Flux reconciliations, so they get
+# 15 minutes before being killed.
+[[profile.default.overrides]]
+filter = "test(k8s)"
+slow-timeout = { period = "60s", terminate-after = 15 }
+
 [profile.ci]
 # Run every test to report all failures.
 fail-fast = false

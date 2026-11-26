@@ -103,6 +103,17 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
+        "/^\\.github/workflows/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "(?<depName>cargo-[\\w-]+)@(?<currentValue>\\d[\\w.-]*)"
+      ],
+      "datasourceTemplate": "crate",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
         "**/eks_cluster/variables.tf"
       ],
       "matchStrings": [
