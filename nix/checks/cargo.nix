@@ -2,7 +2,12 @@
 # treefmt and git-hooks contribute their own checks from their modules.
 _: {
   perSystem =
-    { config, pkgs, ... }:
+    {
+      config,
+      pkgs,
+      lib,
+      ...
+    }:
     let
       inherit (config) rustLib;
       inherit (rustLib) craneLib;
@@ -12,6 +17,9 @@ _: {
         CARGO_PROFILE = "dev";
       };
       cargoArtifacts = craneLib.buildDepsOnly workspaceArgs;
+      # This test counts reports over real timers, which tick late in the macOS build sandbox while
+      # passing in the dev shell.
+      darwinExclusions = lib.optionalString pkgs.stdenv.hostPlatform.isDarwin " and not test(=agent_control::uptime_report::tests::test_uptime_report)";
     in
     {
       checks = {
@@ -31,8 +39,13 @@ _: {
             inherit cargoArtifacts;
             # The HTTP clients load the system CA roots when built, and the sandbox has none.
             SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
-            # One test hardcodes /usr/bin/true, which the sandbox does not have.
-            cargoNextestExtraArgs = "--all-targets --no-fail-fast --retries 2 -E 'not (package(newrelic_agent_control) and not kind(lib)) and not test(=package::post_download_hook_executor::tests::test_execute_binary_without_args)'";
+            cargoNextestExtraArgs = lib.concatStringsSep " " ([
+              "--all-targets"
+              "--no-fail-fast"
+              "--retries 2"
+              "-E"
+              "'not (package(newrelic_agent_control) and not kind(lib))${darwinExclusions}'"
+            ]);
             preCheck = ''
               echo testing-machine-id > "$TMPDIR/machine-id"
               export TEST_MACHINE_ID_PATH="$TMPDIR/machine-id"
