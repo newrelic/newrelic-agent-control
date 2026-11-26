@@ -12,7 +12,6 @@ permissions:
   contents: read
 
 env:
-  NEXTEST_VERSION: 0.9.152
   # See .config/nextest.toml.
   NEXTEST_PROFILE: ci
 
@@ -432,15 +431,16 @@ jobs:
 
       - uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
         with:
-          tool: cargo-nextest@${{ env.NEXTEST_VERSION }}
+          tool: cargo-nextest@0.9.152
 
       - name: Run workspace tests excluding the agent control pkg (includes -winAdmin- ignored because it doesn't apply)
         run: cargo nextest run --workspace --exclude 'newrelic_agent_control' --exclude 'cgroup-tracker' --all-targets --run-ignored all
 
       # Its integration tests need root and run in the `cgroup-tracker-cgroupfs-tests` job.
-      # On Windows the crate compiles to no tests, which nextest treats as an error by default.
+      # cgroups only exist on Linux, where the crate has tests; on Windows it compiles to none.
       - name: Run cgroup-tracker unit tests
-        run: cargo nextest run --locked -p cgroup-tracker --lib --no-tests=pass
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: cargo nextest run --locked -p cgroup-tracker --lib
 
       - name: Run tests agent control lib excluding root-required tests (on-host)
         run: make -C agent-control test/onhost
@@ -484,7 +484,7 @@ jobs:
 
       - uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
         with:
-          tool: cargo-nextest@${{ env.NEXTEST_VERSION }}
+          tool: cargo-nextest@0.9.152
 
       - name: Run onHost root-required integration-tests only
         run: make -C agent-control test/onhost/root/integration
@@ -511,7 +511,7 @@ jobs:
 
       - uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
         with:
-          tool: cargo-nextest@${{ env.NEXTEST_VERSION }}
+          tool: cargo-nextest@0.9.152
 
       - name: Run cgroupfs tests
         env:
@@ -551,7 +551,7 @@ jobs:
 
       - uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
         with:
-          tool: cargo-nextest@${{ env.NEXTEST_VERSION }}
+          tool: cargo-nextest@0.9.152
 
       - name: Run onHost oci-registry integration-tests
         shell: bash
@@ -619,11 +619,9 @@ jobs:
 
       - uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
         with:
-          tool: cargo-zigbuild@0.23.0
-
-      - uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
-        with:
-          tool: cargo-nextest@${{ env.NEXTEST_VERSION }}
+          tool: |
+            cargo-zigbuild@0.23.0
+            cargo-nextest@0.9.152
 
       - name: Fetch cargo dependencies
         run: |
