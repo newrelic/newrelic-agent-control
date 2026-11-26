@@ -125,17 +125,18 @@ where
     PM: PackageManager,
     PGT: ProcessGroupTracker,
 {
-    agent_identity: AgentIdentity,
-    executables: Vec<ExecutableData>,
-    file_logging_config: SubAgentFileLoggingConfig,
-    health_config: Option<OnHostHealthConfig>,
-    package_manager: Arc<PM>,
-    packages_config: RenderedPackages,
-    reported_version_package: Option<PackageID>,
-    filesystem: FileSystem,
-    shared_filesystem: SharedFileSystem,
-    process_group_tracker: PGT,
-    detach_on_stop: bool,
+    pub(super) agent_identity: AgentIdentity,
+    pub(super) executables: Vec<ExecutableData>,
+    pub(super) file_logging_config: SubAgentFileLoggingConfig,
+    pub(super) health_config: Option<OnHostHealthConfig>,
+    pub(super) package_manager: Arc<PM>,
+    pub(super) packages_config: RenderedPackages,
+    pub(super) reported_version_package: Option<PackageID>,
+    pub(super) filesystem: FileSystem,
+    pub(super) shared_filesystem: SharedFileSystem,
+    pub(super) process_group_tracker: PGT,
+    /// Whether the processes are left running when Agent Control exits, instead of terminated.
+    pub(super) detach_on_stop: bool,
 }
 
 impl<PM, PGT> SupervisorStarter for NotStartedSupervisorOnHost<PM, PGT>
@@ -218,22 +219,22 @@ where
             })
             .collect();
 
-        let starter = NotStartedSupervisorOnHost::new(
+        let starter = NotStartedSupervisorOnHost {
             agent_identity,
             executables,
-            onhost_config.health,
-            onhost_config.packages,
-            onhost_config.reported_version_package,
+            health_config: onhost_config.health,
+            packages_config: onhost_config.packages,
+            reported_version_package: onhost_config.reported_version_package,
             package_manager,
-            SubAgentFileLoggingConfig {
+            file_logging_config: SubAgentFileLoggingConfig {
                 enabled: onhost_config.enable_file_logging,
                 base_path: logging_base_path,
             },
-            onhost_config.filesystem,
-            onhost_config.shared_filesystem,
+            filesystem: onhost_config.filesystem,
+            shared_filesystem: onhost_config.shared_filesystem,
             process_group_tracker,
-        )
-        .with_detach_on_stop(detach_on_stop);
+            detach_on_stop,
+        };
 
         starter.check_subagent_version(internal_publisher.clone());
 
@@ -267,44 +268,6 @@ where
         DirectoryManagerFs
             .create(&path)
             .map_err(|source| SupervisorError::LogDir { path, source })
-    }
-
-    /// Creates a not-started on-host supervisor from the agent identity, executables, health,
-    /// version and packages configuration, package manager, and file-logging settings.
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        agent_identity: AgentIdentity,
-        executables: Vec<ExecutableData>,
-        health_config: Option<OnHostHealthConfig>,
-        packages_config: RenderedPackages,
-        reported_version_package: Option<PackageID>,
-        package_manager: Arc<PM>,
-        file_logging_config: SubAgentFileLoggingConfig,
-        filesystem: FileSystem,
-        shared_filesystem: SharedFileSystem,
-        process_group_tracker: PGT,
-    ) -> Self {
-        NotStartedSupervisorOnHost {
-            agent_identity,
-            executables,
-            file_logging_config,
-            health_config,
-            package_manager,
-            packages_config,
-            reported_version_package,
-            filesystem,
-            shared_filesystem,
-            process_group_tracker,
-            detach_on_stop: false,
-        }
-    }
-
-    /// Makes the supervised processes survive Agent Control exiting, instead of terminating them.
-    pub fn with_detach_on_stop(self, detach_on_stop: bool) -> Self {
-        Self {
-            detach_on_stop,
-            ..self
-        }
     }
 
     /// Starts the health checker, if configured, along with the publisher executables use to
@@ -827,11 +790,9 @@ pub mod tests {
     use crate::sub_agent::on_host::managed_process::spawned_process::restart_policy::{
         Backoff, RestartPolicy,
     };
+    use crate::sub_agent::on_host::process_group_tracker::platform_process_group_tracker;
     use crate::sub_agent::on_host::process_group_tracker::tests::{
         FailingProcessGroupTracker, TestProcessGroupTracker, test_process_config,
-    };
-    use crate::sub_agent::on_host::process_group_tracker::{
-        PlatformProcessGroupTracker, platform_process_group_tracker,
     };
     use crate::sub_agent::supervisor::Supervisor;
     use crate::utils::retry::retry;
@@ -873,18 +834,19 @@ pub mod tests {
             ("plugin-b".to_string(), test_package_with_version("2.3.4")),
         ]);
 
-        let supervisor = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
+        let supervisor = NotStartedSupervisorOnHost {
             agent_identity,
-            vec![],
-            None,
-            packages,
-            Some("core".to_string()),
-            MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::disabled(),
-            FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
-            TestProcessGroupTracker::default(),
-        );
+            executables: vec![],
+            health_config: None,
+            packages_config: packages,
+            reported_version_package: Some("core".to_string()),
+            package_manager: MockPackageManager::new_arc(),
+            file_logging_config: SubAgentFileLoggingConfig::disabled(),
+            filesystem: FileSystem::test_empty(),
+            shared_filesystem: SharedFileSystem::test_empty(),
+            process_group_tracker: TestProcessGroupTracker::default(),
+            detach_on_stop: false,
+        };
 
         let (publisher, consumer) = pub_sub();
         supervisor.check_subagent_version(publisher);
@@ -973,18 +935,19 @@ pub mod tests {
             AgentID::try_from("spawn-failure-agent").unwrap(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
-        let supervisor = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
+        let supervisor = NotStartedSupervisorOnHost {
             agent_identity,
-            executable_data,
-            Some(health_config),
-            get_empty_packages(),
-            None,
-            MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::disabled(),
-            FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
-            TestProcessGroupTracker::default(),
-        );
+            executables: executable_data,
+            health_config: Some(health_config),
+            packages_config: get_empty_packages(),
+            reported_version_package: None,
+            package_manager: MockPackageManager::new_arc(),
+            file_logging_config: SubAgentFileLoggingConfig::disabled(),
+            filesystem: FileSystem::test_empty(),
+            shared_filesystem: SharedFileSystem::test_empty(),
+            process_group_tracker: TestProcessGroupTracker::default(),
+            detach_on_stop: false,
+        };
 
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let started_supervisor = supervisor
@@ -1043,18 +1006,19 @@ pub mod tests {
             AgentID::try_from("graceful-stop-agent").unwrap(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
-        let supervisor = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
+        let supervisor = NotStartedSupervisorOnHost {
             agent_identity,
-            executable_data,
-            None,
-            get_empty_packages(),
-            None,
-            MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::disabled(),
-            FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
-            TestProcessGroupTracker::default(),
-        );
+            executables: executable_data,
+            health_config: None,
+            packages_config: get_empty_packages(),
+            reported_version_package: None,
+            package_manager: MockPackageManager::new_arc(),
+            file_logging_config: SubAgentFileLoggingConfig::disabled(),
+            filesystem: FileSystem::test_empty(),
+            shared_filesystem: SharedFileSystem::test_empty(),
+            process_group_tracker: TestProcessGroupTracker::default(),
+            detach_on_stop: false,
+        };
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let started_supervisor = supervisor
@@ -1131,19 +1095,19 @@ pub mod tests {
         ));
         // The tracker is built as in production, so on Windows the Job Object only kills its
         // processes on close when Agent Control is not detaching.
-        let supervisor = NotStartedSupervisorOnHost::<_, PlatformProcessGroupTracker>::new(
+        let supervisor = NotStartedSupervisorOnHost {
             agent_identity,
-            executable_data,
-            None,
-            get_empty_packages(),
-            None,
-            MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::disabled(),
-            FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
-            platform_process_group_tracker(detach_on_stop),
-        )
-        .with_detach_on_stop(detach_on_stop);
+            executables: executable_data,
+            health_config: None,
+            packages_config: get_empty_packages(),
+            reported_version_package: None,
+            package_manager: MockPackageManager::new_arc(),
+            file_logging_config: SubAgentFileLoggingConfig::disabled(),
+            filesystem: FileSystem::test_empty(),
+            shared_filesystem: SharedFileSystem::test_empty(),
+            process_group_tracker: platform_process_group_tracker(detach_on_stop),
+            detach_on_stop,
+        };
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let started_supervisor = supervisor
@@ -1220,18 +1184,19 @@ pub mod tests {
             AgentID::try_from("kill-stop-agent").unwrap(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
-        let supervisor = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
-            agent_identity,
-            executable_data,
-            None,
-            get_empty_packages(),
-            None,
-            MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::disabled(),
-            FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
-            TestProcessGroupTracker::default(),
-        );
+        let supervisor = NotStartedSupervisorOnHost {
+            agent_identity: agent_identity,
+            executables: executable_data,
+            health_config: None,
+            packages_config: get_empty_packages(),
+            reported_version_package: None,
+            package_manager: MockPackageManager::new_arc(),
+            file_logging_config: SubAgentFileLoggingConfig::disabled(),
+            filesystem: FileSystem::test_empty(),
+            shared_filesystem: SharedFileSystem::test_empty(),
+            process_group_tracker: TestProcessGroupTracker::default(),
+            detach_on_stop: false,
+        };
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let started_supervisor = supervisor
@@ -1259,18 +1224,19 @@ pub mod tests {
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
+        let agent = NotStartedSupervisorOnHost {
             agent_identity,
             executables,
-            None,
-            get_empty_packages(),
-            None,
-            MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::disabled(),
-            FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
-            TestProcessGroupTracker::default(),
-        );
+            health_config: None,
+            packages_config: get_empty_packages(),
+            reported_version_package: None,
+            package_manager: MockPackageManager::new_arc(),
+            file_logging_config: SubAgentFileLoggingConfig::disabled(),
+            filesystem: FileSystem::test_empty(),
+            shared_filesystem: SharedFileSystem::test_empty(),
+            process_group_tracker: TestProcessGroupTracker::default(),
+            detach_on_stop: false,
+        };
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
@@ -1326,18 +1292,19 @@ declared-dir:
             "start-test-agent".to_owned().try_into().unwrap(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
-        let supervisor = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
+        let supervisor = NotStartedSupervisorOnHost {
             agent_identity,
-            vec![],
-            None,
-            get_empty_packages(),
-            None,
-            MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::disabled(),
+            executables: vec![],
+            health_config: None,
+            packages_config: get_empty_packages(),
+            reported_version_package: None,
+            package_manager: MockPackageManager::new_arc(),
+            file_logging_config: SubAgentFileLoggingConfig::disabled(),
             filesystem,
-            SharedFileSystem::test_empty(),
-            TestProcessGroupTracker::default(),
-        );
+            shared_filesystem: SharedFileSystem::test_empty(),
+            process_group_tracker: TestProcessGroupTracker::default(),
+            detach_on_stop: false,
+        };
 
         let (publisher, _consumer) = pub_sub();
         let started = supervisor.start(publisher).expect("start");
@@ -1375,18 +1342,19 @@ declared-dir:
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
+        let agent = NotStartedSupervisorOnHost {
             agent_identity,
             executables,
-            None,
-            get_empty_packages(),
-            None,
-            MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::disabled(),
-            FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
-            TestProcessGroupTracker::default(),
-        );
+            health_config: None,
+            packages_config: get_empty_packages(),
+            reported_version_package: None,
+            package_manager: MockPackageManager::new_arc(),
+            file_logging_config: SubAgentFileLoggingConfig::disabled(),
+            filesystem: FileSystem::test_empty(),
+            shared_filesystem: SharedFileSystem::test_empty(),
+            process_group_tracker: TestProcessGroupTracker::default(),
+            detach_on_stop: false,
+        };
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
@@ -1429,21 +1397,22 @@ declared-dir:
         let stdout_log =
             agent_log_dir(logging_dir.path(), &agent_identity.id).join(STDOUT_LOG_FILE_NAME);
 
-        let agent = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
+        let agent = NotStartedSupervisorOnHost {
             agent_identity,
             executables,
-            None,
-            get_empty_packages(),
-            None,
-            MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig {
+            health_config: None,
+            packages_config: get_empty_packages(),
+            reported_version_package: None,
+            package_manager: MockPackageManager::new_arc(),
+            file_logging_config: SubAgentFileLoggingConfig {
                 enabled: true,
                 base_path: logging_dir.path().to_path_buf(),
             },
-            FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
-            TestProcessGroupTracker::default(),
-        );
+            filesystem: FileSystem::test_empty(),
+            shared_filesystem: SharedFileSystem::test_empty(),
+            process_group_tracker: TestProcessGroupTracker::default(),
+            detach_on_stop: false,
+        };
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
@@ -1486,21 +1455,22 @@ declared-dir:
             timeout: HealthCheckTimeout::from(Duration::from_secs(1)),
             checks: vec![OnHostHealthCheckDefinition::Process],
         };
-        let agent = NotStartedSupervisorOnHost::<_, FailingProcessGroupTracker>::new(
+        let agent = NotStartedSupervisorOnHost {
             agent_identity,
             executables,
-            Some(health_config),
-            get_empty_packages(),
-            None,
-            MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig {
+            health_config: Some(health_config),
+            packages_config: get_empty_packages(),
+            reported_version_package: None,
+            package_manager: MockPackageManager::new_arc(),
+            file_logging_config: SubAgentFileLoggingConfig {
                 enabled: true,
                 base_path: logging_dir.path().to_path_buf(),
             },
-            FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
-            FailingProcessGroupTracker,
-        );
+            filesystem: FileSystem::test_empty(),
+            shared_filesystem: SharedFileSystem::test_empty(),
+            process_group_tracker: FailingProcessGroupTracker,
+            detach_on_stop: false,
+        };
 
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
@@ -1549,18 +1519,19 @@ declared-dir:
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
+        let agent = NotStartedSupervisorOnHost {
             agent_identity,
             executables,
-            None,
-            get_empty_packages(),
-            None,
-            MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::disabled(),
-            FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
-            TestProcessGroupTracker::default(),
-        );
+            health_config: None,
+            packages_config: get_empty_packages(),
+            reported_version_package: None,
+            package_manager: MockPackageManager::new_arc(),
+            file_logging_config: SubAgentFileLoggingConfig::disabled(),
+            filesystem: FileSystem::test_empty(),
+            shared_filesystem: SharedFileSystem::test_empty(),
+            process_group_tracker: TestProcessGroupTracker::default(),
+            detach_on_stop: false,
+        };
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent
@@ -1610,18 +1581,19 @@ declared-dir:
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
+        let agent = NotStartedSupervisorOnHost {
             agent_identity,
             executables,
-            None,
-            get_empty_packages(),
-            None,
-            MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::disabled(),
-            FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
-            TestProcessGroupTracker::default(),
-        );
+            health_config: None,
+            packages_config: get_empty_packages(),
+            reported_version_package: None,
+            package_manager: MockPackageManager::new_arc(),
+            file_logging_config: SubAgentFileLoggingConfig::disabled(),
+            filesystem: FileSystem::test_empty(),
+            shared_filesystem: SharedFileSystem::test_empty(),
+            process_group_tracker: TestProcessGroupTracker::default(),
+            detach_on_stop: false,
+        };
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
@@ -1668,18 +1640,19 @@ declared-dir:
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
+        let agent = NotStartedSupervisorOnHost {
             agent_identity,
             executables,
-            None,
-            get_empty_packages(),
-            None,
-            MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::disabled(),
-            FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
-            TestProcessGroupTracker::default(),
-        );
+            health_config: None,
+            packages_config: get_empty_packages(),
+            reported_version_package: None,
+            package_manager: MockPackageManager::new_arc(),
+            file_logging_config: SubAgentFileLoggingConfig::disabled(),
+            filesystem: FileSystem::test_empty(),
+            shared_filesystem: SharedFileSystem::test_empty(),
+            process_group_tracker: TestProcessGroupTracker::default(),
+            detach_on_stop: false,
+        };
 
         let (health_publisher, health_consumer) = pub_sub();
 
@@ -1739,18 +1712,19 @@ declared-dir:
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
+        let agent = NotStartedSupervisorOnHost {
             agent_identity,
             executables,
-            None,
-            get_empty_packages(),
-            None,
-            MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::disabled(),
-            FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
-            TestProcessGroupTracker::default(),
-        );
+            health_config: None,
+            packages_config: get_empty_packages(),
+            reported_version_package: None,
+            package_manager: MockPackageManager::new_arc(),
+            file_logging_config: SubAgentFileLoggingConfig::disabled(),
+            filesystem: FileSystem::test_empty(),
+            shared_filesystem: SharedFileSystem::test_empty(),
+            process_group_tracker: TestProcessGroupTracker::default(),
+            detach_on_stop: false,
+        };
 
         let (health_publisher, health_consumer) = pub_sub();
 
@@ -1903,21 +1877,22 @@ declared-dir:
     fn build_supervisor_without_health(
         exec: ExecutableData,
     ) -> NotStartedSupervisorOnHost<MockPackageManager, TestProcessGroupTracker> {
-        NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
-            AgentIdentity::from((
+        NotStartedSupervisorOnHost {
+            agent_identity: AgentIdentity::from((
                 "echo-process".to_owned().try_into().unwrap(),
                 AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
             )),
-            vec![exec],
-            None,
-            get_empty_packages(),
-            None,
-            MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::disabled(),
-            FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
-            TestProcessGroupTracker::default(),
-        )
+            executables: vec![exec],
+            health_config: None,
+            packages_config: get_empty_packages(),
+            reported_version_package: None,
+            package_manager: MockPackageManager::new_arc(),
+            file_logging_config: SubAgentFileLoggingConfig::disabled(),
+            filesystem: FileSystem::test_empty(),
+            shared_filesystem: SharedFileSystem::test_empty(),
+            process_group_tracker: TestProcessGroupTracker::default(),
+            detach_on_stop: false,
+        }
     }
 
     #[test]
@@ -2017,21 +1992,22 @@ declared-dir:
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let supervisor = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
-            agent_identity.clone(),
-            vec![exec_data_1],
-            None,
-            get_empty_packages(),
-            None,
-            Arc::new(MockPackageManager::new()),
-            SubAgentFileLoggingConfig {
+        let supervisor = NotStartedSupervisorOnHost {
+            agent_identity: agent_identity.clone(),
+            executables: vec![exec_data_1],
+            health_config: None,
+            packages_config: get_empty_packages(),
+            reported_version_package: None,
+            package_manager: Arc::new(MockPackageManager::new()),
+            file_logging_config: SubAgentFileLoggingConfig {
                 enabled: true,
                 base_path: logging_path.clone(),
             },
-            FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
-            TestProcessGroupTracker::default(),
-        );
+            filesystem: FileSystem::test_empty(),
+            shared_filesystem: SharedFileSystem::test_empty(),
+            process_group_tracker: TestProcessGroupTracker::default(),
+            detach_on_stop: false,
+        };
 
         let (pub_internal, _sub_internal) = pub_sub();
         let started_supervisor = supervisor
@@ -2124,21 +2100,22 @@ declared-dir:
             AgentID::try_from("test-agent".to_string()).unwrap(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
-        NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
+        NotStartedSupervisorOnHost {
             agent_identity,
-            vec![],
-            None,
-            get_empty_packages(),
-            None,
-            Arc::new(MockPackageManager::new()),
-            SubAgentFileLoggingConfig {
+            executables: vec![],
+            health_config: None,
+            packages_config: get_empty_packages(),
+            reported_version_package: None,
+            package_manager: Arc::new(MockPackageManager::new()),
+            file_logging_config: SubAgentFileLoggingConfig {
                 enabled: false,
                 base_path: logging_path,
             },
-            FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
-            TestProcessGroupTracker::default(),
-        )
+            filesystem: FileSystem::test_empty(),
+            shared_filesystem: SharedFileSystem::test_empty(),
+            process_group_tracker: TestProcessGroupTracker::default(),
+            detach_on_stop: false,
+        }
     }
 
     #[test]
@@ -2217,21 +2194,22 @@ declared-dir:
         ));
 
         // Start with logging DISABLED
-        let supervisor = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
-            agent_identity.clone(),
-            vec![exec_data_1],
-            None,
-            get_empty_packages(),
-            None,
-            Arc::new(MockPackageManager::new()),
-            SubAgentFileLoggingConfig {
+        let supervisor = NotStartedSupervisorOnHost {
+            agent_identity: agent_identity.clone(),
+            executables: vec![exec_data_1],
+            health_config: None,
+            packages_config: get_empty_packages(),
+            reported_version_package: None,
+            package_manager: Arc::new(MockPackageManager::new()),
+            file_logging_config: SubAgentFileLoggingConfig {
                 enabled: false,
                 base_path: logging_path.clone(),
             },
-            FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
-            TestProcessGroupTracker::default(),
-        );
+            filesystem: FileSystem::test_empty(),
+            shared_filesystem: SharedFileSystem::test_empty(),
+            process_group_tracker: TestProcessGroupTracker::default(),
+            detach_on_stop: false,
+        };
 
         let (pub_internal, _sub_internal) = pub_sub();
         let started_supervisor = supervisor
@@ -2347,21 +2325,22 @@ declared-dir:
         ));
 
         // Start with logging ENABLED
-        let supervisor = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
-            agent_identity.clone(),
-            vec![exec_data_1],
-            None,
-            get_empty_packages(),
-            None,
-            Arc::new(MockPackageManager::new()),
-            SubAgentFileLoggingConfig {
+        let supervisor = NotStartedSupervisorOnHost {
+            agent_identity: agent_identity.clone(),
+            executables: vec![exec_data_1],
+            health_config: None,
+            packages_config: get_empty_packages(),
+            reported_version_package: None,
+            package_manager: Arc::new(MockPackageManager::new()),
+            file_logging_config: SubAgentFileLoggingConfig {
                 enabled: true,
                 base_path: logging_path.clone(),
             },
-            FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
-            TestProcessGroupTracker::default(),
-        );
+            filesystem: FileSystem::test_empty(),
+            shared_filesystem: SharedFileSystem::test_empty(),
+            process_group_tracker: TestProcessGroupTracker::default(),
+            detach_on_stop: false,
+        };
 
         let (pub_internal, _sub_internal) = pub_sub();
         let started_supervisor = supervisor
@@ -2462,18 +2441,19 @@ declared-dir:
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let supervisor = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
+        let supervisor = NotStartedSupervisorOnHost {
             agent_identity,
-            vec![],
-            Some(health_config),
-            get_empty_packages(),
-            None,
-            MockPackageManager::new_arc(),
-            SubAgentFileLoggingConfig::disabled(),
-            FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
-            TestProcessGroupTracker::default(),
-        );
+            executables: vec![],
+            health_config: Some(health_config),
+            packages_config: get_empty_packages(),
+            reported_version_package: None,
+            package_manager: MockPackageManager::new_arc(),
+            file_logging_config: SubAgentFileLoggingConfig::disabled(),
+            filesystem: FileSystem::test_empty(),
+            shared_filesystem: SharedFileSystem::test_empty(),
+            process_group_tracker: TestProcessGroupTracker::default(),
+            detach_on_stop: false,
+        };
 
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let started = supervisor
@@ -2536,18 +2516,19 @@ declared-dir:
         ));
 
         // Start with logging DISABLED
-        let supervisor = NotStartedSupervisorOnHost::<_, TestProcessGroupTracker>::new(
-            agent_identity.clone(),
-            vec![exec_data_1],
-            None,
-            get_empty_packages(),
-            None,
-            Arc::new(MockPackageManager::new()),
-            SubAgentFileLoggingConfig::disabled(),
-            FileSystem::test_empty(),
-            SharedFileSystem::test_empty(),
-            TestProcessGroupTracker::default(),
-        );
+        let supervisor = NotStartedSupervisorOnHost {
+            agent_identity: agent_identity.clone(),
+            executables: vec![exec_data_1],
+            health_config: None,
+            packages_config: get_empty_packages(),
+            reported_version_package: None,
+            package_manager: Arc::new(MockPackageManager::new()),
+            file_logging_config: SubAgentFileLoggingConfig::disabled(),
+            filesystem: FileSystem::test_empty(),
+            shared_filesystem: SharedFileSystem::test_empty(),
+            process_group_tracker: TestProcessGroupTracker::default(),
+            detach_on_stop: false,
+        };
 
         let (pub_internal, _sub_internal) = pub_sub();
         let started_supervisor = supervisor
