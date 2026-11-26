@@ -7,5 +7,6 @@
     ./rust-lib
     ./formatting.nix
     ./git-hooks.nix
+    ./guest.nix
   ];
 }
