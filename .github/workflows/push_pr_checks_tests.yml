@@ -461,14 +461,13 @@ jobs:
         shell: pwsh
         run: |
           choco install gsudo --version $env:GSUDO_VERSION --yes --no-progress
-          # Choco's PATH update doesn't reach later steps, which need gsudo as the cargo target runner.
+          # Choco's PATH update doesn't reach later steps, which call gsudo.
           Add-Content $env:GITHUB_PATH 'C:\tools\gsudo\Current'
 
+      # SYSTEM holds SeCreatePermanentPrivilege by default, which Agent Control requires and the `runneradmin` account lacks.
+      # A single gsudo call wraps the whole run: one call per test binary races on starting gsudo's service.
       - name: Run tests agent control integration_test excluding root-required tests (on-host)
-        env:
-          # SYSTEM holds SeCreatePermanentPrivilege by default, which Agent Control requires and the `runneradmin` account lacks.
-          CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUNNER: "gsudo --system"
-        run: make -C agent-control test/onhost/integration
+        run: ${{ matrix.os == 'windows-latest' && 'gsudo --system' || '' }} make -C agent-control test/onhost/integration
 
       # The runner account does not hold SeCreatePermanentPrivilege, which is what this test needs.
       - if: ${{ matrix.os == 'windows-latest' }}
@@ -494,8 +493,6 @@ jobs:
     env:
       # `env` passes the fixture explicitly since sudo resets the environment. Ignored on Windows.
       CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: "sudo env TEST_MACHINE_ID_PATH=/tmp/machine-id"
-      # SYSTEM holds SeCreatePermanentPrivilege by default, which Agent Control requires and the `runneradmin` account lacks.
-      CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUNNER: "gsudo --system"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -516,11 +513,12 @@ jobs:
         shell: pwsh
         run: |
           choco install gsudo --version $env:GSUDO_VERSION --yes --no-progress
-          # Choco's PATH update doesn't reach later steps, which need gsudo as the cargo target runner.
+          # Choco's PATH update doesn't reach later steps, which call gsudo.
           Add-Content $env:GITHUB_PATH 'C:\tools\gsudo\Current'
 
+      # SYSTEM holds SeCreatePermanentPrivilege by default, which Agent Control requires and the `runneradmin` account lacks.
       - name: Run onHost root-required integration-tests only
-        run: make -C agent-control test/onhost/root/integration
+        run: ${{ matrix.os == 'windows-latest' && 'gsudo --system' || '' }} make -C agent-control test/onhost/root/integration
 
   # Runs on the bare runner: containers get a read-only `/sys/fs/cgroup` and their own cgroup
   # namespace, which prevents mounting the v1 hierarchy the tests use.
