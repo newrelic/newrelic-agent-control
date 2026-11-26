@@ -11,6 +11,10 @@ on:
 permissions:
   contents: read
 
+env:
+  # Runs the Windows tests that start Agent Control as SYSTEM, which holds SeCreatePermanentPrivilege.
+  GSUDO_VERSION: 2.6.1
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
@@ -424,16 +428,6 @@ jobs:
           restore-strategy: ${{ github.ref == 'refs/heads/main' && 'exact' || 'nearest' }}
           save-cache: true
 
-      # Agent Control refuses to start without SeCreatePermanentPrivilege; this shows whether the
-      # runner account holds it.
-      - if: ${{ matrix.os == 'windows-latest' }}
-        name: Show token privileges
-        shell: pwsh
-        run: |
-          whoami /priv
-          $privilege = whoami /priv | Select-String SeCreatePermanentPrivilege
-          if ($privilege) { "Held: $privilege" } else { "SeCreatePermanentPrivilege is NOT held by $env:USERNAME" }
-
       - name: Run workspace tests excluding the agent control pkg (includes -winAdmin- ignored because it doesn't apply)
         run: cargo test --workspace --exclude 'newrelic_agent_control' --exclude 'cgroup-tracker' --all-targets -- --include-ignored
 
@@ -448,8 +442,21 @@ jobs:
         if: ${{ matrix.os == 'ubuntu-latest' }}
         run: bash build/package/preremove_test.sh
 
-      - name: Run tests agent control integration_test excluding root-required tests (on-host)
+      - if: ${{ matrix.os == 'ubuntu-latest' }}
+        name: Run tests agent control integration_test excluding root-required tests (on-host)
         run: make -C agent-control test/onhost/integration
+
+      - if: ${{ matrix.os == 'windows-latest' }}
+        name: Run tests agent control integration_test as SYSTEM (on-host)
+        shell: pwsh
+        run: |
+          choco install gsudo --version $env:GSUDO_VERSION --yes --no-progress
+          gsudo --system make -C agent-control test/onhost/integration
+
+      # The runner account does not hold SeCreatePermanentPrivilege, which is what this test needs.
+      - if: ${{ matrix.os == 'windows-latest' }}
+        name: Run test that Agent Control does not start without SeCreatePermanentPrivilege (on-host)
+        run: cargo test --locked --package newrelic_agent_control --test integration_tests -- --ignored --exact on_host::cli::does_not_run_without_create_permanent_privilege
 
       - name: Run tests agent control (k8s)
         run: make -C agent-control test/k8s
@@ -480,8 +487,16 @@ jobs:
           restore-strategy: 'nearest'
           save-cache: false
 
-      - name: Run onHost root-required integration-tests only
+      - if: ${{ matrix.os == 'ubuntu-latest' }}
+        name: Run onHost root-required integration-tests only
         run: make -C agent-control test/onhost/root/integration
+
+      - if: ${{ matrix.os == 'windows-latest' }}
+        name: Run onHost root-required integration-tests only as SYSTEM
+        shell: pwsh
+        run: |
+          choco install gsudo --version $env:GSUDO_VERSION --yes --no-progress
+          gsudo --system make -C agent-control test/onhost/root/integration
 
   # Runs on the bare runner: containers get a read-only `/sys/fs/cgroup` and their own cgroup
   # namespace, which prevents mounting the v1 hierarchy the tests use.

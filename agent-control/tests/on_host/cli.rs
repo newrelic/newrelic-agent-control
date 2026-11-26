@@ -57,6 +57,30 @@ fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Agent Control must not get past startup if the account does not hold
+/// `SeCreatePermanentPrivilege`. CI runs it with the runner account, which lacks it, while the rest
+/// of the suite runs as `SYSTEM`; anywhere the privilege is held the test is meaningless.
+#[cfg(target_family = "windows")]
+#[test]
+#[ignore = "requires an account without SeCreatePermanentPrivilege"]
+fn does_not_run_without_create_permanent_privilege() -> Result<(), Box<dyn std::error::Error>> {
+    use newrelic_agent_control::utils::privileges::SE_CREATE_PERMANENT_PRIVILEGE;
+
+    let dir = TempDir::new()?;
+    let _file_path = create_temp_file(
+        &dir.path()
+            .join(FOLDER_NAME_LOCAL_DATA)
+            .join(AGENT_CONTROL_ID),
+        build_config_name(STORE_KEY_LOCAL_DATA_CONFIG).as_str(),
+        r"agents: {}",
+    )?;
+    let mut cmd = cmd_with_config_file(dir.path());
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains(SE_CREATE_PERMANENT_PRIVILEGE));
+    Ok(())
+}
+
 #[test]
 fn basic_startup() -> Result<(), Box<dyn std::error::Error>> {
     let dir = TempDir::new()?;
