@@ -20,12 +20,16 @@ pub const SE_CREATE_PERMANENT_PRIVILEGE: &str = "SeCreatePermanentPrivilege";
 /// Error returned when a privilege could not be enabled in the process token.
 #[derive(Debug, thiserror::Error)]
 pub enum PrivilegeError {
+    /// The privilege name is not known to the system.
     #[error("looking up privilege {0}: {1}")]
     Lookup(String, #[source] windows::core::Error),
+    /// The process token could not be opened.
     #[error("opening process token: {0}")]
     OpenToken(windows::core::Error),
+    /// The privilege could not be adjusted in the token.
     #[error("adjusting privilege {0}: {1}")]
     Adjust(String, #[source] windows::core::Error),
+    /// The token does not hold the privilege.
     #[error(
         "privilege {0} is not held by the process token, grant it to the account running Agent Control"
     )]

@@ -64,7 +64,7 @@ fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
 #[test]
 #[ignore = "requires an account without SeCreatePermanentPrivilege"]
 fn does_not_run_without_create_permanent_privilege() -> Result<(), Box<dyn std::error::Error>> {
-    use newrelic_agent_control::utils::privileges::SE_CREATE_PERMANENT_PRIVILEGE;
+    use job_object::SE_CREATE_PERMANENT_PRIVILEGE;
 
     let dir = TempDir::new()?;
     let _file_path = create_temp_file(

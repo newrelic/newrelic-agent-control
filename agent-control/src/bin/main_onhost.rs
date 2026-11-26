@@ -2,12 +2,12 @@
 //!
 //! It implements the basic functionality of parsing the command line arguments and either
 //! performing one-shot actions or starting the main agent control process.
+#[cfg(target_family = "windows")]
+use job_object::{SE_CREATE_PERMANENT_PRIVILEGE, enable_privilege};
 use newrelic_agent_control::agent_control::run::AgentControlRunner;
 use newrelic_agent_control::agent_control::run::on_host::AGENT_CONTROL_MODE_ON_HOST;
 use newrelic_agent_control::command::{Command, Context};
 use newrelic_agent_control::utils::is_elevated::is_elevated;
-#[cfg(target_family = "windows")]
-use newrelic_agent_control::utils::privileges::{SE_CREATE_PERMANENT_PRIVILEGE, enable_privilege};
 use std::error::Error;
 use std::process::ExitCode;
 
