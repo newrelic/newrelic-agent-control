@@ -3,7 +3,7 @@
 use std::process::{Child, Command};
 
 #[cfg(target_family = "windows")]
-use crate::utils::job_object::JobObject;
+use job_object::JobObject;
 
 /// Error produced while spawning, attaching to, or killing a process group.
 #[derive(thiserror::Error, Debug)]

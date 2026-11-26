@@ -7,8 +7,6 @@ pub mod binary_metadata;
 pub mod env_var;
 pub mod extract;
 pub mod is_elevated;
-#[cfg(target_family = "windows")]
-pub mod job_object;
 pub mod process_group;
 pub mod retry;
 pub mod sensitive_string;

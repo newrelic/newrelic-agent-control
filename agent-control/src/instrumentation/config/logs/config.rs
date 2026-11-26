@@ -199,6 +199,7 @@ mod tests {
             "resource_detection",
             "fs",
             "cgroup_tracker",
+            "job_object",
             "opamp_client",
             "nr_auth",
         ]

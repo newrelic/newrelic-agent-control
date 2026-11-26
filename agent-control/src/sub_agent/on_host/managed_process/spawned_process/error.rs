@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 #[cfg(target_family = "windows")]
-use crate::utils::job_object::JobObjectError;
+use job_object::JobObjectError;
 
 /// Errors produced while managing an OS process.
 #[derive(Error, Debug)]
