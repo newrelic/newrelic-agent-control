@@ -1347,25 +1347,23 @@ declared-dir:
 
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
-        for thread_context in agent.thread_contexts {
-            while !thread_context.is_thread_finished() {
-                thread::sleep(Duration::from_millis(15));
-            }
-        }
 
         // A failing group is reported as a failing spawn.
-        let mut unhealthy_reported = false;
-        while let Ok(event) = sub_agent_internal_consumer.as_ref().try_recv() {
-            if let SubAgentInternalEvent::AgentHealthInfo(health) = event
-                && !health.is_healthy()
-                && health
-                    .last_error()
-                    .is_some_and(|error| error.contains("invalid name"))
-            {
-                unhealthy_reported = true;
+        retry(30, Duration::from_millis(100), || {
+            while let Ok(event) = sub_agent_internal_consumer.as_ref().try_recv() {
+                if let SubAgentInternalEvent::AgentHealthInfo(health) = event
+                    && !health.is_healthy()
+                    && health
+                        .last_error()
+                        .is_some_and(|error| error.contains("invalid name"))
+                {
+                    return Ok(());
+                }
             }
-        }
-        assert!(unhealthy_reported, "expected an unhealthy event");
+            Err(())
+        })
+        .expect("expected an unhealthy event");
+        agent.stop().expect("failed to stop");
 
         // The log file is only created when the process is spawned.
         assert!(
