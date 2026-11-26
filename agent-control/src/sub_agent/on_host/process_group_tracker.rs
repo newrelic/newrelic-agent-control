@@ -23,7 +23,11 @@ pub type PlatformProcessGroupTracker = JobObjectProcessGroupTracker;
 /// not killed when Agent Control exits (Job Objects are the only trackers that would do it).
 pub fn platform_process_group_tracker(detach_on_stop: bool) -> PlatformProcessGroupTracker {
     cfg_select! {
-        target_family = "windows" => JobObjectProcessGroupTracker::new(!detach_on_stop),
+        target_family = "windows" => JobObjectProcessGroupTracker::new(if detach_on_stop {
+            job_object::OnClose::Detach
+        } else {
+            job_object::OnClose::Kill
+        }),
         target_family = "unix" => {
             let _ = detach_on_stop;
             PassthroughProcessGroupTracker
@@ -96,13 +100,19 @@ pub mod tests {
 
     pub type TestProcessGroup = <TestProcessGroupTracker as ProcessGroupTracker>::Group;
 
+    /// The tracker of the tests that do not exercise tracking: processes are killed when Agent
+    /// Control stops them.
+    pub fn test_process_group_tracker() -> TestProcessGroupTracker {
+        platform_process_group_tracker(false)
+    }
+
     /// Process config that runs on every target.
     pub fn test_process_config(
         agent_id: AgentID,
         executable_data: &ExecutableData,
         maybe_log_dir: Option<PathBuf>,
     ) -> OsProcessConfig<TestProcessGroup> {
-        let group = TestProcessGroupTracker::default()
+        let group = test_process_group_tracker()
             .group(&agent_id, &executable_data.id)
             .expect("a test group can always be created");
         OsProcessConfig::new(agent_id, executable_data, maybe_log_dir, group)

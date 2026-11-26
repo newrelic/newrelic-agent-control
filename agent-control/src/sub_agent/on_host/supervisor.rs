@@ -793,6 +793,7 @@ pub mod tests {
     use crate::sub_agent::on_host::process_group_tracker::platform_process_group_tracker;
     use crate::sub_agent::on_host::process_group_tracker::tests::{
         FailingProcessGroupTracker, TestProcessGroupTracker, test_process_config,
+        test_process_group_tracker,
     };
     use crate::sub_agent::supervisor::Supervisor;
     use crate::utils::retry::retry;
@@ -844,7 +845,7 @@ pub mod tests {
             file_logging_config: SubAgentFileLoggingConfig::disabled(),
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
-            process_group_tracker: TestProcessGroupTracker::default(),
+            process_group_tracker: test_process_group_tracker(),
             detach_on_stop: false,
         };
 
@@ -945,7 +946,7 @@ pub mod tests {
             file_logging_config: SubAgentFileLoggingConfig::disabled(),
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
-            process_group_tracker: TestProcessGroupTracker::default(),
+            process_group_tracker: test_process_group_tracker(),
             detach_on_stop: false,
         };
 
@@ -1016,7 +1017,7 @@ pub mod tests {
             file_logging_config: SubAgentFileLoggingConfig::disabled(),
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
-            process_group_tracker: TestProcessGroupTracker::default(),
+            process_group_tracker: test_process_group_tracker(),
             detach_on_stop: false,
         };
 
@@ -1194,7 +1195,7 @@ pub mod tests {
             file_logging_config: SubAgentFileLoggingConfig::disabled(),
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
-            process_group_tracker: TestProcessGroupTracker::default(),
+            process_group_tracker: test_process_group_tracker(),
             detach_on_stop: false,
         };
 
@@ -1234,7 +1235,7 @@ pub mod tests {
             file_logging_config: SubAgentFileLoggingConfig::disabled(),
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
-            process_group_tracker: TestProcessGroupTracker::default(),
+            process_group_tracker: test_process_group_tracker(),
             detach_on_stop: false,
         };
 
@@ -1302,7 +1303,7 @@ declared-dir:
             file_logging_config: SubAgentFileLoggingConfig::disabled(),
             filesystem,
             shared_filesystem: SharedFileSystem::test_empty(),
-            process_group_tracker: TestProcessGroupTracker::default(),
+            process_group_tracker: test_process_group_tracker(),
             detach_on_stop: false,
         };
 
@@ -1352,7 +1353,7 @@ declared-dir:
             file_logging_config: SubAgentFileLoggingConfig::disabled(),
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
-            process_group_tracker: TestProcessGroupTracker::default(),
+            process_group_tracker: test_process_group_tracker(),
             detach_on_stop: false,
         };
 
@@ -1410,7 +1411,7 @@ declared-dir:
             },
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
-            process_group_tracker: TestProcessGroupTracker::default(),
+            process_group_tracker: test_process_group_tracker(),
             detach_on_stop: false,
         };
 
@@ -1529,7 +1530,7 @@ declared-dir:
             file_logging_config: SubAgentFileLoggingConfig::disabled(),
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
-            process_group_tracker: TestProcessGroupTracker::default(),
+            process_group_tracker: test_process_group_tracker(),
             detach_on_stop: false,
         };
 
@@ -1591,7 +1592,7 @@ declared-dir:
             file_logging_config: SubAgentFileLoggingConfig::disabled(),
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
-            process_group_tracker: TestProcessGroupTracker::default(),
+            process_group_tracker: test_process_group_tracker(),
             detach_on_stop: false,
         };
 
@@ -1650,7 +1651,7 @@ declared-dir:
             file_logging_config: SubAgentFileLoggingConfig::disabled(),
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
-            process_group_tracker: TestProcessGroupTracker::default(),
+            process_group_tracker: test_process_group_tracker(),
             detach_on_stop: false,
         };
 
@@ -1722,7 +1723,7 @@ declared-dir:
             file_logging_config: SubAgentFileLoggingConfig::disabled(),
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
-            process_group_tracker: TestProcessGroupTracker::default(),
+            process_group_tracker: test_process_group_tracker(),
             detach_on_stop: false,
         };
 
@@ -1890,7 +1891,7 @@ declared-dir:
             file_logging_config: SubAgentFileLoggingConfig::disabled(),
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
-            process_group_tracker: TestProcessGroupTracker::default(),
+            process_group_tracker: test_process_group_tracker(),
             detach_on_stop: false,
         }
     }
@@ -2005,7 +2006,7 @@ declared-dir:
             },
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
-            process_group_tracker: TestProcessGroupTracker::default(),
+            process_group_tracker: test_process_group_tracker(),
             detach_on_stop: false,
         };
 
@@ -2113,7 +2114,7 @@ declared-dir:
             },
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
-            process_group_tracker: TestProcessGroupTracker::default(),
+            process_group_tracker: test_process_group_tracker(),
             detach_on_stop: false,
         }
     }
@@ -2207,7 +2208,7 @@ declared-dir:
             },
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
-            process_group_tracker: TestProcessGroupTracker::default(),
+            process_group_tracker: test_process_group_tracker(),
             detach_on_stop: false,
         };
 
@@ -2338,7 +2339,7 @@ declared-dir:
             },
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
-            process_group_tracker: TestProcessGroupTracker::default(),
+            process_group_tracker: test_process_group_tracker(),
             detach_on_stop: false,
         };
 
@@ -2451,7 +2452,7 @@ declared-dir:
             file_logging_config: SubAgentFileLoggingConfig::disabled(),
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
-            process_group_tracker: TestProcessGroupTracker::default(),
+            process_group_tracker: test_process_group_tracker(),
             detach_on_stop: false,
         };
 
@@ -2526,7 +2527,7 @@ declared-dir:
             file_logging_config: SubAgentFileLoggingConfig::disabled(),
             filesystem: FileSystem::test_empty(),
             shared_filesystem: SharedFileSystem::test_empty(),
-            process_group_tracker: TestProcessGroupTracker::default(),
+            process_group_tracker: test_process_group_tracker(),
             detach_on_stop: false,
         };
 

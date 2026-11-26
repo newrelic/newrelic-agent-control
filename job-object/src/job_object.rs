@@ -15,22 +15,32 @@ use windows::Win32::System::JobObjects::{
 #[error("{0}")]
 pub struct JobObjectError(String);
 
+/// What happens to the processes of a [`JobObject`] when it is closed or dropped.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OnClose {
+    /// The processes are terminated.
+    Kill,
+    /// The processes are left running.
+    Detach,
+}
+
 /// Represents a Windows Job Object used to manage and control a group of processes.
 /// When the Job Object is killed, all associated processes are terminated. When it is dropped,
-/// they are terminated only if it was created with "kill on close".
+/// they are terminated or left running according to its [`OnClose`].
 pub struct JobObject {
     handle: HANDLE,
-    kill_on_close: bool,
+    on_close: OnClose,
 }
 
 impl JobObject {
-    /// Creates a new JobObject, terminating its processes on close or drop only if `kill_on_close`.
-    pub fn new(kill_on_close: bool) -> Result<Self, JobObjectError> {
+    /// Creates a new JobObject whose processes are terminated or left running, according to
+    /// `on_close`, when it is closed or dropped.
+    pub fn new(on_close: OnClose) -> Result<Self, JobObjectError> {
         unsafe {
             let handle = CreateJobObjectW(None, None)
                 .map_err(|e| JobObjectError(format!("creating JobObject: {e}")))?;
 
-            if kill_on_close {
+            if on_close == OnClose::Kill {
                 // Set the JobObject to kill all associated processes when the JobObject is closed.
                 let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
                 limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
@@ -43,14 +53,11 @@ impl JobObject {
                 .map_err(|e| JobObjectError(format!("setting JobObject information: {e}")))?;
             }
 
-            Ok(Self {
-                handle,
-                kill_on_close,
-            })
+            Ok(Self { handle, on_close })
         }
     }
 
-    /// Assigns the given process to this JobObject. The process will be terminated when the JobObject is closed, if it was created with "kill on close".
+    /// Assigns the given process to this JobObject. The process will be terminated when the JobObject is closed, unless it was created with [`OnClose::Detach`].
     pub fn assign_process(&self, process: &Child) -> Result<(), JobObjectError> {
         unsafe {
             let process_handle = HANDLE(process.as_raw_handle());
@@ -66,10 +73,10 @@ impl JobObject {
     }
 }
 
-/// Ensure the JobObject is killed when dropped, unless it was created without "kill on close".
+/// Ensure the JobObject is killed when dropped, unless it was created with [`OnClose::Detach`].
 impl Drop for JobObject {
     fn drop(&mut self) {
-        if !self.kill_on_close {
+        if self.on_close == OnClose::Detach {
             return;
         }
         unsafe {
@@ -86,8 +93,8 @@ mod tests {
     use std::time::Duration;
 
     #[test]
-    fn test_job_object_without_kill_on_close_leaves_process_running_when_dropped() {
-        let job = JobObject::new(false).expect("Failed to create JobObject");
+    fn test_job_object_detaching_on_close_leaves_process_running_when_dropped() {
+        let job = JobObject::new(OnClose::Detach).expect("Failed to create JobObject");
         // `ping` runs for ~15s without a console, unlike `timeout` which exits right away without one.
         let mut child = Command::new("ping")
             .args(["-n", "16", "127.0.0.1"])
@@ -107,7 +114,7 @@ mod tests {
 
     #[test]
     fn test_job_object_kills_process() {
-        let job = JobObject::new(true).expect("Failed to create JobObject");
+        let job = JobObject::new(OnClose::Kill).expect("Failed to create JobObject");
         let mut child = Command::new("cmd")
             .args(["/C", "timeout", "/T", "15"])
             .spawn()

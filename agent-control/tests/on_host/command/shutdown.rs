@@ -6,7 +6,7 @@ use newrelic_agent_control::sub_agent::on_host::managed_process::spawned_process
 use newrelic_agent_control::sub_agent::on_host::managed_process::spawned_process::os_process::OsProcessConfig;
 use newrelic_agent_control::sub_agent::on_host::managed_process::spawned_process::restart_policy::RestartPolicy;
 use newrelic_agent_control::sub_agent::on_host::process_group_tracker::{
-    PlatformProcessGroupTracker, ProcessGroupTracker,
+    PlatformProcessGroupTracker, ProcessGroupTracker, platform_process_group_tracker,
 };
 use std::collections::HashMap;
 use std::{thread::sleep, time::Duration};
@@ -14,7 +14,7 @@ use std::{thread::sleep, time::Duration};
 type TestProcessGroup = <PlatformProcessGroupTracker as ProcessGroupTracker>::Group;
 
 fn test_group(agent_id: &AgentID) -> TestProcessGroup {
-    PlatformProcessGroupTracker::default()
+    platform_process_group_tracker(false)
         .group(agent_id, "test")
         .unwrap()
 }

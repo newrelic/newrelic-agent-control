@@ -5,7 +5,7 @@ use crate::agent_control::agent_id::AgentID;
 use std::process::{Child, Command};
 
 /// Spawns the processes of every executable as they are, without keeping them in any group.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct PassthroughProcessGroupTracker;
 
 impl ProcessGroupTracker for PassthroughProcessGroupTracker {
