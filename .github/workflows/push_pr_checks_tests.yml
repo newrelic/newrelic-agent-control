@@ -243,7 +243,7 @@ jobs:
       - if: ${{ matrix.command == 'zigbuild' }}
         uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
         with:
-          tool: cargo-zigbuild@0.23.0
+          tool: cargo-zigbuild@0.24.1
 
       - if: ${{ matrix.command == 'xwin build' }}
         name: Install Windows cross-compilation dependencies
@@ -620,7 +620,7 @@ jobs:
       - uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
         with:
           tool: |
-            cargo-zigbuild@0.23.0
+            cargo-zigbuild@0.24.1
             cargo-nextest@0.9.152
 
       - name: Fetch cargo dependencies
