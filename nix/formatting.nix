@@ -23,6 +23,8 @@
             ];
           };
 
+          ruff-format.enable = true;
+
           rustfmt = {
             enable = true;
             package = rustToolchain;
