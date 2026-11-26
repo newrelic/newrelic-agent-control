@@ -13,7 +13,7 @@ impl ProcessHandle {
     /// Opens a secondary handle to `os_process`, guaranteeing it refers to the same process
     /// object. Safe because `os_process` holds the `Child` handle that keeps the kernel object
     /// alive, so the PID cannot be recycled before this call returns.
-    pub(crate) fn from_os_process(os_process: &OsProcess) -> Result<Self, CommandError> {
+    pub(crate) fn from_os_process<G>(os_process: &OsProcess<G>) -> Result<Self, CommandError> {
         Self::open(os_process.get_pid())
     }
 

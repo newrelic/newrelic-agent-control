@@ -15,6 +15,8 @@ env:
   # Runs the Windows tests that start Agent Control as SYSTEM, which holds SeCreatePermanentPrivilege.
   # renovate: datasource=github-releases depName=gerardog/gsudo
   GSUDO_VERSION: 2.6.1
+  # See .config/nextest.toml.
+  NEXTEST_PROFILE: ci
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -166,6 +168,7 @@ jobs:
           identifier: 'coverage'
           restore-strategy: ${{ github.ref == 'refs/heads/main' && 'exact' || 'nearest' }}
           save-cache: true
+      # Runs with libtest: under nextest, each test process would write its own coverage profile.
       - name: Generate coverage report
         run: COVERAGE_OUT_FORMAT=json COVERAGE_OUT_FILEPATH=jcov.info make coverage
       - name: Calculate and print total coverage
@@ -252,7 +255,7 @@ jobs:
       - if: ${{ matrix.command == 'xwin build' }}
         name: Install cargo-xwin
         # renovate: datasource=crate depName=cargo-xwin
-        run: cargo install --locked cargo-xwin --version 0.23.1 --force
+        run: cargo install --locked cargo-xwin --version 0.24.2 --force
 
       - name: Build release binaries for ${{ matrix.target }}
         run: |
@@ -429,12 +432,18 @@ jobs:
           restore-strategy: ${{ github.ref == 'refs/heads/main' && 'exact' || 'nearest' }}
           save-cache: true
 
+      - uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
+        with:
+          tool: cargo-nextest@0.9.152
+
       - name: Run workspace tests excluding the agent control pkg (includes -winAdmin- ignored because it doesn't apply)
-        run: cargo test --workspace --exclude 'newrelic_agent_control' --exclude 'cgroup-tracker' --all-targets -- --include-ignored
+        run: cargo nextest run --workspace --exclude 'newrelic_agent_control' --exclude 'cgroup-tracker' --all-targets --run-ignored all
 
       # Its integration tests need root and run in the `cgroup-tracker-cgroupfs-tests` job.
+      # cgroups only exist on Linux, where the crate has tests; on Windows it compiles to none.
       - name: Run cgroup-tracker unit tests
-        run: cargo test --locked -p cgroup-tracker --lib
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: cargo nextest run --locked -p cgroup-tracker --lib
 
       - name: Run tests agent control lib excluding root-required tests (on-host)
         run: make -C agent-control test/onhost
@@ -460,17 +469,16 @@ jobs:
           # SYSTEM holds SeCreatePermanentPrivilege by default, which Agent Control requires and the `runneradmin` account lacks.
           CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUNNER: "gsudo --system"
         run: make -C agent-control test/onhost/integration
-        env:
-          NEXTEST_PROFILE: ci
 
       # The runner account does not hold SeCreatePermanentPrivilege, which is what this test needs.
       - if: ${{ matrix.os == 'windows-latest' }}
         name: Run test that Agent Control does not start without SeCreatePermanentPrivilege (on-host)
-        run: cargo test --locked --package newrelic_agent_control --test integration_tests -- --ignored --exact on_host::cli::does_not_run_without_create_permanent_privilege
+        run: cargo nextest run --locked -p newrelic_agent_control --test integration_tests --run-ignored only -E 'test(=on_host::cli::does_not_run_without_create_permanent_privilege)'
 
       - name: Run tests agent control (k8s)
         run: make -C agent-control test/k8s
 
+      # cargo-nextest does not run doctests.
       - name: Run documentation tests
         run: cargo test --locked --doc
 
@@ -498,6 +506,10 @@ jobs:
           identifier: 'test-dev'
           restore-strategy: 'nearest'
           save-cache: false
+
+      - uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
+        with:
+          tool: cargo-nextest@0.9.152
 
       - if: ${{ matrix.os == 'windows-latest' }}
         name: Install gsudo
@@ -530,6 +542,10 @@ jobs:
           restore-strategy: ${{ github.ref == 'refs/heads/main' && 'exact' || 'nearest' }}
           save-cache: true
 
+      - uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
+        with:
+          tool: cargo-nextest@0.9.152
+
       - name: Run cgroupfs tests
         env:
           # Builds as the runner user and runs the test binary as root in its own delegated
@@ -544,7 +560,7 @@ jobs:
           # that production setup and keeps leftover test cgroups from touching the runner.
           CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: "sudo systemd-run --scope --quiet --collect -p Delegate=yes --"
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUNNER: "sudo systemd-run --scope --quiet --collect -p Delegate=yes --"
-        run: cargo test --locked -p cgroup-tracker --test cgroupfs -- --ignored
+        run: cargo nextest run --locked -p cgroup-tracker --test cgroupfs --run-ignored only
 
   on-host-oci-registry-tests:
     name: tests with oci registry
@@ -565,6 +581,10 @@ jobs:
           identifier: 'test-dev'
           restore-strategy: 'nearest'
           save-cache: false
+
+      - uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
+        with:
+          tool: cargo-nextest@0.9.152
 
       - name: Run onHost oci-registry integration-tests
         shell: bash
@@ -632,7 +652,9 @@ jobs:
 
       - uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
         with:
-          tool: cargo-zigbuild@0.23.0
+          tool: |
+            cargo-zigbuild@0.23.0
+            cargo-nextest@0.9.152
 
       - name: Fetch cargo dependencies
         run: |

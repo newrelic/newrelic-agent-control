@@ -19,6 +19,7 @@ use crate::sub_agent::agent_renderer::{RenderedAgent, Renderer};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::managed_process::spawned_process::executable_data::ExecutableData;
 use crate::sub_agent::on_host::managed_process::spawned_process::log_files::SubAgentFileLoggingConfig;
+use crate::sub_agent::on_host::process_group_tracker::ProcessGroupTracker;
 use crate::sub_agent::on_host::supervisor::{NotStartedSupervisorOnHost, SupervisorError};
 use crate::sub_agent::remote_config_parser::RemoteConfigParser;
 use crate::sub_agent::supervisor::SupervisorBuilder;
@@ -133,21 +134,25 @@ where
 }
 
 /// Builds [NotStartedSupervisorOnHost] supervisors from an effective agent's on-host configuration.
-pub struct SupervisorBuilderOnHost<PM>
+pub struct SupervisorBuilderOnHost<PM, PGT>
 where
     PM: PackageManager,
+    PGT: ProcessGroupTracker,
 {
     /// Directory where executable output is logged when file logging is enabled.
     pub logging_base_path: PathBuf,
     /// Package manager used to install agent packages.
     pub package_manager: Arc<PM>,
+    /// Keeps the processes of each executable in a group.
+    pub process_group_tracker: PGT,
 }
 
-impl<PM> SupervisorBuilder for SupervisorBuilderOnHost<PM>
+impl<PM, PGT> SupervisorBuilder for SupervisorBuilderOnHost<PM, PGT>
 where
     PM: PackageManager,
+    PGT: ProcessGroupTracker,
 {
-    type Starter = NotStartedSupervisorOnHost<PM>;
+    type Starter = NotStartedSupervisorOnHost<PM, PGT>;
     type Error = SupervisorError;
 
     fn build_supervisor(
@@ -189,6 +194,7 @@ where
             },
             on_host.filesystem,
             on_host.shared_filesystem,
+            self.process_group_tracker.clone(),
         ))
     }
 }

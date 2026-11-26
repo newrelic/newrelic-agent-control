@@ -4,6 +4,7 @@ use super::error::CommandError;
 use super::executable_data::ExecutableData;
 use crate::agent_control::agent_id::AgentID;
 use crate::sub_agent::on_host::managed_process::spawned_process::log_files::std_streams;
+use crate::sub_agent::on_host::process_group_tracker::TrackedProcessGroup;
 #[cfg(target_family = "unix")]
 use std::os::unix::process::CommandExt;
 use std::path::PathBuf;
@@ -15,32 +16,36 @@ use std::time::Duration;
 // States for Started/Not Started/Sync Command
 ////////////////////////////////////////////////////////////////////////////////////
 /// A configured but not-yet-spawned OS process.
-pub struct OsProcessConfig {
+pub struct OsProcessConfig<G> {
     cmd: Command,
     agent_id: AgentID,
     maybe_log_dir: Option<PathBuf>,
     #[cfg(target_family = "unix")]
     shutdown_timeout: Duration,
+    group: G,
 }
 
 /// A spawned OS process.
-pub struct OsProcess {
+pub struct OsProcess<G> {
     agent_id: AgentID,
     process: Child,
     #[cfg(target_family = "unix")]
     shutdown_timeout: Duration,
+    group: G,
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
 // Not Started OS Process
 ////////////////////////////////////////////////////////////////////////////////////
-impl OsProcessConfig {
-    /// Creates a not-started process config for the given executable. Its stdout/stderr are written
-    /// to log files in `log_dir` when provided, and discarded otherwise.
+impl<G> OsProcessConfig<G> {
+    /// Creates a not-started process config for the given executable, which will run inside the
+    /// `group`. Its stdout/stderr are written to log files in `log_dir` when provided, and
+    /// discarded otherwise.
     pub fn new(
         agent_id: AgentID,
         executable_data: &ExecutableData,
         maybe_log_dir: Option<PathBuf>,
+        group: G,
     ) -> Self {
         let mut cmd = Command::new(&executable_data.bin);
         cmd.args(&executable_data.args).envs(&executable_data.env);
@@ -55,18 +60,23 @@ impl OsProcessConfig {
             maybe_log_dir,
             #[cfg(target_family = "unix")]
             shutdown_timeout: executable_data.shutdown_timeout,
+            group,
         }
     }
+}
 
+impl<G: TrackedProcessGroup> OsProcessConfig<G> {
     /// Spawns the process with its stdout/stderr set up.
-    pub fn start(mut self) -> Result<OsProcess, CommandError> {
+    pub fn start(mut self) -> Result<OsProcess<G>, CommandError> {
         let (stdout, stderr) = std_streams(&self.maybe_log_dir)?;
-        let child = self.cmd.stdout(stdout).stderr(stderr).spawn()?;
+        self.cmd.stdout(stdout).stderr(stderr);
+        let child = self.group.spawn(self.cmd).map_err(CommandError::Tracker)?;
         Ok(OsProcess {
             agent_id: self.agent_id,
             process: child,
             #[cfg(target_family = "unix")]
             shutdown_timeout: self.shutdown_timeout,
+            group: self.group,
         })
     }
 }
@@ -75,7 +85,7 @@ impl OsProcessConfig {
 // Started OS Process
 ////////////////////////////////////////////////////////////////////////////////////
 
-impl OsProcess {
+impl<G> OsProcess<G> {
     /// Returns the process id of the running process.
     pub fn get_pid(&self) -> u32 {
         self.process.id()
@@ -92,14 +102,9 @@ impl OsProcess {
         self.shutdown_timeout
     }
 
-    /// Creates a Job Object and assigns this process to it.
-    #[cfg(target_family = "windows")]
-    pub(crate) fn create_job_object(
-        &self,
-    ) -> Result<job_object::JobObject, super::error::CommandError> {
-        let job = job_object::JobObject::new()?;
-        job.assign_process(&self.process)?;
-        Ok(job)
+    /// Hands over the group the process was started in.
+    pub(crate) fn into_group(self) -> G {
+        self.group
     }
 }
 
@@ -108,6 +113,7 @@ mod tests {
     use super::*;
     use crate::agent_control::defaults::STDOUT_LOG_FILE_NAME;
     use crate::sub_agent::on_host::managed_process::spawned_process::restart_policy::RestartPolicy;
+    use crate::sub_agent::on_host::process_group_tracker::tests::test_process_config;
     use crate::utils::retry::retry;
     use std::collections::HashMap;
     use std::time::Duration;
@@ -143,15 +149,16 @@ mod tests {
             shutdown_timeout: Default::default(),
         };
 
-        let process = OsProcessConfig::new(
+        let process = test_process_config(
             AgentID::AgentControl,
             &exec_data,
             Some(log_dir.path().to_path_buf()),
         )
         .start()
         .unwrap();
-        // Agent Control no longer holds any handle to the process or its log files.
-        drop(process);
+        // Agent Control no longer holds any handle to the process or its log files, only to its
+        // group, as a supervised process does.
+        let _group = process.into_group();
 
         retry(10, Duration::from_millis(500), || {
             let content = std::fs::read_to_string(&stdout_log).map_err(|e| e.to_string())?;
