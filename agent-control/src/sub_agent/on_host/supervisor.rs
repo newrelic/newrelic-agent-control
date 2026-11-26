@@ -575,17 +575,17 @@ fn cancel_supervisor_threads(
     thread_contexts: Vec<StartedThreadContext<()>>,
     message: CancellationMessage,
 ) -> Result<(), ThreadCollectionStopperError> {
-    let mut errors = Vec::new();
-    for thread_context in thread_contexts {
-        let thread_name = thread_context.thread_name().to_string();
-        match thread_context.cancel_blocking(message) {
-            Ok(_) => info!(thread_name, "Thread stopped"),
-            Err(error_msg) => {
-                error!("Stopping '{thread_name}': {error_msg}");
-                errors.push(error_msg);
-            }
-        }
-    }
+    let errors = thread_contexts
+        .into_iter()
+        .map(|ctx| {
+            let thread_name = ctx.thread_name().to_string();
+            ctx.cancel_blocking(message)
+                .inspect(|_| info!(thread_name, "Thread stopped"))
+                .inspect_err(|e| error!("Stopping '{thread_name}': {e}"))
+        })
+        .filter_map(Result::err)
+        .collect();
+
     ThreadCollectionStopperError::from_errors(errors)
 }
 
