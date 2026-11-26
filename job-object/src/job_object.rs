@@ -262,8 +262,11 @@ fn check_trust(handle: HANDLE) -> Result<Trust, JobObjectError> {
 ///                                                    └── SidStart
 ///
 /// # Safety
-/// `ace` must be a pointer returned by `GetAce` for an ACL that is still alive.
+/// `ace` must be null or a pointer returned by `GetAce` for an ACL that is still alive.
 unsafe fn trustee_sid(ace: *mut core::ffi::c_void) -> Option<PSID> {
+    if ace.is_null() {
+        return None;
+    }
     // Every ACE starts with a header that says what kind of ACE it is.
     let ace_type = unsafe { (*(ace as *const ACE_HEADER)).AceType };
     let sid_start = match ace_type {
@@ -540,6 +543,11 @@ mod tests {
                 .unwrap_or_else(|| panic!("ACE type {ace_type} should be supported"));
             assert!(unsafe { EqualSid(found, PSID(sid.as_ptr() as *mut _)) }.is_ok());
         }
+    }
+
+    #[test]
+    fn test_trustee_sid_rejects_null_pointer() {
+        assert!(unsafe { trustee_sid(std::ptr::null_mut()) }.is_none());
     }
 
     #[test]
