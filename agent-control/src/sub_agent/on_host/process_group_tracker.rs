@@ -19,6 +19,18 @@ pub type PlatformProcessGroupTracker = PassthroughProcessGroupTracker;
 #[cfg(target_family = "windows")]
 pub type PlatformProcessGroupTracker = JobObjectProcessGroupTracker;
 
+/// The tracker of the current platform. With `detach_on_stop`, the processes of an executable are
+/// not killed when Agent Control exits (Job Objects are the only trackers that would do it).
+pub fn platform_process_group_tracker(detach_on_stop: bool) -> PlatformProcessGroupTracker {
+    cfg_select! {
+        target_family = "windows" => JobObjectProcessGroupTracker::new(!detach_on_stop),
+        target_family = "unix" => {
+            let _ = detach_on_stop;
+            PassthroughProcessGroupTracker
+        }
+    }
+}
+
 /// Error of an operation of a process tracker, whatever mechanism it uses.
 #[derive(Debug, thiserror::Error)]
 #[error("{0}")]

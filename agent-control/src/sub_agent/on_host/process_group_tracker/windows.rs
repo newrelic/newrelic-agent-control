@@ -6,8 +6,23 @@ use job_object::JobObject;
 use std::process::{Child, Command};
 
 /// Keeps the processes of every executable in a Job Object of its own.
-#[derive(Debug, Clone, Default)]
-pub struct JobObjectProcessGroupTracker;
+#[derive(Debug, Clone)]
+pub struct JobObjectProcessGroupTracker {
+    kill_on_close: bool,
+}
+
+impl JobObjectProcessGroupTracker {
+    /// Creates a tracker whose Job Objects kill their processes when closed only if `kill_on_close`.
+    pub fn new(kill_on_close: bool) -> Self {
+        Self { kill_on_close }
+    }
+}
+
+impl Default for JobObjectProcessGroupTracker {
+    fn default() -> Self {
+        Self::new(true)
+    }
+}
 
 impl ProcessGroupTracker for JobObjectProcessGroupTracker {
     type Group = JobObjectProcessGroup;
@@ -17,13 +32,14 @@ impl ProcessGroupTracker for JobObjectProcessGroupTracker {
         _agent_id: &AgentID,
         _exec_id: &str,
     ) -> Result<JobObjectProcessGroup, ProcessGroupTrackerError> {
-        JobObject::new()
+        JobObject::with_kill_on_close(self.kill_on_close)
             .map(JobObjectProcessGroup)
             .map_err(|err| ProcessGroupTrackerError(err.to_string()))
     }
 }
 
-/// The Job Object of an executable. Its processes are killed when the group is dropped.
+/// The Job Object of an executable. Its processes are killed when the group is dropped, unless it
+/// was created without "kill on close".
 pub struct JobObjectProcessGroup(JobObject);
 
 impl TrackedProcessGroup for JobObjectProcessGroup {

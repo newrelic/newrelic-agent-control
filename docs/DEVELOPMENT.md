@@ -96,6 +96,20 @@ On both Operating Systems, an `environment_variables.yaml` file is created to st
 Control will use when running as a service. This file is created at installation time and it is located at the Agent
 Control configuration directory.
 
+#### Leaving sub-agents running when Agent Control stops (experimental)
+
+By default, when Agent Control stops (termination signal, Windows service stop or self-update restart) it terminates
+the processes of its on-host sub-agents. The hidden `--experimental-detach-sub-agents-on-stop` flag makes Agent Control
+exit without terminating them. It is off by default and not shown in `--help`.
+
+Limitations while this is experimental:
+
+- A new Agent Control instance does not adopt the processes left running: it starts new ones next to them.
+- On Linux, the packaged `systemd` unit uses `KillMode=mixed`, so `systemd` still kills the remaining processes of the
+  service when Agent Control exits. The flag only keeps the processes alive when Agent Control is not run under such
+  a unit.
+- On Windows the processes survive because their Job Object is created without "kill on close".
+
 ### Kubernetes
 
 We use [`minikube`](https://minikube.sigs.k8s.io/docs/) and [`tilt`](https://tilt.dev/) to launch a local cluster and

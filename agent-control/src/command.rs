@@ -106,6 +106,11 @@ pub struct Args {
     #[cfg(debug_assertions)]
     #[arg(long)]
     logs_dir: Option<std::path::PathBuf>,
+
+    /// Experimental, on-host only: leave the sub-agent processes running when Agent Control stops
+    /// (termination signal, service stop or self-update) instead of terminating them.
+    #[arg(long, hide = true)]
+    experimental_detach_sub_agents_on_stop: bool,
 }
 
 /// Minimal context shared by all commands
@@ -137,6 +142,8 @@ pub struct RunnerContext {
     pub application_event_consumer: EventConsumer<ApplicationEvent>,
     /// Overrides the binary that on-host self-update replaces. `None` means the current executable.
     pub self_replace_target: Option<std::path::PathBuf>,
+    /// Leaves the sub-agent processes running when Agent Control stops. Only honored on-host.
+    pub detach_sub_agents_on_stop: bool,
 }
 
 impl Command {
@@ -375,6 +382,7 @@ impl Command {
                 application_event_consumer,
                 // None uses the current running executable.
                 self_replace_target: None,
+                detach_sub_agents_on_stop: args.experimental_detach_sub_agents_on_stop,
             },
         ))
     }
@@ -568,6 +576,7 @@ mod tests {
                 running_mode: Environment::Linux,
                 application_event_consumer,
                 self_replace_target: None,
+                detach_sub_agents_on_stop: false,
             },
             #[cfg(target_family = "windows")]
             stop_handler: None,

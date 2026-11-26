@@ -38,3 +38,24 @@ pub fn find_processes_by_pattern(pattern: &str) -> Vec<String> {
         .map(|s| s.to_string())
         .collect()
 }
+
+/// Kills the processes with the given PIDs (and, on Windows, their descendants), ignoring
+/// processes that are already gone.
+pub fn kill_processes(pids: &[String]) {
+    for pid in pids {
+        let _ = cfg_select! {
+            target_family = "unix" => Command::new("kill").args(["-KILL", pid]),
+            target_family = "windows" => Command::new("taskkill").args(["/F", "/T", "/PID", pid])
+        }
+        .output();
+    }
+}
+
+/// Kills the processes matching `pattern` when dropped, so a test can't leak them on failure.
+pub struct KillProcessesOnDrop(pub String);
+
+impl Drop for KillProcessesOnDrop {
+    fn drop(&mut self) {
+        kill_processes(&find_processes_by_pattern(&self.0));
+    }
+}

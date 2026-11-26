@@ -20,7 +20,16 @@ pub fn start_agent_control_with_custom_config(
     base_paths: BasePaths,
     ac_running_mode: Environment,
 ) -> StartedAgentControl {
-    start_agent_control(base_paths, ac_running_mode, None)
+    start_agent_control(base_paths, ac_running_mode, None, false)
+}
+
+/// Like [`start_agent_control_with_custom_config`] but with the experimental
+/// `--experimental-detach-sub-agents-on-stop` behavior enabled.
+pub fn start_agent_control_detaching_sub_agents_on_stop(
+    base_paths: BasePaths,
+    ac_running_mode: Environment,
+) -> StartedAgentControl {
+    start_agent_control(base_paths, ac_running_mode, None, true)
 }
 
 /// Like [`start_agent_control_with_custom_config`] but makes on-host self-update replace the
@@ -30,13 +39,19 @@ pub fn start_agent_control_with_self_replace_target(
     ac_running_mode: Environment,
     self_replace_target: std::path::PathBuf,
 ) -> StartedAgentControl {
-    start_agent_control(base_paths, ac_running_mode, Some(self_replace_target))
+    start_agent_control(
+        base_paths,
+        ac_running_mode,
+        Some(self_replace_target),
+        false,
+    )
 }
 
 fn start_agent_control(
     base_paths: BasePaths,
     ac_running_mode: Environment,
     self_replace_target: Option<std::path::PathBuf>,
+    detach_sub_agents_on_stop: bool,
 ) -> StartedAgentControl {
     let (application_event_publisher, application_event_consumer) = pub_sub();
 
@@ -67,6 +82,7 @@ fn start_agent_control(
             running_mode: ac_running_mode,
             application_event_consumer,
             self_replace_target,
+            detach_sub_agents_on_stop,
         };
         let runner = AgentControlRunner::try_new(runner_context).unwrap();
         match ac_running_mode {

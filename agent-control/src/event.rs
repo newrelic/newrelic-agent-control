@@ -84,6 +84,8 @@ pub enum AgentControlInternalEvent {
 pub enum SubAgentInternalEvent {
     /// Requests the sub-agent to stop.
     StopRequested,
+    /// Agent Control is exiting.
+    AgentControlExiting,
     /// Carries updated health information for the sub-agent.
     AgentHealthInfo(HealthWithStartTime),
     /// The sub-agent attributes were updated.

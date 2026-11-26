@@ -100,6 +100,7 @@ pub struct AgentControlRunner {
     runtime: Arc<Runtime>,
     http_server_runner: Option<Runner>,
     self_replace_target: Option<PathBuf>,
+    detach_sub_agents_on_stop: bool,
 }
 
 impl AgentControlRunner {
@@ -201,6 +202,7 @@ impl AgentControlRunner {
             base_paths: context.base_paths,
             signature_validator,
             self_replace_target: context.self_replace_target,
+            detach_sub_agents_on_stop: context.detach_sub_agents_on_stop,
         })
     }
 }

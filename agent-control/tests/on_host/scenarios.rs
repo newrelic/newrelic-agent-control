@@ -1,6 +1,7 @@
 mod ac_capabilities;
 mod ac_self_update;
 mod attributes;
+mod detach_sub_agents_on_stop;
 mod empty_config;
 mod file_logging;
 mod filesystem_ops;

@@ -145,6 +145,8 @@ where
     pub package_manager: Arc<PM>,
     /// Keeps the processes of each executable in a group.
     pub process_group_tracker: PGT,
+    /// Whether the supervised processes must be left running when Agent Control exits.
+    pub detach_on_stop: bool,
 }
 
 impl<PM, PGT> SupervisorBuilder for SupervisorBuilderOnHost<PM, PGT>
@@ -195,7 +197,8 @@ where
             on_host.filesystem,
             on_host.shared_filesystem,
             self.process_group_tracker.clone(),
-        ))
+        )
+        .with_detach_on_stop(self.detach_on_stop))
     }
 }
 

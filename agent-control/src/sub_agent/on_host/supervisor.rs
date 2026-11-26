@@ -108,6 +108,9 @@ where
     pub filesystem: FileSystem,
     /// Keeps the processes of each executable in a group.
     pub process_group_tracker: PGT,
+    /// Whether the supervised processes must survive Agent Control exiting. Kept to build the
+    /// supervisor that replaces this one when applying a new configuration.
+    detach_on_stop: bool,
 }
 
 /// A running health checker and the publisher executables use to report their health to it.
@@ -132,6 +135,7 @@ where
     filesystem: FileSystem,
     shared_filesystem: SharedFileSystem,
     process_group_tracker: PGT,
+    detach_on_stop: bool,
 }
 
 impl<PM, PGT> SupervisorStarter for NotStartedSupervisorOnHost<PM, PGT>
@@ -184,6 +188,7 @@ where
             thread_contexts,
             logging_base_path,
             process_group_tracker,
+            detach_on_stop,
             ..
         } = self;
 
@@ -193,7 +198,7 @@ where
             &onhost_config.packages,
         );
 
-        stop_supervisor_threads(thread_contexts).map_err(|err| {
+        cancel_supervisor_threads(thread_contexts, CancellationMessage::Stop).map_err(|err| {
             if let Err(err) = &installation_result {
                 error!("Failure stopping supervisor. Note that installation also failed: {err}",);
             }
@@ -227,7 +232,8 @@ where
             onhost_config.filesystem,
             onhost_config.shared_filesystem,
             process_group_tracker,
-        );
+        )
+        .with_detach_on_stop(detach_on_stop);
 
         starter.check_subagent_version(internal_publisher.clone());
 
@@ -237,7 +243,11 @@ where
     }
 
     fn stop(self) -> Result<(), ThreadContextStopperError> {
-        stop_supervisor_threads(self.thread_contexts)
+        cancel_supervisor_threads(self.thread_contexts, CancellationMessage::Stop)
+    }
+
+    fn on_agent_control_exit(self) -> Result<(), ThreadContextStopperError> {
+        cancel_supervisor_threads(self.thread_contexts, CancellationMessage::AgentControlExit)
     }
 }
 
@@ -285,6 +295,15 @@ where
             filesystem,
             shared_filesystem,
             process_group_tracker,
+            detach_on_stop: false,
+        }
+    }
+
+    /// Makes the supervised processes survive Agent Control exiting, instead of terminating them.
+    pub fn with_detach_on_stop(self, detach_on_stop: bool) -> Self {
+        Self {
+            detach_on_stop,
+            ..self
         }
     }
 
@@ -434,6 +453,7 @@ where
             logging_base_path: self.file_logging_config.base_path,
             filesystem: self.filesystem,
             process_group_tracker: self.process_group_tracker,
+            detach_on_stop: self.detach_on_stop,
         })
     }
 
@@ -452,6 +472,7 @@ where
 
         let process_group_tracker = self.process_group_tracker.clone();
         let dispatch = dispatcher::get_default(|d: &Dispatch| d.clone());
+        let detach_on_stop = self.detach_on_stop;
 
         let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
             let _guard = dispatcher::set_default(&dispatch);
@@ -496,6 +517,7 @@ where
                         wait_exit(
                             cmd,
                             &stop_consumer,
+                            detach_on_stop,
                             HEALTHY_DELAY,
                             health_handler.as_ref(),
                             &agent_id,
@@ -504,17 +526,21 @@ where
                     });
 
                 match executable_result {
-                    Ok((exit_status, was_cancelled)) => {
+                    Ok(WaitOutcome::Detached) => {
+                        info!(%agent_id, %exec_id, "Executable left running");
+                        break;
+                    }
+                    Ok(WaitOutcome::Exited(exit_status)) => {
                         last_error = handle_exit(
                             &agent_id,
                             &exec_data,
                             &exit_status,
                             health_handler.as_ref(),
                         );
-
-                        if was_cancelled {
-                            break;
-                        }
+                    }
+                    Ok(WaitOutcome::Stopped(exit_status)) => {
+                        handle_exit(&agent_id, &exec_data, &exit_status, health_handler.as_ref());
+                        break;
                     }
                     Err(err) => {
                         warn!(%agent_id, %exec_id, "Running executable: {err}");
@@ -581,14 +607,15 @@ fn install_packages<PM: PackageManager>(
     Ok(())
 }
 
-/// Helper to stop supervisor threads logging results
-fn stop_supervisor_threads(
+/// Helper to cancel supervisor threads with the given message, logging results
+fn cancel_supervisor_threads(
     thread_contexts: Vec<StartedThreadContext<()>>,
+    message: CancellationMessage,
 ) -> Result<(), ThreadContextStopperError> {
     let mut stop_result = Ok(());
     for thread_context in thread_contexts {
         let thread_name = thread_context.thread_name().to_string();
-        match thread_context.stop_blocking() {
+        match thread_context.cancel_blocking(message) {
             Ok(_) => info!(thread_name, "Thread stopped"),
             Err(error_msg) => {
                 error!("Stopping '{thread_name}': {error_msg}");
@@ -601,15 +628,27 @@ fn stop_supervisor_threads(
     stop_result
 }
 
-/// Waits for the command to complete or be cancelled
+/// How [`wait_exit`] finished.
+enum WaitOutcome {
+    /// The process exited on its own.
+    Exited(ExitStatus),
+    /// The wait was cancelled and the process was terminated.
+    Stopped(ExitStatus),
+    /// The wait was cancelled and the process was left running.
+    Detached,
+}
+
+/// Waits for the command to complete or be cancelled. When cancelled, the process is terminated
+/// unless Agent Control is exiting and `detach_on_stop` is set, in which case it is left running.
 fn wait_exit<G: TrackedProcessGroup>(
     command: SupervisedProcess<G>,
     stop_consumer: &EventConsumer<CancellationMessage>,
+    detach_on_stop: bool,
     healthy_publish_delay: Duration,
     health_handler: Option<&HealthHandler>,
     agent_id: &AgentID,
     exec_id: &str,
-) -> Result<(ExitStatus, bool), CommandError> {
+) -> Result<WaitOutcome, CommandError> {
     info!(%agent_id, %exec_id, "Waiting for executable to complete or be cancelled");
     let deadline = Instant::now() + healthy_publish_delay;
     let mut healthy_already_published = false;
@@ -622,17 +661,23 @@ fn wait_exit<G: TrackedProcessGroup>(
                     debug!(%agent_id, %exec_id, "Informing executable as healthy after terminating successfully");
                     health_handler.inspect(|h| h.publish_healthy());
                 }
-                break Ok((exit_status, false));
+                break Ok(WaitOutcome::Exited(exit_status));
             }
             // Busy waiting is avoided with `is_cancelled_with_timeout`
             ProcessState::Running(running) => {
-                if stop_consumer.is_cancelled_with_timeout(WAIT_FOR_EXIT_TIMEOUT) {
+                if let Some(cancellation) =
+                    stop_consumer.cancellation_with_timeout(WAIT_FOR_EXIT_TIMEOUT)
+                {
+                    if detach_on_stop && cancellation == CancellationMessage::AgentControlExit {
+                        info!(%agent_id, %exec_id, "Detaching from executable");
+                        break Ok(WaitOutcome::Detached);
+                    }
                     info!(%agent_id, %exec_id, "Stopping executable");
                     let exit_status = running.shutdown().inspect_err(
                         |err| error!(%agent_id, %exec_id, "Failed to terminate executable: {err}"),
                     )?;
                     info!(%agent_id, %exec_id, "Executable terminated");
-                    break Ok((exit_status, true));
+                    break Ok(WaitOutcome::Stopped(exit_status));
                 }
                 // Publish healthy status once after the process has been running
                 // for an arbitrary long time without issues.
@@ -782,6 +827,9 @@ pub mod tests {
     };
     use crate::sub_agent::on_host::process_group_tracker::tests::{
         FailingProcessGroupTracker, TestProcessGroupTracker, test_process_config,
+    };
+    use crate::sub_agent::on_host::process_group_tracker::{
+        PlatformProcessGroupTracker, platform_process_group_tracker,
     };
     use crate::sub_agent::supervisor::Supervisor;
     use crate::utils::retry::retry;
@@ -1025,6 +1073,113 @@ pub mod tests {
         assert!(
             got_sigterm.exists(),
             "the executable should have been terminated gracefully with SIGTERM"
+        );
+    }
+
+    /// Starts a supervisor running a script that writes `finished` after a second, and notifies it of the exit
+    /// once the script is running. Returns the `finished` path.
+    fn exit_while_running(detach_on_stop: bool, dir: &tempfile::TempDir) -> std::path::PathBuf {
+        let ready = dir.path().join("ready");
+        let finished = dir.path().join("finished");
+
+        let (bin, args) = cfg_select! {
+            target_family = "unix" => (
+                "sh",
+                vec![
+                    "-c".to_string(),
+                    format!(
+                        r#"echo ready > "{}"; sleep 1; echo done > "{}""#,
+                        ready.display(),
+                        finished.display(),
+                    ),
+                ],
+            ),
+            // Each token is a separate arg so `cmd` parses the redirections and `&` itself.
+            target_family = "windows" => (
+                "cmd",
+                [
+                    "/C",
+                    "echo",
+                    "ready",
+                    ">",
+                    ready.to_str().unwrap(),
+                    "&",
+                    "ping",
+                    "-n",
+                    "2",
+                    "127.0.0.1",
+                    ">",
+                    "nul",
+                    "&",
+                    "echo",
+                    "done",
+                    ">",
+                    finished.to_str().unwrap(),
+                ]
+                .map(String::from)
+                .to_vec(),
+            ),
+        };
+        let executable_data =
+            vec![ExecutableData::new("exiting".to_string(), bin.to_string()).with_args(args)];
+
+        let agent_identity = AgentIdentity::from((
+            AgentID::try_from("exit-agent").unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
+        ));
+        // The tracker is built as in production, so on Windows the Job Object only kills its
+        // processes on close when Agent Control is not detaching.
+        let supervisor = NotStartedSupervisorOnHost::<_, PlatformProcessGroupTracker>::new(
+            agent_identity,
+            executable_data,
+            None,
+            get_empty_packages(),
+            None,
+            MockPackageManager::new_arc(),
+            SubAgentFileLoggingConfig::disabled(),
+            FileSystem::test_empty(),
+            SharedFileSystem::test_empty(),
+            platform_process_group_tracker(detach_on_stop),
+        )
+        .with_detach_on_stop(detach_on_stop);
+
+        let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
+        let started_supervisor = supervisor
+            .start(sub_agent_internal_publisher)
+            .expect("failed to start");
+
+        wait_for_file(&ready);
+        started_supervisor
+            .on_agent_control_exit()
+            .expect("failed to notify the exit");
+        finished
+    }
+
+    #[test]
+    fn test_supervisor_exit_leaves_executable_running_when_detaching() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let finished = exit_while_running(true, &dir);
+
+        assert!(
+            !finished.exists(),
+            "the supervisor should not wait for the executable"
+        );
+        // Only written if the process was left running.
+        wait_for_file(&finished);
+    }
+
+    #[test]
+    fn test_supervisor_exit_stops_executable_by_default() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let finished = exit_while_running(false, &dir);
+
+        // Longer than the script takes to finish on its own.
+        std::thread::sleep(Duration::from_millis(1500));
+        assert!(
+            !finished.exists(),
+            "the executable should have been stopped"
         );
     }
 
@@ -1656,6 +1811,7 @@ declared-dir:
         let _ = wait_exit(
             command,
             &stop_consumer,
+            false,
             Duration::ZERO,
             Some(&health_handler),
             &agent_id,
@@ -1784,6 +1940,7 @@ declared-dir:
         let _ = wait_exit(
             command,
             &stop_consumer,
+            false,
             Duration::from_secs(10),
             Some(&health_handler),
             &agent_id,

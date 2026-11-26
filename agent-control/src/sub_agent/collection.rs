@@ -35,16 +35,17 @@ where
         self.0.insert(agent_id, sub_agent)
     }
 
-    /// Stops the entire sub agents collection concurrently.
-    pub(crate) fn stop(self) {
+    /// Notifies the entire sub agents collection concurrently that Agent Control is exiting,
+    /// and waits for them to finish. Each sub-agent decides whether its processes are stopped.
+    pub(crate) fn on_agent_control_exit(self) {
         let handles: Vec<_> = self
             .0
             .into_iter()
             .filter_map(|(agent_id, sub_agent)| {
-                info!(%agent_id, "Stopping sub agent");
+                info!(%agent_id, "Notifying sub agent of Agent Control exit");
                 sub_agent
-                    .stop()
-                    .inspect_err(|err| error!(%agent_id, "Error stopping sub agent: {err}"))
+                    .on_agent_control_exit()
+                    .inspect_err(|err| error!(%agent_id, "Error notifying sub agent of Agent Control exit: {err}"))
                     .ok()
                     .map(|handle| (agent_id, handle))
             })
@@ -54,7 +55,7 @@ where
             let _ = handle
                 .join()
                 .inspect_err(|err| error!(%agent_id, "Error joining sub agent thread: {err}"));
-            info!(%agent_id, "Sub agent stopped");
+            info!(%agent_id, "Sub agent finished");
         }
     }
 
@@ -91,12 +92,15 @@ pub mod tests {
 
     fn sub_agent_stopping_in(stop_time: Duration) -> MockStartedSubAgent {
         let mut sub_agent = MockStartedSubAgent::new();
-        sub_agent.expect_stop().once().return_once(move || {
-            Ok(SubAgentJoinHandle(spawn(move || {
-                sleep(stop_time);
-                Ok(())
-            })))
-        });
+        sub_agent
+            .expect_on_agent_control_exit()
+            .once()
+            .return_once(move || {
+                Ok(SubAgentJoinHandle(spawn(move || {
+                    sleep(stop_time);
+                    Ok(())
+                })))
+            });
         sub_agent
     }
 
@@ -114,7 +118,7 @@ pub mod tests {
         sub_agents.insert("slow".try_into().unwrap(), sub_agent_stopping_in(slow));
 
         let start = Instant::now();
-        sub_agents.stop();
+        sub_agents.on_agent_control_exit();
         let elapsed = start.elapsed();
 
         // Stopping sequentially would take 20 * fast + slow (2.5s).
