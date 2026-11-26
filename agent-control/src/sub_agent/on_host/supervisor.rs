@@ -1186,7 +1186,7 @@ pub mod tests {
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
         let supervisor = NotStartedSupervisorOnHost {
-            agent_identity: agent_identity,
+            agent_identity,
             executables: executable_data,
             health_config: None,
             packages_config: get_empty_packages(),
