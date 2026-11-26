@@ -21,8 +21,8 @@ use crate::sub_agent::agent_renderer::{AgentRendererError, RenderedAgent};
 use crate::sub_agent::identity::{AgentIdentity, ID_ATTRIBUTE_NAME};
 use crate::sub_agent::supervisor::{Supervisor, SupervisorStarter};
 use crate::utils::thread_context::{
-    NotStartedThreadContext, StartedThreadContext, ThreadCollectionStopperExt,
-    ThreadContextStopperError,
+    NotStartedThreadContext, StartedThreadContext, ThreadCollectionStopperError,
+    ThreadCollectionStopperExt,
 };
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::serde_json;
@@ -49,7 +49,7 @@ pub enum SupervisorError {
     IncomingConfig(AgentRendererError),
     /// The previous supervisor could not be stopped before applying a new configuration.
     #[error("error stopping previous supervisor: {0}")]
-    StoppingPreviousSupervisor(ThreadContextStopperError),
+    StoppingPreviousSupervisor(ThreadCollectionStopperError),
     /// The effective agent is missing its k8s runtime configuration.
     #[error("missing runtime configuration: {0}")]
     RuntimeConfig(AgentRendererError),
@@ -383,7 +383,7 @@ pub struct StartedSupervisorK8s<C: K8sClient = SyncK8sClient> {
 
 impl<C: K8sClient> Supervisor for StartedSupervisorK8s<C> {
     type ApplyError = SupervisorError;
-    type StopError = ThreadContextStopperError;
+    type StopError = ThreadCollectionStopperError;
 
     fn apply(self, rendered_agent: RenderedAgent) -> Result<Self, Self::ApplyError> {
         // Retrieve config, if unchanged do nothing

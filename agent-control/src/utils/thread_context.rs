@@ -2,7 +2,7 @@
 //! blocking stop semantics plus a collection extension to stop many threads at once.
 
 use std::{
-    convert::identity,
+    fmt,
     thread::{JoinHandle, sleep},
     time::Duration,
 };
@@ -182,10 +182,42 @@ where
     }
 }
 
+/// The errors of the threads of a collection that could not be stopped, one per failed thread.
+#[derive(Debug, PartialEq)]
+pub struct ThreadCollectionStopperError(Vec<ThreadContextStopperError>);
+
+impl ThreadCollectionStopperError {
+    /// Returns the error of each thread that could not be stopped, or `Ok` if there is none.
+    pub fn from_errors(errors: Vec<ThreadContextStopperError>) -> Result<(), Self> {
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(Self(errors))
+        }
+    }
+
+    /// Returns the error of each thread that could not be stopped.
+    pub fn errors(&self) -> &[ThreadContextStopperError] {
+        &self.0
+    }
+}
+
+impl fmt::Display for ThreadCollectionStopperError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} thread(s) could not be stopped", self.0.len())?;
+        self.0
+            .iter()
+            .enumerate()
+            .try_for_each(|(i, error)| write!(f, "{} {error}", if i == 0 { ":" } else { ";" }))
+    }
+}
+
+impl std::error::Error for ThreadCollectionStopperError {}
+
 /// Extension trait for stopping a collection of [`StartedThreadContext`] instances.
 pub trait ThreadCollectionStopperExt {
-    /// Stops every thread in the collection, returning the first stop error encountered.
-    fn stop(self) -> Result<(), ThreadContextStopperError>;
+    /// Stops every thread in the collection, returning the errors of all the threads that failed.
+    fn stop(self) -> Result<(), ThreadCollectionStopperError>;
 }
 
 // Blanket implementation for all structures convertible to iterators of started threads
@@ -194,17 +226,13 @@ impl<I> ThreadCollectionStopperExt for I
 where
     I: IntoIterator<Item = StartedThreadContext>,
 {
-    fn stop(self) -> Result<(), ThreadContextStopperError> {
-        let stopped_threads = self
+    fn stop(self) -> Result<(), ThreadCollectionStopperError> {
+        let errors = self
             .into_iter()
-            .map(|thread| thread.cancel_blocking(CancellationMessage::Stop))
-            .collect::<Vec<_>>();
+            .filter_map(|thread| thread.cancel_blocking(CancellationMessage::Stop).err())
+            .collect();
 
-        stopped_threads
-            .into_iter()
-            // Return first err (`identity` acts as a "pass-through" here,
-            // so the first Err interrupts the iteration)
-            .try_for_each(identity)
+        ThreadCollectionStopperError::from_errors(errors)
     }
 }
 
@@ -217,7 +245,7 @@ pub mod tests {
     use crate::event::{cancellation::CancellationMessage, channel::EventConsumer};
     use crate::utils::thread_context::ThreadContextStopperError;
 
-    use super::{NotStartedThreadContext, StartedThreadContext};
+    use super::{NotStartedThreadContext, StartedThreadContext, ThreadCollectionStopperExt};
 
     impl StartedThreadContext {
         pub fn is_thread_finished(&self) -> bool {
@@ -285,6 +313,35 @@ pub mod tests {
                 thread: thread_name.to_string(),
                 error: "#### EXPECTED PANIC!!! ####".to_string()
             }
+        );
+    }
+
+    #[test]
+    fn test_collection_stop_reports_every_failure() {
+        let panicking = |name: &str| {
+            let callback =
+                |_: EventConsumer<CancellationMessage>| panic!("#### EXPECTED PANIC!!! ####");
+            NotStartedThreadContext::new(name, callback).start()
+        };
+        let healthy = NotStartedThreadContext::new(
+            "healthy",
+            |stop_consumer: EventConsumer<CancellationMessage>| {
+                while !stop_consumer.is_cancelled() {
+                    sleep(Duration::from_millis(10));
+                }
+            },
+        )
+        .start();
+        let threads = vec![panicking("first"), healthy, panicking("second")];
+        // wait for the threads to panic
+        sleep(Duration::from_millis(100));
+
+        let error = threads.stop().unwrap_err();
+
+        assert_eq!(error.errors().len(), 2);
+        assert_eq!(
+            error.to_string(),
+            "2 thread(s) could not be stopped: error joining 'first' thread: #### EXPECTED PANIC!!! ####; error joining 'second' thread: #### EXPECTED PANIC!!! ####"
         );
     }
 
