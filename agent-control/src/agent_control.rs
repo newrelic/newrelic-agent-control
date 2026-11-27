@@ -356,7 +356,7 @@ where
                                 },
                                 AgentControlInternalEvent::SelfUpdateRestartRequested() => {
                                     debug!("Stopping Agent Control to apply self-update");
-                                    sub_agents.stop();
+                                    sub_agents.on_agent_control_exit();
                                     break GracefulShutdownReason::SelfUpdate;
                                 }}
                         },
@@ -366,7 +366,7 @@ where
                     let span = info_span!("process_application_event", id=AGENT_CONTROL_ID);
                     let _span_guard = span.enter();
                     let _= agent_control_event.inspect_err(|err| error!(error = %err, select_arm = "application_event_consumer", "Receiving application event"));
-                    sub_agents.stop();
+                    sub_agents.on_agent_control_exit();
                     break GracefulShutdownReason::ExternalRequested;
                 },
                 recv(uptime_reporter.receiver()) -> _tick => { let _ = uptime_reporter.report(); },
@@ -1025,7 +1025,7 @@ agents:
         /// Each sub-agent build will expect to run and stop.
         fn set_sub_agent_build_success(&mut self, identities: Vec<AgentIdentity>) {
             self.set_sub_agent_build_success_with_expectations(identities, |started| {
-                started.should_stop();
+                started.should_exit();
             });
         }
 
@@ -1076,6 +1076,41 @@ agents:
                     });
             }
         }
+    }
+
+    #[test]
+    fn test_stop_requested_notifies_sub_agents_of_exit() {
+        let (t, agent_control) = TestAgentControl::setup();
+
+        let mut sub_agent = MockStartedSubAgent::new();
+        sub_agent.expect_stop().never();
+        sub_agent.should_exit();
+        let sub_agents =
+            StartedSubAgents::from(HashMap::from([("id1".try_into().unwrap(), sub_agent)]));
+
+        t.publish_stop_event();
+        let reason = agent_control.process_events(sub_agents);
+
+        assert_eq!(reason, GracefulShutdownReason::ExternalRequested);
+    }
+
+    #[test]
+    fn test_self_update_notifies_sub_agents_of_exit() {
+        let (t, agent_control) = TestAgentControl::setup();
+
+        let mut sub_agent = MockStartedSubAgent::new();
+        sub_agent.expect_stop().never();
+        sub_agent.should_exit();
+        let sub_agents =
+            StartedSubAgents::from(HashMap::from([("id1".try_into().unwrap(), sub_agent)]));
+
+        t.channels
+            .internal_publisher
+            .publish(AgentControlInternalEvent::SelfUpdateRestartRequested())
+            .unwrap();
+        let reason = agent_control.process_events(sub_agents);
+
+        assert_eq!(reason, GracefulShutdownReason::SelfUpdate);
     }
 
     #[test]
@@ -1695,7 +1730,7 @@ agents:
         let (_current_dynamic_config, mut running_sub_agents) =
             t.build_current_config_and_sub_agents(current_config);
         running_sub_agents.agents().values_mut().for_each(|agent| {
-            agent.should_stop();
+            agent.should_exit();
         });
 
         // Remote push: bump the AC version AND change `id1`'s agent_type in the same config document.
@@ -1818,7 +1853,7 @@ version: 1.2.3
         agent_control.set_noop_updater();
 
         agent_control.set_initial_config_local(TestData::SINGLE_AGENT_CONFIG.to_string());
-        let mut identities = t.identities_from_agents_config(TestData::SINGLE_AGENT_CONFIG);
+        let local_identities = t.identities_from_agents_config(TestData::SINGLE_AGENT_CONFIG);
 
         let remote_config: &str = r#"
 agents:
@@ -1826,9 +1861,14 @@ agents:
     agent_type: "newrelic/remote.example:0.0.42"
     "#;
         let hash = Hash::new(remote_config);
-        identities.extend(t.identities_from_agents_config(remote_config));
+        let remote_identities = t.identities_from_agents_config(remote_config);
 
-        agent_control.set_sub_agent_build_success(identities); // For each agent in local and remote AC should build, start and stop
+        // The local agent is removed by the remote config, so it is stopped.
+        agent_control.set_sub_agent_build_success_with_expectations(local_identities, |started| {
+            started.should_stop();
+        });
+        // The remote agent runs until Agent Control exits.
+        agent_control.set_sub_agent_build_success(remote_identities);
 
         agent_control.set_opamp_expectations(|client| {
             client.should_set_remote_config_status_matching_seq(vec![

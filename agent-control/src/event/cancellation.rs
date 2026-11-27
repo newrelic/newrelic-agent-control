@@ -7,8 +7,14 @@ use super::channel::EventConsumer;
 use crossbeam::channel::RecvTimeoutError;
 use std::time::Duration;
 
-/// The message type used to signal cancellation; the message itself carries no data.
-pub type CancellationMessage = ();
+/// The message used to signal cancellation, telling the receiver why it is being cancelled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CancellationMessage {
+    /// Stop the work, terminating whatever it manages.
+    Stop,
+    /// Agent Control is exiting: the receiver decides whether what it manages keeps running.
+    AgentControlExit,
+}
 
 impl EventConsumer<CancellationMessage> {
     /// Checks whether the consumer is cancelled immediately.
@@ -24,9 +30,23 @@ impl EventConsumer<CancellationMessage> {
     /// before the provided timeout is elapsed. Otherwise it blocks until the timeout is elapsed
     /// and returns false.
     pub fn is_cancelled_with_timeout(&self, timeout: Duration) -> bool {
+        self.cancellation_with_timeout(timeout).is_some()
+    }
+
+    /// Like [`Self::is_cancelled_with_timeout`], returning the cancellation message received.
+    ///
+    /// A disconnection is reported as [`CancellationMessage::Stop`]: the owner went away without
+    /// saying why, which does not mean that Agent Control is exiting. Treating it as
+    /// [`CancellationMessage::AgentControlExit`] could leave processes running with nothing
+    /// supervising them while Agent Control keeps running.
+    pub(crate) fn cancellation_with_timeout(
+        &self,
+        timeout: Duration,
+    ) -> Option<CancellationMessage> {
         match self.as_ref().recv_timeout(timeout) {
-            Ok(_) | Err(RecvTimeoutError::Disconnected) => true,
-            Err(RecvTimeoutError::Timeout) => false,
+            Ok(message) => Some(message),
+            Err(RecvTimeoutError::Disconnected) => Some(CancellationMessage::Stop),
+            Err(RecvTimeoutError::Timeout) => None,
         }
     }
 }

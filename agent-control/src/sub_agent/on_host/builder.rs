@@ -145,6 +145,11 @@ where
     pub package_manager: Arc<PM>,
     /// Keeps the processes of each executable in a group.
     pub process_group_tracker: PGT,
+    /// Whether Agent Control leaves the supervised processes running when it exits.
+    ///
+    /// This only decides what Agent Control does: it cannot prevent a service manager from killing
+    /// them afterwards, as the packaged systemd unit does (`KillMode=mixed`).
+    pub detach_on_stop: bool,
 }
 
 impl<PM, PGT> SupervisorBuilder for SupervisorBuilderOnHost<PM, PGT>
@@ -181,21 +186,22 @@ where
             })
             .collect();
 
-        Ok(NotStartedSupervisorOnHost::new(
+        Ok(NotStartedSupervisorOnHost {
             agent_identity,
             executables,
-            on_host.health,
-            on_host.packages,
-            on_host.reported_version_package,
-            self.package_manager.clone(),
-            SubAgentFileLoggingConfig {
+            health_config: on_host.health,
+            packages_config: on_host.packages,
+            reported_version_package: on_host.reported_version_package,
+            package_manager: self.package_manager.clone(),
+            file_logging_config: SubAgentFileLoggingConfig {
                 enabled: on_host.enable_file_logging,
                 base_path: self.logging_base_path.clone(),
             },
-            on_host.filesystem,
-            on_host.shared_filesystem,
-            self.process_group_tracker.clone(),
-        ))
+            filesystem: on_host.filesystem,
+            shared_filesystem: on_host.shared_filesystem,
+            process_group_tracker: self.process_group_tracker.clone(),
+            detach_on_stop: self.detach_on_stop,
+        })
     }
 }
 

@@ -1,5 +1,6 @@
 //! Bridges synchronous Agent Control events onto async channels consumed by the status server.
 
+use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::EventConsumer;
 use crate::event::{AgentControlEvent, SubAgentEvent};
 use crate::utils::threads::spawn_named_thread;
@@ -16,7 +17,7 @@ pub fn run_async_sync_bridge(
     async_suba_publisher: UnboundedSender<SubAgentEvent>,
     agent_control_consumer: EventConsumer<AgentControlEvent>,
     sub_agent_consumer: EventConsumer<SubAgentEvent>,
-    stop_rx: EventConsumer<()>,
+    stop_rx: EventConsumer<CancellationMessage>,
 ) -> JoinHandle<()> {
     spawn_named_thread("Async-Sync bridge", move || {
         let ac_never = never::<AgentControlEvent>();
@@ -74,7 +75,7 @@ mod tests {
 
         let (ac_publisher, ac_consumer) = pub_sub::<AgentControlEvent>();
         let (_suba_publisher, suba_consumer) = pub_sub::<SubAgentEvent>();
-        let (stop_publisher, stop_consumer) = pub_sub::<()>();
+        let (stop_publisher, stop_consumer) = pub_sub::<CancellationMessage>();
 
         let bridge = run_async_sync_bridge(
             async_sa_publisher,
@@ -98,7 +99,9 @@ mod tests {
             );
         });
 
-        stop_publisher.try_publish(()).unwrap();
+        stop_publisher
+            .try_publish(CancellationMessage::Stop)
+            .unwrap();
         bridge.join().unwrap();
     }
 
@@ -109,7 +112,7 @@ mod tests {
 
         let (ac_publisher, ac_consumer) = pub_sub::<AgentControlEvent>();
         let (_suba_publisher, suba_consumer) = pub_sub::<SubAgentEvent>();
-        let (stop_publisher, stop_consumer) = pub_sub::<()>();
+        let (stop_publisher, stop_consumer) = pub_sub::<CancellationMessage>();
 
         let bridge = run_async_sync_bridge(
             async_sa_publisher,
@@ -128,7 +131,9 @@ mod tests {
         // Bridge must still be running, channel close alone does not exit it.
         assert!(!bridge.is_finished());
 
-        stop_publisher.try_publish(()).unwrap();
+        stop_publisher
+            .try_publish(CancellationMessage::Stop)
+            .unwrap();
         bridge.join().unwrap();
     }
 }

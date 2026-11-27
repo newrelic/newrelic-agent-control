@@ -7,4 +7,4 @@
 
 mod job_object;
 
-pub use job_object::{JobObject, JobObjectError};
+pub use job_object::{JobObject, JobObjectError, OnClose};

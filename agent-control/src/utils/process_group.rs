@@ -3,7 +3,7 @@
 use std::process::{Child, Command};
 
 #[cfg(target_family = "windows")]
-use job_object::JobObject;
+use job_object::{JobObject, OnClose};
 
 /// Error produced while spawning, attaching to, or killing a process group.
 #[derive(thiserror::Error, Debug)]
@@ -83,7 +83,8 @@ impl ProcessGroup {
         }
         #[cfg(target_family = "windows")]
         {
-            let job_object = JobObject::new().map_err(|e| ProcessGroupError(e.to_string()))?;
+            let job_object =
+                JobObject::new(OnClose::Kill).map_err(|e| ProcessGroupError(e.to_string()))?;
             job_object
                 .assign_process(child)
                 .map_err(|e| ProcessGroupError(e.to_string()))?;

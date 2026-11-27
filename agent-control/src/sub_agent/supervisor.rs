@@ -143,6 +143,14 @@ pub trait Supervisor: Sized {
     /// * `Ok(())` - The supervisor was successfully stopped
     /// * `Err(Self::StopError)` - If shutdown encountered errors (resources may be partially cleaned)
     fn stop(self) -> Result<(), Self::StopError>;
+
+    /// Notifies the supervisor that Agent Control is exiting. Unlike [`Self::stop`], the supervisor
+    /// decides whether the managed workload is terminated or left running.
+    ///
+    /// Defaults to [`Self::stop`] for supervisors that cannot leave their workload running.
+    fn on_agent_control_exit(self) -> Result<(), Self::StopError> {
+        self.stop()
+    }
 }
 
 #[cfg(test)]
@@ -187,6 +195,8 @@ pub(crate) mod tests {
             fn apply(self, rendered_agent: RenderedAgent) -> Result<Self, TestingSupervisorError>;
 
             fn stop(self) -> Result<(), TestingSupervisorError>;
+
+            fn on_agent_control_exit(self) -> Result<(), TestingSupervisorError>;
         }
     }
 
