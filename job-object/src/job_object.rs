@@ -5,8 +5,7 @@ use std::process::Child;
 use tracing::{error, warn};
 use windows::Wdk::System::SystemServices::NtMakeTemporaryObject;
 use windows::Win32::Foundation::{
-    CloseHandle, ERROR_ALREADY_EXISTS, ERROR_FILE_NOT_FOUND, ERROR_SUCCESS, GetLastError, HANDLE,
-    HLOCAL, LocalFree,
+    CloseHandle, ERROR_FILE_NOT_FOUND, ERROR_SUCCESS, HANDLE, HLOCAL, LocalFree,
 };
 use windows::Win32::Security::Authorization::{GetSecurityInfo, SE_KERNEL_OBJECT};
 use windows::Win32::Security::{
@@ -45,25 +44,9 @@ pub struct JobObject {
 impl JobObject {
     /// Creates a new JobObject with the "kill on job close" configuration.
     pub fn new() -> Result<Self, JobObjectError> {
-        Self::create(PCWSTR::null())
-    }
-
-    /// Creates a new named JobObject, failing if an object with that name already exists, so a
-    /// pre-created object is never silently reused.
-    pub fn new_named(name: &str) -> Result<Self, JobObjectError> {
-        let name = HSTRING::from(name);
-        Self::create(PCWSTR(name.as_ptr()))
-    }
-
-    fn create(name: PCWSTR) -> Result<Self, JobObjectError> {
         unsafe {
-            let handle = CreateJobObjectW(None, name)
+            let handle = CreateJobObjectW(None, None)
                 .map_err(|e| JobObjectError(format!("creating JobObject: {e}")))?;
-            // CreateJobObjectW succeeds and returns the existing object when the name is taken.
-            if !name.is_null() && GetLastError() == ERROR_ALREADY_EXISTS {
-                let _ = CloseHandle(handle);
-                return Err(JobObjectError("JobObject name already exists".to_string()));
-            }
 
             // Set the JobObject to kill all associated processes when the JobObject is closed.
             let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
@@ -84,10 +67,8 @@ impl JobObject {
     /// only if its owner and DACL are trusted.
     ///
     /// Returns `Ok(None)` when no such object exists, or when it is rejected. On rejection no
-    /// process is adopted and a best-effort `NtMakeTemporaryObject` is attempted so the caller can
-    /// create a fresh object with [`JobObject::new_named`]. The name is only released once every
-    /// handle to the object is closed, so the fresh creation can still fail if another process
-    /// holds one.
+    /// process is adopted and a best-effort `NtMakeTemporaryObject` is attempted so the name can be
+    /// reused. The name is only released once every handle to the object is closed.
     ///
     /// The returned handle only has query access: it cannot assign processes or terminate.
     pub fn open_trusted(name: &str) -> Result<Option<Self>, JobObjectError> {
@@ -467,30 +448,6 @@ mod tests {
         let me = own_sid_string();
         let _job = create_with_sddl(&name, &format!("O:{me}D:NO_ACCESS_CONTROL"));
         assert!(JobObject::open_trusted(&name).unwrap().is_none());
-    }
-
-    #[test]
-    fn test_rejected_job_keeps_name_while_creator_holds_handle() {
-        let name = unique_name("name-held");
-        let sddl = format!("{}(A;;GR;;;WD)", expected_sddl());
-        let _job = create_with_sddl(&name, &sddl);
-        assert!(JobObject::open_trusted(&name).unwrap().is_none());
-        // The hostile creator still holds a handle, so a fresh job cannot take the name.
-        assert!(JobObject::new_named(&name).is_err());
-    }
-
-    #[test]
-    fn test_new_named_rejects_duplicates() {
-        let name = unique_name("dup");
-        let _first = JobObject::new_named(&name).expect("create named job");
-        assert!(JobObject::new_named(&name).is_err());
-    }
-
-    #[test]
-    fn test_new_named_succeeds_after_previous_handle_closed() {
-        let name = unique_name("reuse");
-        drop(create_with_sddl(&name, &expected_sddl()));
-        assert!(JobObject::new_named(&name).is_ok());
     }
 
     #[test]
