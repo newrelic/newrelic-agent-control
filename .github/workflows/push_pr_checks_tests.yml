@@ -466,8 +466,13 @@ jobs:
 
       # SYSTEM holds SeCreatePermanentPrivilege by default, which Agent Control requires and the `runneradmin` account lacks.
       # A single gsudo call wraps the whole run: one call per test binary races on starting gsudo's service.
-      - name: Run tests agent control integration_test excluding root-required tests (on-host)
-        run: ${{ matrix.os == 'windows-latest' && 'gsudo --system' || '' }} make -C agent-control test/onhost/integration
+      - if: ${{ matrix.os == 'windows-latest' }}
+        name: Run tests agent control integration_test excluding root-required tests (on-host)
+        run: gsudo --system make -C agent-control test/onhost/integration
+
+      - if: ${{ matrix.os == 'ubuntu-latest' }}
+        name: Run tests agent control integration_test excluding root-required tests (on-host)
+        run: make -C agent-control test/onhost/integration
 
       # The runner account does not hold SeCreatePermanentPrivilege, which is what this test needs.
       - if: ${{ matrix.os == 'windows-latest' }}
@@ -517,8 +522,13 @@ jobs:
           Add-Content $env:GITHUB_PATH 'C:\tools\gsudo\Current'
 
       # SYSTEM holds SeCreatePermanentPrivilege by default, which Agent Control requires and the `runneradmin` account lacks.
-      - name: Run onHost root-required integration-tests only
-        run: ${{ matrix.os == 'windows-latest' && 'gsudo --system' || '' }} make -C agent-control test/onhost/root/integration
+      - if: ${{ matrix.os == 'windows-latest' }}
+        name: Run onHost root-required integration-tests only
+        run: gsudo --system make -C agent-control test/onhost/root/integration
+
+      - if: ${{ matrix.os == 'ubuntu-latest' }}
+        name: Run onHost root-required integration-tests only
+        run: make -C agent-control test/onhost/root/integration
 
   # Runs on the bare runner: containers get a read-only `/sys/fs/cgroup` and their own cgroup
   # namespace, which prevents mounting the v1 hierarchy the tests use.
