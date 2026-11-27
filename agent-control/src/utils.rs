@@ -1,5 +1,5 @@
 //! Assorted internal utilities: backoff/retry scheduling, archive extraction, environment-variable
-//! loading, privilege detection, thread lifecycle management, time abstractions, binary metadata,
+//! loading, elevation detection, thread lifecycle management, time abstractions, binary metadata,
 //! and a redacting string wrapper for sensitive values.
 
 pub mod backoff_gate;

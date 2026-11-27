@@ -12,6 +12,9 @@ permissions:
   contents: read
 
 env:
+  # Runs the Windows tests that start Agent Control as SYSTEM, which holds SeCreatePermanentPrivilege.
+  # renovate: datasource=github-releases depName=gerardog/gsudo
+  GSUDO_VERSION: 2.6.1
   # See .config/nextest.toml.
   NEXTEST_PROFILE: ci
 
@@ -449,8 +452,27 @@ jobs:
         if: ${{ matrix.os == 'ubuntu-latest' }}
         run: bash build/package/preremove_test.sh
 
-      - name: Run tests agent control integration_test excluding root-required tests (on-host)
+      - uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
+        with:
+          tool: cargo-nextest@0.9.152
+
+      - if: ${{ matrix.os == 'ubuntu-latest' }}
+        name: Run tests agent control integration_test excluding root-required tests (on-host)
         run: make -C agent-control test/onhost/integration
+
+      # SYSTEM holds SeCreatePermanentPrivilege by default, which Agent Control requires and the `runneradmin` account lacks.
+      # A single gsudo call wraps the whole run: one call per test binary races on starting gsudo's service.
+      - if: ${{ matrix.os == 'windows-latest' }}
+        name: Run tests agent control integration_test excluding root-required tests (on-host)
+        shell: pwsh
+        run: |
+          choco install gsudo --version $env:GSUDO_VERSION --yes --no-progress
+          gsudo --system make -C agent-control test/onhost/integration
+
+      # The runner account does not hold SeCreatePermanentPrivilege, which is what this test needs.
+      - if: ${{ matrix.os == 'windows-latest' }}
+        name: Run test that Agent Control does not start without SeCreatePermanentPrivilege (on-host)
+        run: cargo nextest run --locked -p newrelic_agent_control --test integration_tests --run-ignored only -E 'test(=on_host::cli::does_not_run_without_create_permanent_privilege)'
 
       - name: Run tests agent control (k8s)
         run: make -C agent-control test/k8s
@@ -486,7 +508,16 @@ jobs:
         with:
           tool: cargo-nextest@0.9.152
 
-      - name: Run onHost root-required integration-tests only
+      # SYSTEM holds SeCreatePermanentPrivilege by default, which Agent Control requires and the `runneradmin` account lacks.
+      - if: ${{ matrix.os == 'windows-latest' }}
+        name: Run onHost root-required integration-tests only
+        shell: pwsh
+        run: |
+          choco install gsudo --version $env:GSUDO_VERSION --yes --no-progress
+          gsudo --system make -C agent-control test/onhost/root/integration
+
+      - if: ${{ matrix.os == 'ubuntu-latest' }}
+        name: Run onHost root-required integration-tests only
         run: make -C agent-control test/onhost/root/integration
 
   # Runs on the bare runner: containers get a read-only `/sys/fs/cgroup` and their own cgroup

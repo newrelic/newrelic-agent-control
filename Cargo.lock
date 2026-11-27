@@ -2542,6 +2542,7 @@ dependencies = [
 name = "job-object"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "thiserror",
  "tracing",
  "windows",

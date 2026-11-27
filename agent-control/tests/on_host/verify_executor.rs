@@ -22,7 +22,8 @@ fn binary_path() -> &'static Path {
 }
 
 #[test]
-fn test_verify_executor() {
+#[ignore = "requires root"]
+fn test_verify_executor_as_root() {
     let opamp_server = FakeServer::start(tokio_runtime().handle());
 
     let dirs = TempBasePaths::default();
@@ -89,7 +90,8 @@ fn test_verify_executor() {
 }
 
 #[test]
-fn test_verify_executor_read_config_error() {
+#[ignore = "requires root"]
+fn test_verify_executor_read_config_error_as_root() {
     let folder_name = "folder-that-does-not-exist";
 
     let result = ProcessVerifyExecutor::default()
@@ -99,7 +101,8 @@ fn test_verify_executor_read_config_error() {
 }
 
 #[test]
-fn test_verify_executor_opamp_connectivity_failure() {
+#[ignore = "requires root"]
+fn test_verify_executor_opamp_connectivity_failure_as_root() {
     let unreachable_opamp_endpoint = "http://localhost:19999";
     let unreachable_jwks_endpoint = "http://localhost:19999/jwks";
 

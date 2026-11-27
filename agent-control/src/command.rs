@@ -21,8 +21,12 @@ use crate::instrumentation::tracing::{
 use crate::on_host::file_store::FileStore;
 use crate::utils::binary_metadata::binary_metadata;
 use crate::utils::env_var::load_env_yaml_file;
+#[cfg(not(feature = "disable-asroot"))]
+use crate::utils::is_elevated::is_elevated;
 use crate::values::ConfigRepo;
 use clap::{Parser, Subcommand};
+#[cfg(target_family = "windows")]
+use job_object::{SE_CREATE_PERMANENT_PRIVILEGE, enable_privilege};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 #[cfg(target_family = "windows")]
@@ -416,6 +420,19 @@ impl Command {
     fn verify(args: &Args) -> Result<(), Box<dyn std::error::Error>> {
         try_init_stderr_tracing(&LoggingConfig::default())
             .map_err(|e| format!("failed to initialize tracing: {e}"))?;
+
+        // `verify` is a dry run of startup that the self-update runs against the new binary
+        // before applying it. It checks the same preconditions as a real start (elevation and,
+        // on Windows, SeCreatePermanentPrivilege, needed to create the Job Objects that track
+        // sub-agents) so a binary that would fail to start is rejected, even though no
+        // sub-agent is launched here.
+        #[cfg(not(feature = "disable-asroot"))]
+        if !is_elevated()? {
+            return Err("Program must run with elevated permissions".into());
+        }
+
+        #[cfg(target_family = "windows")]
+        enable_privilege(SE_CREATE_PERMANENT_PRIVILEGE)?;
 
         let verified_config =
             check_config(args).map_err(|err| format!("configuration check failed: {err}"))?;
