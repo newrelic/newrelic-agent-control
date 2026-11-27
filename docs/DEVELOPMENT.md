@@ -327,8 +327,12 @@ cargo nextest run --workspace --exclude 'newrelic_agent_control' --all-targets
 On Windows some of the tests need elevated permissions and are ignored by default but can be executed by adding:
 
 ```sh
-cargo nextest run --workspace --exclude 'newrelic_agent_control' --all-targets --run-ignored all
+cargo nextest run --workspace --exclude 'newrelic_agent_control' --exclude 'job-object' --all-targets --run-ignored all
 ```
+
+`job-object` is excluded because its ignored tests require root, see
+[Tests that require root user](#tests-that-require-root-user). The command above, without `--run-ignored`, already runs
+the rest of its tests.
 
 To print the output of every test, add `--no-capture`, which also runs tests one at a time.
 
@@ -362,6 +366,15 @@ spinning up a container where the user is root and running them there with:
 
 ```sh
 make -C agent-control test/onhost/root/integration
+```
+
+On Windows, root means `SYSTEM`: the root-required tests need `SeCreatePermanentPrivilege`, which elevated administrator
+accounts do not hold. Run them with [gsudo](https://github.com/gerardog/gsudo), as the CI does. The `job-object` crate
+has root-required tests of its own:
+
+```sh
+gsudo --system make -C agent-control test/onhost/root/integration
+gsudo --system cargo nextest run -p job-object --all-targets --run-ignored only _as_root
 ```
 
 ### Feature `k8s`

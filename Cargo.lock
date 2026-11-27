@@ -2543,6 +2543,7 @@ name = "job-object"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
+ "rstest",
  "thiserror",
  "tracing",
  "windows",
