@@ -48,7 +48,7 @@ impl PermanentJobObject {
         })?;
 
         let handle = create_new_named_job_object(name, &descriptor)
-            .map_err(|e| JobObjectError(format!("creating a named JobObject {name}: {e}")))?;
+            .map_err(|e| JobObjectError(format!("creating permanent JobObject {name}: {e}")))?;
 
         let status = unsafe { NtMakePermanentObject(*handle) };
         status.ok().map_err(|e| {
@@ -72,7 +72,6 @@ impl PermanentJobObject {
     /// - `JOB_OBJECT_TERMINATE` for [PermanentJobObject::kill].
     /// - `DELETE` for [PermanentJobObject::make_temporary].
     pub fn open(name: &JobName, access: u32) -> Result<Option<Self>, JobObjectError> {
-        // Since we do not want to pass the handle down to child process we set false for binherithandle
         match unsafe { OpenJobObjectW(access, false, &HSTRING::from(name.as_ref())) } {
             // Safety: the handle was just returned and is owned here.
             Ok(handle) => Ok(Some(Self(JobHandle {
@@ -99,8 +98,8 @@ impl PermanentJobObject {
             .map_err(|e| JobObjectError(format!("making JobObject temporary: {e}")))
     }
 
-    /// Terminates all processes in the JobObject, consuming it to prevent double-kills. It
-    /// requires the `JOB_OBJECT_TERMINATE` right, which a JobObject created by
+    /// Terminates all processes in the JobObject, consuming it so it cannot be used afterwards.
+    /// It requires the `JOB_OBJECT_TERMINATE` right, which a JobObject created by
     /// [PermanentJobObject::new] has.
     pub fn kill(self) -> Result<(), JobObjectError> {
         self.terminate()
@@ -272,7 +271,7 @@ mod tests {
     #[ignore = "requires root"]
     fn test_permanent_job_outlives_its_handles_until_made_temporary_as_root() {
         let name = test_job_name("permanent");
-        let _cleanup = PermanentName::new(&name);
+        let _cleanup = PermanentJobCleanup::new(&name);
 
         drop(PermanentJobObject::new(&name).unwrap());
 
@@ -292,7 +291,7 @@ mod tests {
     #[ignore = "requires root"]
     fn test_permanent_job_is_found_by_name_as_root() {
         let name = test_job_name("found");
-        let _cleanup = PermanentName::new(&name);
+        let _cleanup = PermanentJobCleanup::new(&name);
         let job = PermanentJobObject::new(&name).unwrap();
         let child = long_running_process();
         job.assign_process(&child).unwrap();
@@ -309,7 +308,7 @@ mod tests {
     #[ignore = "requires root"]
     fn test_dropping_the_last_handle_keeps_the_processes_running_as_root() {
         let name = test_job_name("drop");
-        let _cleanup = PermanentName::new(&name);
+        let _cleanup = PermanentJobCleanup::new(&name);
         let job = PermanentJobObject::new(&name).unwrap();
         let mut child = long_running_process();
         job.assign_process(&child).unwrap();
@@ -328,7 +327,7 @@ mod tests {
     #[ignore = "requires root"]
     fn test_opened_job_can_be_shut_down_safely_as_root() {
         let name = test_job_name("safe-shutdown");
-        let _cleanup = PermanentName::new(&name);
+        let _cleanup = PermanentJobCleanup::new(&name);
         let job = PermanentJobObject::new(&name).unwrap();
         let mut child = long_running_process();
         job.assign_process(&child).unwrap();
@@ -354,7 +353,7 @@ mod tests {
         #[case] can_assign: bool,
     ) {
         let name = test_job_name(&format!("assign-{access:#x}"));
-        let _cleanup = PermanentName::new(&name);
+        let _cleanup = PermanentJobCleanup::new(&name);
         let job = PermanentJobObject::new(&name).unwrap();
         let opened = PermanentJobObject::open(&name, access).unwrap().unwrap();
         let mut child = long_running_process();
@@ -378,7 +377,7 @@ mod tests {
         #[case] can_limit: bool,
     ) {
         let name = test_job_name(&format!("access-{access:#x}"));
-        let _cleanup = PermanentName::new(&name);
+        let _cleanup = PermanentJobCleanup::new(&name);
         let _job = PermanentJobObject::new(&name).unwrap();
 
         let opened = PermanentJobObject::open(&name, access).unwrap().unwrap();
@@ -397,7 +396,7 @@ mod tests {
         #[case] squat: fn(&JobName) -> Box<dyn Any>,
     ) {
         let name = test_job_name(&format!("taken-by-{squatter}"));
-        let _cleanup = PermanentName::new(&name);
+        let _cleanup = PermanentJobCleanup::new(&name);
         let _squatter = squat(&name);
 
         let err = PermanentJobObject::new(&name).err().unwrap();
@@ -412,7 +411,7 @@ mod tests {
     #[ignore = "requires root"]
     fn test_new_permanent_sets_the_restrictive_security_descriptor_as_root() {
         let name = test_job_name("descriptor");
-        let _cleanup = PermanentName::new(&name);
+        let _cleanup = PermanentJobCleanup::new(&name);
 
         let job = PermanentJobObject::new(&name).unwrap();
 
@@ -427,9 +426,9 @@ mod tests {
 
     /// Enables `SeCreatePermanentPrivilege` and makes the permanent job `name` temporary when
     /// dropped, even if the test fails, so that the name does not outlive the test.
-    struct PermanentName<'a>(&'a JobName);
+    struct PermanentJobCleanup<'a>(&'a JobName);
 
-    impl<'a> PermanentName<'a> {
+    impl<'a> PermanentJobCleanup<'a> {
         fn new(name: &'a JobName) -> Self {
             enable_privilege(SE_CREATE_PERMANENT_PRIVILEGE).expect(
                 "run the test as an account holding SeCreatePermanentPrivilege, e.g. SYSTEM",
@@ -438,7 +437,7 @@ mod tests {
         }
     }
 
-    impl Drop for PermanentName<'_> {
+    impl Drop for PermanentJobCleanup<'_> {
         fn drop(&mut self) {
             if let Ok(Some(job)) = PermanentJobObject::open(self.0, DELETE) {
                 let _ = job.make_temporary();
