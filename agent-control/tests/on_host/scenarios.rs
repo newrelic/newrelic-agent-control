@@ -1,6 +1,8 @@
 mod ac_capabilities;
 mod ac_self_update;
 mod attributes;
+#[cfg(target_os = "linux")]
+mod cgroups;
 mod empty_config;
 mod file_logging;
 mod filesystem_ops;

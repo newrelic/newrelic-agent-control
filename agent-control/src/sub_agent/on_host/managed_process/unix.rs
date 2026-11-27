@@ -1,7 +1,7 @@
 use super::spawned_process::error::CommandError;
 use super::spawned_process::os_process::OsProcess;
 use super::{ProcessState, SupervisedProcess};
-use crate::sub_agent::on_host::process_group_tracker::TrackedProcessGroup;
+use crate::sub_agent::on_host::process_group_tracker::{TrackedProcessGroup, kill_group};
 use nix::sys::signal::{Signal, kill};
 use nix::sys::wait::{WaitPidFlag, WaitStatus, waitpid};
 use nix::unistd::Pid;
@@ -38,6 +38,8 @@ impl<G: TrackedProcessGroup> SupervisedProcess<G> {
                 ProcessState::Running(self)
             }
             Ok(status @ (WaitStatus::Exited(..) | WaitStatus::Signaled(..))) => {
+                // The process is reaped, so nothing it left behind is a zombie of the group.
+                kill_group(self.group, &self.agent_id);
                 ProcessState::Exited(Self::raw_exit_status(status))
             }
             // Not our child: its exit cannot be observed.
@@ -73,18 +75,26 @@ impl<G: TrackedProcessGroup> SupervisedProcess<G> {
         }
     }
 
-    /// Sends SIGKILL and blocks until the process exits.
+    /// Sends SIGKILL and blocks until the process exits, then kills what is left in its group.
+    /// The group goes after reaping the process, since a zombie still counts as a member.
     pub(super) fn force_kill(self) -> Result<ExitStatus, CommandError> {
         let pid = Pid::from_raw(self.pid as i32);
         match kill(pid, Signal::SIGKILL) {
-            Ok(()) | Err(nix::errno::Errno::ESRCH) => self.wait(),
-            Err(e) => Err(CommandError::IOError(io::Error::from(e))),
+            Ok(()) | Err(nix::errno::Errno::ESRCH) => {
+                let exit_status = self.wait();
+                kill_group(self.group, &self.agent_id);
+                exit_status
+            }
+            Err(e) => {
+                kill_group(self.group, &self.agent_id);
+                Err(CommandError::IOError(io::Error::from(e)))
+            }
         }
     }
 
     /// Blocks until the process exits. `EINTR` (signal interrupted the syscall) restarts the wait
     /// rather than surfacing an error, matching the POSIX idiom for restartable waits.
-    pub(super) fn wait(self) -> Result<ExitStatus, CommandError> {
+    pub(super) fn wait(&self) -> Result<ExitStatus, CommandError> {
         let pid = Pid::from_raw(self.pid as i32);
         loop {
             match waitpid(pid, None) {
