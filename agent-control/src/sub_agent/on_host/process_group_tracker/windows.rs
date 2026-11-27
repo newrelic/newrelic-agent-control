@@ -2,7 +2,7 @@
 
 use super::{ProcessGroupTracker, ProcessGroupTrackerError, TrackedProcessGroup};
 use crate::agent_control::agent_id::AgentID;
-use job_object::JobObject;
+use job_object::TemporaryJobObject;
 use std::process::{Child, Command};
 
 /// Keeps the processes of every executable in a Job Object of its own.
@@ -17,14 +17,14 @@ impl ProcessGroupTracker for JobObjectProcessGroupTracker {
         _agent_id: &AgentID,
         _exec_id: &str,
     ) -> Result<JobObjectProcessGroup, ProcessGroupTrackerError> {
-        JobObject::new()
+        TemporaryJobObject::new()
             .map(JobObjectProcessGroup)
             .map_err(|err| ProcessGroupTrackerError(err.to_string()))
     }
 }
 
 /// The Job Object of an executable. Its processes are killed when the group is dropped.
-pub struct JobObjectProcessGroup(JobObject);
+pub struct JobObjectProcessGroup(TemporaryJobObject);
 
 impl TrackedProcessGroup for JobObjectProcessGroup {
     fn spawn(&self, mut command: Command) -> Result<Child, ProcessGroupTrackerError> {
