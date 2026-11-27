@@ -6,8 +6,8 @@
 #![cfg(windows)]
 #![deny(missing_docs)]
 
-mod job_object;
 mod privileges;
+mod temporary;
 
-pub use job_object::{JobObject, JobObjectError};
 pub use privileges::{PrivilegeError, SE_CREATE_PERMANENT_PRIVILEGE, enable_privilege};
+pub use temporary::{JobObject, JobObjectError};
