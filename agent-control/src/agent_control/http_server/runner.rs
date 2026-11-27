@@ -138,14 +138,13 @@ impl Drop for StartedHttpServer {
     fn drop(&mut self) {
         info!("Waiting for the status server to stop gracefully");
 
-        let Some(thread_context) = self.thread_context.take() else {
-            return;
-        };
-
-        let _ = thread_context
-            .stop()
-            .inspect(|_| debug!("status server runner thread stopped"))
-            .inspect_err(|error_msg| error!("Error stopping Status Server: {error_msg}"));
+        if let Some(thread_context) = self.thread_context.take() {
+            let _ = thread_context
+                // HTTP server only exits when AC itself is exiting
+                .stop(CancellationMessage::AgentControlExit)
+                .inspect(|_| debug!("status server runner thread stopped"))
+                .inspect_err(|error_msg| error!("Error stopping Status Server: {error_msg}"));
+        }
     }
 }
 

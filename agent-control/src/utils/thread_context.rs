@@ -135,18 +135,15 @@ where
             })
     }
 
-    /// It sends a stop signal and periodically checks if the thread has finished until
-    /// it timeout defined by `GRACEFUL_STOP_RETRY` * `GRACEFUL_STOP_RETRY_INTERVAL`.
-    pub fn stop(self) -> Result<T, ThreadContextStopperError> {
-        trace!(thread = self.thread_name, "Publishing stop");
+    /// It sends a stop signal with the given reason and periodically checks if the thread has
+    /// finished until it timeout defined by `GRACEFUL_STOP_RETRY` * `GRACEFUL_STOP_RETRY_INTERVAL`.
+    pub fn stop(self, reason: CancellationMessage) -> Result<T, ThreadContextStopperError> {
+        trace!(thread = self.thread_name, "Publishing {reason:?}");
         // Stop consumer could be disconnected if the thread has finished already.
         // Either the stop is full or disconnected that shouldn't prevent to join the thread.
-        let _ = self
-            .stop_publisher
-            .try_publish(CancellationMessage::Stop)
-            .inspect_err(|err| {
-                debug!(thread = self.thread_name, "Publishing stop failed: {}", err)
-            });
+        let _ = self.stop_publisher.try_publish(reason).inspect_err(|err| {
+            debug!(thread = self.thread_name, "Publishing stop failed: {}", err)
+        });
         for _ in 0..GRACEFUL_STOP_RETRY {
             if self.join_handle.is_finished() {
                 trace!(thread = self.thread_name, "Finished, joining");
@@ -184,8 +181,9 @@ where
 
 /// Extension trait for stopping a collection of [`StartedThreadContext`] instances.
 pub trait ThreadCollectionStopperExt {
-    /// Stops every thread in the collection, returning the first stop error encountered.
-    fn stop(self) -> Result<(), ThreadContextStopperError>;
+    /// Stops every thread in the collection for the given reason, returning the first stop error
+    /// encountered.
+    fn stop(self, reason: CancellationMessage) -> Result<(), ThreadContextStopperError>;
 }
 
 // Blanket implementation for all structures convertible to iterators of started threads
@@ -194,10 +192,10 @@ impl<I> ThreadCollectionStopperExt for I
 where
     I: IntoIterator<Item = StartedThreadContext>,
 {
-    fn stop(self) -> Result<(), ThreadContextStopperError> {
+    fn stop(self, reason: CancellationMessage) -> Result<(), ThreadContextStopperError> {
         let stopped_threads = self
             .into_iter()
-            .map(|thread| thread.cancel_blocking(CancellationMessage::Stop))
+            .map(|thread| thread.cancel_blocking(reason))
             .collect::<Vec<_>>();
 
         stopped_threads
@@ -228,7 +226,7 @@ pub mod tests {
     impl<T: Send + 'static> StartedThreadContext<T> {
         /// It sends a stop signal and waits until the thread handle is joined.
         pub fn stop_blocking(self) -> Result<T, ThreadContextStopperError> {
-            self.cancel_blocking(CancellationMessage::Stop)
+            self.cancel_blocking(CancellationMessage::SubAgentRemoved)
         }
     }
 
@@ -247,7 +245,9 @@ pub mod tests {
 
         let started_thread_context = NotStartedThreadContext::new(thread_name, callback).start();
         assert!(!started_thread_context.is_thread_finished());
-        started_thread_context.stop().unwrap();
+        started_thread_context
+            .stop(CancellationMessage::SubAgentRemoved)
+            .unwrap();
     }
 
     #[test]
@@ -266,7 +266,9 @@ pub mod tests {
         let started_thread_context = NotStartedThreadContext::new(thread_name, callback).start();
         // wait for the thread to finish
         sleep(Duration::from_millis(100));
-        started_thread_context.stop().unwrap();
+        started_thread_context
+            .stop(CancellationMessage::SubAgentRemoved)
+            .unwrap();
     }
 
     #[test]
@@ -280,7 +282,9 @@ pub mod tests {
         // wait for the thread to panic
         sleep(Duration::from_millis(100));
         assert_eq!(
-            started_thread_context.stop().unwrap_err(),
+            started_thread_context
+                .stop(CancellationMessage::SubAgentRemoved)
+                .unwrap_err(),
             ThreadContextStopperError::JoinError {
                 thread: thread_name.to_string(),
                 error: "#### EXPECTED PANIC!!! ####".to_string()
@@ -300,7 +304,9 @@ pub mod tests {
         assert!(!started_thread_context.is_thread_finished());
 
         assert_eq!(
-            started_thread_context.stop().unwrap_err(),
+            started_thread_context
+                .stop(CancellationMessage::SubAgentRemoved)
+                .unwrap_err(),
             ThreadContextStopperError::StopTimeout {
                 thread: thread_name.to_string()
             }

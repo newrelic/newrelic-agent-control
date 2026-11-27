@@ -23,6 +23,7 @@ use crate::checkers::health::health_checker::{Health, Unhealthy};
 use crate::checkers::health::with_start_time::HealthWithStartTime;
 use crate::event::SubAgentEvent::SubAgentStarted;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
+use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
 use crate::opamp::attributes::update_opamp_attributes;
@@ -355,7 +356,7 @@ where
                         match opamp_event_res {
                             Err(e) => {
                                 debug!(error = %e, select_arm = "sub_agent_opamp_consumer", "Channel closed");
-                                break stop_supervisor(supervisor);
+                                break stop_supervisor(supervisor, CancellationMessage::Disconnected);
                             },
                             Ok(OpAMPEvent::RemoteConfigReceived(config)) => {
                                 debug!(
@@ -383,15 +384,15 @@ where
                         match sub_agent_internal_event_res {
                             Err(e) => {
                                 debug!(error = %e, select_arm = "sub_agent_internal_consumer", "Channel closed");
-                                break stop_supervisor(supervisor);
+                                break stop_supervisor(supervisor, CancellationMessage::Disconnected);
                             },
                             Ok(SubAgentInternalEvent::StopRequested) => {
                                 debug!(select_arm = "sub_agent_internal_consumer", "StopRequested");
-                                break stop_supervisor(supervisor);
+                                break stop_supervisor(supervisor, CancellationMessage::SubAgentRemoved);
                             },
                             Ok(SubAgentInternalEvent::AgentControlExiting) => {
                                 debug!(select_arm = "sub_agent_internal_consumer", "AgentControlExiting");
-                                break exit_supervisor(supervisor);
+                                break stop_supervisor(supervisor, CancellationMessage::AgentControlExit);
                             },
                             Ok(SubAgentInternalEvent::AgentHealthInfo(health))=>{
                                 debug!(select_arm = "sub_agent_internal_consumer", ?health, "AgentHealthInfo");
@@ -536,14 +537,14 @@ where
             Err(err) => {
                 if maybe_remote_config.is_none() {
                     self.report_reset_to_broken_local(hash, opamp_client);
-                    stop_supervisor(old_supervisor);
-                    return None;
+                    stop_supervisor(old_supervisor, CancellationMessage::ConfigUnavailable);
+                    None
+                } else {
+                    let error_message = format!("Invalid config: {err}");
+                    warn!("{error_message}");
+                    self.report_state(ConfigState::Failed { error_message }, hash);
+                    old_supervisor
                 }
-
-                let error_message = format!("Invalid config: {err}");
-                warn!("{error_message}");
-                self.report_state(ConfigState::Failed { error_message }, hash);
-                old_supervisor
             }
         }
     }
@@ -629,7 +630,7 @@ where
         config: &OpampRemoteConfig,
         opamp_client: &C,
     ) -> Option<AgentSupervisor<B>> {
-        stop_supervisor(old_supervisor);
+        stop_supervisor(old_supervisor, CancellationMessage::ConfigUnavailable);
         // Report the config as applied
         self.report_state(ConfigState::Applied, &config.hash);
         // The effective config needs to be reported with the empty config.
@@ -798,25 +799,13 @@ impl StartedSubAgent for SubAgentStopper {
     }
 }
 
-/// Notifies the supervisor, if present, that Agent Control is exiting, logging any error returned.
-fn exit_supervisor<S>(maybe_started_supervisor: Option<S>)
+/// Stops the supervisor if present for the given reason, logging any error returned while stopping.
+fn stop_supervisor<S>(maybe_started_supervisor: Option<S>, reason: CancellationMessage)
 where
     S: Supervisor,
 {
     if let Some(s) = maybe_started_supervisor {
-        let _ = s.on_agent_control_exit().inspect_err(|err| {
-            error!(%err, "Error notifying supervisor of Agent Control exit");
-        });
-    }
-}
-
-/// Stops the supervisor if present, logging any error returned while stopping.
-fn stop_supervisor<S>(maybe_started_supervisor: Option<S>)
-where
-    S: Supervisor,
-{
-    if let Some(s) = maybe_started_supervisor {
-        let _ = s.stop().inspect_err(|err| {
+        let _ = s.stop(reason).inspect_err(|err| {
             error!(%err,"Error stopping supervisor");
         });
     }
@@ -1410,17 +1399,19 @@ deployment:
     }
 
     #[test]
-    fn test_exit_supervisor_only_notifies_exit() {
+    fn test_stop_supervisor_forwards_the_reason() {
         let mut supervisor = MockSupervisor::new();
-        supervisor.expect_stop().never();
         supervisor
-            .expect_on_agent_control_exit()
+            .expect_stop()
+            .with(mockall::predicate::eq(
+                CancellationMessage::AgentControlExit,
+            ))
             .once()
-            .return_once(|| Ok(()));
-        exit_supervisor(Some(supervisor));
+            .return_once(|_| Ok(()));
+        stop_supervisor(Some(supervisor), CancellationMessage::AgentControlExit);
 
-        // Nothing to notify is a no-op.
-        exit_supervisor(None::<MockSupervisor>);
+        // Nothing to stop is a no-op.
+        stop_supervisor(None::<MockSupervisor>, CancellationMessage::SubAgentRemoved);
     }
 
     #[test]

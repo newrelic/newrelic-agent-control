@@ -199,12 +199,16 @@ where
             &onhost_config.packages,
         );
 
-        cancel_supervisor_threads(thread_contexts, CancellationMessage::Stop).map_err(|err| {
-            if let Err(err) = &installation_result {
-                error!("Failure stopping supervisor. Note that installation also failed: {err}",);
-            }
-            SupervisorError::Stop(err)
-        })?;
+        cancel_supervisor_threads(thread_contexts, CancellationMessage::ConfigChanged).map_err(
+            |err| {
+                if let Err(err) = &installation_result {
+                    error!(
+                        "Failure stopping supervisor. Note that installation also failed: {err}",
+                    );
+                }
+                SupervisorError::Stop(err)
+            },
+        )?;
 
         installation_result.map_err(SupervisorError::Install)?;
 
@@ -243,12 +247,8 @@ where
         Ok(new_started_supervisor)
     }
 
-    fn stop(self) -> Result<(), ThreadContextStopperError> {
-        cancel_supervisor_threads(self.thread_contexts, CancellationMessage::Stop)
-    }
-
-    fn on_agent_control_exit(self) -> Result<(), ThreadContextStopperError> {
-        cancel_supervisor_threads(self.thread_contexts, CancellationMessage::AgentControlExit)
+    fn stop(self, reason: CancellationMessage) -> Result<(), ThreadContextStopperError> {
+        cancel_supervisor_threads(self.thread_contexts, reason)
     }
 }
 
@@ -633,8 +633,14 @@ fn wait_exit<G: TrackedProcessGroup>(
                         info!(%agent_id, %exec_id, "Detaching from executable");
                         break Ok(WaitOutcome::Detached);
                     }
-                    Some(CancellationMessage::Stop | CancellationMessage::AgentControlExit) => {
-                        info!(%agent_id, %exec_id, "Stopping executable");
+                    Some(
+                        reason @ (CancellationMessage::ConfigChanged
+                        | CancellationMessage::SubAgentRemoved
+                        | CancellationMessage::ConfigUnavailable
+                        | CancellationMessage::Disconnected
+                        | CancellationMessage::AgentControlExit),
+                    ) => {
+                        info!(%agent_id, %exec_id, ?reason, "Stopping executable");
                         let exit_status = running.shutdown().inspect_err(
                             |err| error!(%agent_id, %exec_id, "Failed to terminate executable: {err}"),
                         )?;
@@ -971,7 +977,9 @@ pub mod tests {
         .expect("expected an unhealthy event for the executable that failed to spawn");
 
         let start = Instant::now();
-        started_supervisor.stop().expect("failed to stop");
+        started_supervisor
+            .stop(CancellationMessage::SubAgentRemoved)
+            .expect("failed to stop");
         let duration = start.elapsed();
 
         assert!(
@@ -1030,7 +1038,9 @@ pub mod tests {
         wait_for_file(&ready);
 
         let start = Instant::now();
-        started_supervisor.stop().expect("failed to stop");
+        started_supervisor
+            .stop(CancellationMessage::SubAgentRemoved)
+            .expect("failed to stop");
         let duration = start.elapsed();
 
         assert!(
@@ -1117,7 +1127,7 @@ pub mod tests {
 
         wait_for_file(&ready);
         started_supervisor
-            .on_agent_control_exit()
+            .stop(CancellationMessage::AgentControlExit)
             .expect("failed to notify the exit");
         finished
     }
@@ -1207,7 +1217,9 @@ pub mod tests {
         wait_for_file(&ready);
 
         let start = Instant::now();
-        started_supervisor.stop().expect("failed to stop");
+        started_supervisor
+            .stop(CancellationMessage::SubAgentRemoved)
+            .expect("failed to stop");
         let duration = start.elapsed();
 
         assert!(
@@ -1244,7 +1256,7 @@ pub mod tests {
 
         for thread_context in agent.thread_contexts {
             if thread_context.thread_name() == HEALTH_CHECKER_THREAD_NAME {
-                let _ = thread_context.stop();
+                let _ = thread_context.stop(CancellationMessage::SubAgentRemoved);
             } else {
                 while !thread_context.is_thread_finished() {
                     thread::sleep(Duration::from_millis(15));
@@ -1323,7 +1335,7 @@ declared-dir:
             "content nested inside a declared dir must survive, declared or not"
         );
 
-        let _ = started.stop();
+        let _ = started.stop(CancellationMessage::SubAgentRemoved);
     }
 
     #[test]
@@ -1362,7 +1374,7 @@ declared-dir:
 
         for thread_context in agent.thread_contexts {
             if thread_context.thread_name() == HEALTH_CHECKER_THREAD_NAME {
-                let _ = thread_context.stop();
+                let _ = thread_context.stop(CancellationMessage::SubAgentRemoved);
             } else {
                 while !thread_context.is_thread_finished() {
                     thread::sleep(Duration::from_millis(15));
@@ -1420,7 +1432,7 @@ declared-dir:
 
         for thread_context in agent.thread_contexts {
             if thread_context.thread_name() == HEALTH_CHECKER_THREAD_NAME {
-                let _ = thread_context.stop();
+                let _ = thread_context.stop(CancellationMessage::SubAgentRemoved);
             } else {
                 while !thread_context.is_thread_finished() {
                     thread::sleep(Duration::from_millis(15));
@@ -1491,7 +1503,9 @@ declared-dir:
             Err(())
         })
         .expect("expected an unhealthy event");
-        agent.stop().expect("failed to stop");
+        agent
+            .stop(CancellationMessage::SubAgentRemoved)
+            .expect("failed to stop");
 
         // The log file is only created when the process is spawned.
         assert!(
@@ -1540,7 +1554,9 @@ declared-dir:
             .expect("failed start");
 
         thread::sleep(Duration::from_secs(2));
-        agent.stop().expect("failed stop");
+        agent
+            .stop(CancellationMessage::SubAgentRemoved)
+            .expect("failed stop");
 
         assert!(timer.elapsed() < Duration::from_secs(10));
     }
@@ -1601,7 +1617,7 @@ declared-dir:
 
         for thread_context in agent.thread_contexts {
             if thread_context.thread_name() == HEALTH_CHECKER_THREAD_NAME {
-                let _ = thread_context.stop();
+                let _ = thread_context.stop(CancellationMessage::SubAgentRemoved);
             } else {
                 while !thread_context.is_thread_finished() {
                     thread::sleep(Duration::from_millis(15));
@@ -1925,7 +1941,9 @@ declared-dir:
 
         // Only the executable thread runs.
         assert_eq!(supervisor.thread_contexts.len(), 1);
-        supervisor.stop().unwrap();
+        supervisor
+            .stop(CancellationMessage::SubAgentRemoved)
+            .unwrap();
     }
 
     #[test]
@@ -2060,7 +2078,9 @@ declared-dir:
         // Wait a bit for the process to run and write logs
         std::thread::sleep(Duration::from_secs(2));
 
-        started_supervisor.stop().expect("failed to stop");
+        started_supervisor
+            .stop(CancellationMessage::SubAgentRemoved)
+            .expect("failed to stop");
 
         // Verify logs
         let agent_logs_dir = logging_path.join(agent_identity.id.to_string());
@@ -2127,7 +2147,9 @@ declared-dir:
         let started = build_supervisor_with_logging_path(dir.path().to_path_buf())
             .spin_up(pub_internal)
             .expect("failed to start");
-        started.stop().expect("failed to stop");
+        started
+            .stop(CancellationMessage::SubAgentRemoved)
+            .expect("failed to stop");
 
         assert!(dir.path().join("test-agent").is_dir());
     }
@@ -2145,7 +2167,9 @@ declared-dir:
         let started = build_supervisor_with_logging_path(dir.path().to_path_buf())
             .spin_up(pub_internal)
             .expect("failed to start");
-        started.stop().expect("failed to stop");
+        started
+            .stop(CancellationMessage::SubAgentRemoved)
+            .expect("failed to stop");
 
         assert_eq!(std::fs::read_to_string(log_file).unwrap(), "log");
     }
@@ -2261,7 +2285,9 @@ declared-dir:
 
         std::thread::sleep(Duration::from_secs(2));
 
-        started_supervisor.stop().expect("failed to stop");
+        started_supervisor
+            .stop(CancellationMessage::SubAgentRemoved)
+            .expect("failed to stop");
 
         let agent_logs_dir = logging_path.join(agent_identity.id.to_string());
         assert!(
@@ -2392,7 +2418,9 @@ declared-dir:
 
         std::thread::sleep(Duration::from_secs(2));
 
-        started_supervisor.stop().expect("failed to stop");
+        started_supervisor
+            .stop(CancellationMessage::SubAgentRemoved)
+            .expect("failed to stop");
 
         let agent_logs_dir = logging_path.join(agent_identity.id.to_string());
         assert!(
@@ -2482,7 +2510,9 @@ declared-dir:
         })
         .expect("expected at least 2 AgentHealthInfo events from the health thread");
 
-        started.stop().expect("supervisor should stop");
+        started
+            .stop(CancellationMessage::SubAgentRemoved)
+            .expect("supervisor should stop");
     }
 
     #[test]
@@ -2580,7 +2610,9 @@ declared-dir:
 
         std::thread::sleep(Duration::from_secs(2));
 
-        started_supervisor.stop().expect("failed to stop");
+        started_supervisor
+            .stop(CancellationMessage::SubAgentRemoved)
+            .expect("failed to stop");
 
         let agent_logs_dir = logging_path.join(agent_identity.id.to_string());
         assert!(

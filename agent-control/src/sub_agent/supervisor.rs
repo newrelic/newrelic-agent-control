@@ -23,7 +23,7 @@
 //! ```
 
 use crate::{
-    event::{SubAgentInternalEvent, channel::EventPublisher},
+    event::{SubAgentInternalEvent, cancellation::CancellationMessage, channel::EventPublisher},
     sub_agent::agent_renderer::RenderedAgent,
 };
 
@@ -134,6 +134,11 @@ pub trait Supervisor: Sized {
 
     /// Stops the supervisor and cleans up all associated resources.
     ///
+    /// `reason` tells why it is stopped. Unless it is [`CancellationMessage::AgentControlExit`],
+    /// the managed workload is terminated; on exit, the supervisor decides whether to terminate
+    /// it or leave it running. Supervisors that cannot leave their workload running terminate it
+    /// whatever the reason.
+    ///
     /// This method performs a graceful shutdown, stopping managed processes, cleaning up
     /// filesystem entries, deleting Kubernetes resources, or joining background threads as
     /// appropriate for the implementation.
@@ -142,15 +147,7 @@ pub trait Supervisor: Sized {
     ///
     /// * `Ok(())` - The supervisor was successfully stopped
     /// * `Err(Self::StopError)` - If shutdown encountered errors (resources may be partially cleaned)
-    fn stop(self) -> Result<(), Self::StopError>;
-
-    /// Notifies the supervisor that Agent Control is exiting. Unlike [`Self::stop`], the supervisor
-    /// decides whether the managed workload is terminated or left running.
-    ///
-    /// Defaults to [`Self::stop`] for supervisors that cannot leave their workload running.
-    fn on_agent_control_exit(self) -> Result<(), Self::StopError> {
-        self.stop()
-    }
+    fn stop(self, reason: CancellationMessage) -> Result<(), Self::StopError>;
 }
 
 #[cfg(test)]
@@ -194,9 +191,7 @@ pub(crate) mod tests {
 
             fn apply(self, rendered_agent: RenderedAgent) -> Result<Self, TestingSupervisorError>;
 
-            fn stop(self) -> Result<(), TestingSupervisorError>;
-
-            fn on_agent_control_exit(self) -> Result<(), TestingSupervisorError>;
+            fn stop(self, reason: CancellationMessage) -> Result<(), TestingSupervisorError>;
         }
     }
 
@@ -211,7 +206,7 @@ pub(crate) mod tests {
 
     impl MockSupervisor {
         pub fn should_stop(&mut self) {
-            self.expect_stop().once().return_once(|| Ok(()));
+            self.expect_stop().once().return_once(|_| Ok(()));
         }
     }
 }

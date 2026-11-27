@@ -420,7 +420,7 @@ impl<C: K8sClient> Supervisor for StartedSupervisorK8s<C> {
         } = self;
 
         let span = info_span!("stopping_supervisor", agent_id = %agent_identity.id);
-        span.in_scope(|| thread_contexts.stop())
+        span.in_scope(|| thread_contexts.stop(CancellationMessage::ConfigChanged))
             .map_err(SupervisorError::StoppingPreviousSupervisor)?;
 
         debug!(agent_id = %agent_identity.id, "Old supervisor stopped");
@@ -434,9 +434,9 @@ impl<C: K8sClient> Supervisor for StartedSupervisorK8s<C> {
         new_starter.start(sub_agent_internal_publisher)
     }
 
-    fn stop(self) -> Result<(), Self::StopError> {
+    fn stop(self, reason: CancellationMessage) -> Result<(), Self::StopError> {
         let span = info_span!("stopping_supervisor", agent_id = %self.agent_identity.id);
-        span.in_scope(|| self.thread_contexts.stop())
+        span.in_scope(|| self.thread_contexts.stop(reason))
     }
 }
 
@@ -574,7 +574,9 @@ pub mod tests {
             .start(sub_agent_internal_publisher)
             .expect("supervisor started");
 
-        started.stop().expect("supervisor thread joined");
+        started
+            .stop(CancellationMessage::SubAgentRemoved)
+            .expect("supervisor thread joined");
     }
 
     #[test]
@@ -651,7 +653,9 @@ pub mod tests {
         })
         .expect("expected at least 2 AgentHealthInfo events from the health thread");
 
-        started.stop().expect("supervisor should stop");
+        started
+            .stop(CancellationMessage::SubAgentRemoved)
+            .expect("supervisor should stop");
     }
 
     #[test]
@@ -684,7 +688,7 @@ pub mod tests {
             // might not have sensible implementations (e.g. thread contexts).
             panic!("supervisor applied");
         };
-        Supervisor::stop(started).expect("stopped");
+        Supervisor::stop(started, CancellationMessage::SubAgentRemoved).expect("stopped");
     }
 
     #[test]
@@ -753,7 +757,7 @@ pub mod tests {
         let Ok(started) = started.apply(rendered_agent) else {
             panic!("supervisor applied");
         };
-        Supervisor::stop(started).expect("stopped");
+        Supervisor::stop(started, CancellationMessage::SubAgentRemoved).expect("stopped");
     }
 
     #[test]
@@ -809,7 +813,7 @@ pub mod tests {
         let Ok(started) = started.apply(rendered_agent) else {
             panic!("supervisor applied");
         };
-        Supervisor::stop(started).expect("stopped");
+        Supervisor::stop(started, CancellationMessage::SubAgentRemoved).expect("stopped");
     }
 
     fn k8s_object() -> K8sObject {

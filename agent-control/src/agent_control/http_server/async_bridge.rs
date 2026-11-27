@@ -100,7 +100,7 @@ mod tests {
         });
 
         stop_publisher
-            .try_publish(CancellationMessage::Stop)
+            .try_publish(CancellationMessage::AgentControlExit)
             .unwrap();
         bridge.join().unwrap();
     }
@@ -132,7 +132,7 @@ mod tests {
         assert!(!bridge.is_finished());
 
         stop_publisher
-            .try_publish(CancellationMessage::Stop)
+            .try_publish(CancellationMessage::AgentControlExit)
             .unwrap();
         bridge.join().unwrap();
     }
