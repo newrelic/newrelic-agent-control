@@ -95,6 +95,26 @@ pub struct InstallationArgs {
     /// Version of the eBPF agent OCI image to use in tests (not in Instrumentation Metadata yet)
     #[arg(long)]
     pub ebpf_agent_version: Option<String>,
+
+    /// Version of the preload OCI image to use in tests
+    #[arg(long)]
+    pub preload_version: Option<String>,
+
+    /// Version of the Java APM agent to download from Maven Central in tests
+    #[arg(long)]
+    pub java_agent_version: Option<String>,
+
+    /// Version of the Ruby APM agent gem to download from rubygems.org in tests
+    #[arg(long)]
+    pub ruby_agent_version: Option<String>,
+
+    /// Version of the Node.js APM agent package to download from npm in tests
+    #[arg(long)]
+    pub node_agent_version: Option<String>,
+
+    /// Version of the Python APM agent package to download from PyPI in tests
+    #[arg(long)]
+    pub python_agent_version: Option<String>,
 }
 
 impl InstallationArgs {
