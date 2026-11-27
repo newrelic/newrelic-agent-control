@@ -421,12 +421,16 @@ impl Command {
         try_init_stderr_tracing(&LoggingConfig::default())
             .map_err(|e| format!("failed to initialize tracing: {e}"))?;
 
+        // `verify` is a dry run of startup that the self-update runs against the new binary
+        // before applying it. It checks the same preconditions as a real start (elevation and,
+        // on Windows, SeCreatePermanentPrivilege, needed to create the Job Objects that track
+        // sub-agents) so a binary that would fail to start is rejected, even though no
+        // sub-agent is launched here.
         #[cfg(not(feature = "disable-asroot"))]
         if !is_elevated()? {
             return Err("Program must run with elevated permissions".into());
         }
 
-        // Required to create the permanent Job Objects that track sub-agents.
         #[cfg(target_family = "windows")]
         enable_privilege(SE_CREATE_PERMANENT_PRIVILEGE)?;
 

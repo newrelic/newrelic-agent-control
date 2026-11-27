@@ -456,23 +456,18 @@ jobs:
         with:
           tool: cargo-nextest@0.9.152
 
-      - if: ${{ matrix.os == 'windows-latest' }}
-        name: Install gsudo
-        shell: pwsh
-        run: |
-          choco install gsudo --version $env:GSUDO_VERSION --yes --no-progress
-          # Choco's PATH update doesn't reach later steps, which call gsudo.
-          Add-Content $env:GITHUB_PATH 'C:\tools\gsudo\Current'
+      - if: ${{ matrix.os == 'ubuntu-latest' }}
+        name: Run tests agent control integration_test excluding root-required tests (on-host)
+        run: make -C agent-control test/onhost/integration
 
       # SYSTEM holds SeCreatePermanentPrivilege by default, which Agent Control requires and the `runneradmin` account lacks.
       # A single gsudo call wraps the whole run: one call per test binary races on starting gsudo's service.
       - if: ${{ matrix.os == 'windows-latest' }}
         name: Run tests agent control integration_test excluding root-required tests (on-host)
-        run: gsudo --system make -C agent-control test/onhost/integration
-
-      - if: ${{ matrix.os == 'ubuntu-latest' }}
-        name: Run tests agent control integration_test excluding root-required tests (on-host)
-        run: make -C agent-control test/onhost/integration
+        shell: pwsh
+        run: |
+          choco install gsudo --version $env:GSUDO_VERSION --yes --no-progress
+          gsudo --system make -C agent-control test/onhost/integration
 
       # The runner account does not hold SeCreatePermanentPrivilege, which is what this test needs.
       - if: ${{ matrix.os == 'windows-latest' }}
@@ -513,18 +508,13 @@ jobs:
         with:
           tool: cargo-nextest@0.9.152
 
-      - if: ${{ matrix.os == 'windows-latest' }}
-        name: Install gsudo
-        shell: pwsh
-        run: |
-          choco install gsudo --version $env:GSUDO_VERSION --yes --no-progress
-          # Choco's PATH update doesn't reach later steps, which call gsudo.
-          Add-Content $env:GITHUB_PATH 'C:\tools\gsudo\Current'
-
       # SYSTEM holds SeCreatePermanentPrivilege by default, which Agent Control requires and the `runneradmin` account lacks.
       - if: ${{ matrix.os == 'windows-latest' }}
         name: Run onHost root-required integration-tests only
-        run: gsudo --system make -C agent-control test/onhost/root/integration
+        shell: pwsh
+        run: |
+          choco install gsudo --version $env:GSUDO_VERSION --yes --no-progress
+          gsudo --system make -C agent-control test/onhost/root/integration
 
       - if: ${{ matrix.os == 'ubuntu-latest' }}
         name: Run onHost root-required integration-tests only
