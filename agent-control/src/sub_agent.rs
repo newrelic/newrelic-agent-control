@@ -64,6 +64,18 @@ pub trait NotStartedSubAgent {
 pub trait StartedSubAgent {
     /// Signals the SubAgent to stop, returning a handle to wait on its completion if needed.
     fn stop(self) -> Result<SubAgentJoinHandle, SubAgentStopError>;
+
+    /// Signals the SubAgent that Agent Control is exiting, returning a handle to wait
+    /// on its completion if needed. Unlike [`Self::stop`], the sub-agent decides whether its
+    /// processes are terminated or keep running.
+    ///
+    /// Defaults to [`Self::stop`] for sub-agents that cannot leave their workload running.
+    fn on_agent_control_exit(self) -> Result<SubAgentJoinHandle, SubAgentStopError>
+    where
+        Self: Sized,
+    {
+        self.stop()
+    }
 }
 
 /// A handle to a [StartedSubAgent] that has been signaled to stop, used to wait for it to
@@ -343,7 +355,7 @@ where
                         match opamp_event_res {
                             Err(e) => {
                                 debug!(error = %e, select_arm = "sub_agent_opamp_consumer", "Channel closed");
-                                break;
+                                break stop_supervisor(supervisor);
                             },
                             Ok(OpAMPEvent::RemoteConfigReceived(config)) => {
                                 debug!(
@@ -371,12 +383,15 @@ where
                         match sub_agent_internal_event_res {
                             Err(e) => {
                                 debug!(error = %e, select_arm = "sub_agent_internal_consumer", "Channel closed");
-                                break;
+                                break stop_supervisor(supervisor);
                             },
                             Ok(SubAgentInternalEvent::StopRequested) => {
                                 debug!(select_arm = "sub_agent_internal_consumer", "StopRequested");
-                                stop_supervisor(supervisor);
-                                break;
+                                break stop_supervisor(supervisor);
+                            },
+                            Ok(SubAgentInternalEvent::AgentControlExiting) => {
+                                debug!(select_arm = "sub_agent_internal_consumer", "AgentControlExiting");
+                                break exit_supervisor(supervisor);
                             },
                             Ok(SubAgentInternalEvent::AgentHealthInfo(health))=>{
                                 debug!(select_arm = "sub_agent_internal_consumer", ?health, "AgentHealthInfo");
@@ -775,10 +790,28 @@ impl StartedSubAgent for SubAgentStopper {
             .publish(SubAgentInternalEvent::StopRequested)?;
         Ok(SubAgentJoinHandle(self.runtime))
     }
+
+    fn on_agent_control_exit(self) -> Result<SubAgentJoinHandle, SubAgentStopError> {
+        self.sub_agent_internal_publisher
+            .publish(SubAgentInternalEvent::AgentControlExiting)?;
+        Ok(SubAgentJoinHandle(self.runtime))
+    }
+}
+
+/// Notifies the supervisor, if present, that Agent Control is exiting, logging any error returned.
+fn exit_supervisor<S>(maybe_started_supervisor: Option<S>)
+where
+    S: Supervisor,
+{
+    if let Some(s) = maybe_started_supervisor {
+        let _ = s.on_agent_control_exit().inspect_err(|err| {
+            error!(%err, "Error notifying supervisor of Agent Control exit");
+        });
+    }
 }
 
 /// Stops the supervisor if present, logging any error returned while stopping.
-pub fn stop_supervisor<S>(maybe_started_supervisor: Option<S>)
+fn stop_supervisor<S>(maybe_started_supervisor: Option<S>)
 where
     S: Supervisor,
 {
@@ -857,12 +890,20 @@ pub mod tests {
 
         impl StartedSubAgent for StartedSubAgent {
             fn stop(self) -> Result<SubAgentJoinHandle, SubAgentStopError>;
+
+            fn on_agent_control_exit(self) -> Result<SubAgentJoinHandle, SubAgentStopError>;
         }
     }
 
     impl MockStartedSubAgent {
         pub fn should_stop(&mut self) {
             self.expect_stop()
+                .once()
+                .return_once(|| Ok(SubAgentJoinHandle(thread::spawn(|| Ok(())))));
+        }
+
+        pub fn should_exit(&mut self) {
+            self.expect_on_agent_control_exit()
                 .once()
                 .return_once(|| Ok(SubAgentJoinHandle(thread::spawn(|| Ok(())))));
         }
@@ -1115,6 +1156,9 @@ deployment:
         config_repository: Arc<InMemoryConfigRepository>,
     ) -> TestSubAgent {
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
+        // The publisher is dropped when this function returns, so the runtime of the sub-agent
+        // finds the OpAMP channel closed. `test_closed_opamp_channel_stops_the_supervisor` relies
+        // on it: keeping the publisher alive would make that test wait forever.
         let (_sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
 
         let agent_type_registry: Arc<Registry> =
@@ -1284,6 +1328,99 @@ deployment:
         );
 
         sub_agent.run().stop().unwrap().join().unwrap();
+    }
+
+    #[test]
+    fn test_on_agent_control_exit_empty_sub_agent() {
+        let (config_repository, _opamp_client) = test_mocks();
+
+        let supervisor_builder = expect_supervisor_do_not_build();
+
+        let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
+
+        let agent_type_registry: Arc<Registry> =
+            Arc::new(Registry::from(TestAgent::agent_type_definition()));
+
+        let agent_renderer = Arc::new(AgentRenderer::new(
+            agent_type_registry.clone(),
+            HashMap::new(),
+            ValueProviders::default(),
+            PathBuf::default().as_path(),
+            PathBuf::default().as_path(),
+        ));
+
+        let sub_agent = SubAgent::new(
+            TestAgent::identity(),
+            None::<MockStartedOpAMPClient>,
+            Arc::new(supervisor_builder),
+            UnboundedBroadcast::default(),
+            None,
+            (sub_agent_internal_publisher, sub_agent_internal_consumer),
+            Arc::new(
+                AgentRemoteConfigParser::<MockRemoteConfigValidator, Registry>::new(
+                    Arc::new(MockRemoteConfigValidator::default()),
+                    agent_type_registry,
+                ),
+            ),
+            config_repository,
+            agent_renderer,
+            TestAgent::agent_type_definition(),
+        );
+
+        sub_agent
+            .run()
+            .on_agent_control_exit()
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn test_closed_opamp_channel_stops_the_supervisor() {
+        let config_repository = Arc::new(InMemoryConfigRepository::default());
+        config_repository
+            .store_remote(
+                &TestAgent::id(),
+                ResourceOwnership::SubAgent(
+                    TestAgent::agent_type_definition().agent_type_id().clone(),
+                ),
+                &RemoteConfig {
+                    config: TestAgent::valid_config_yaml(),
+                    hash: TestAgent::hash(),
+                    state: ConfigState::Applied,
+                },
+            )
+            .unwrap();
+
+        let mut started_supervisor = MockSupervisor::new();
+        started_supervisor.should_stop();
+        let mut supervisor_starter = MockSupervisorStarter::new();
+        supervisor_starter.should_start(started_supervisor);
+        let mut supervisor_builder = MockSupervisorBuilder::new();
+        supervisor_builder
+            .expect_build_supervisor()
+            .once()
+            .return_once(|_| Ok(supervisor_starter));
+
+        // `test_sub_agent` drops the OpAMP publisher, so the runtime finds the channel closed and
+        // ends on its own, without a stop or exit request.
+        let sub_agent = test_sub_agent(None, supervisor_builder, config_repository).run();
+
+        SubAgentJoinHandle(sub_agent.runtime).join().unwrap();
+    }
+
+    #[test]
+    fn test_exit_supervisor_only_notifies_exit() {
+        let mut supervisor = MockSupervisor::new();
+        supervisor.expect_stop().never();
+        supervisor
+            .expect_on_agent_control_exit()
+            .once()
+            .return_once(|| Ok(()));
+        exit_supervisor(Some(supervisor));
+
+        // Nothing to notify is a no-op.
+        exit_supervisor(None::<MockSupervisor>);
     }
 
     #[test]

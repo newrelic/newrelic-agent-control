@@ -19,6 +19,23 @@ pub type PlatformProcessGroupTracker = PassthroughProcessGroupTracker;
 #[cfg(target_family = "windows")]
 pub type PlatformProcessGroupTracker = JobObjectProcessGroupTracker;
 
+/// The tracker of the current platform. With `detach_on_stop`, the processes of an executable are
+/// not killed when Agent Control exits (Job Objects are the only trackers that would do it).
+#[cfg_attr(target_family = "unix", allow(unused))] // unneeded for unix process tracker
+pub fn platform_process_group_tracker(detach_on_stop: bool) -> PlatformProcessGroupTracker {
+    #[cfg(target_family = "windows")]
+    let on_close_cfg = if detach_on_stop {
+        job_object::OnClose::Detach
+    } else {
+        job_object::OnClose::Kill
+    };
+
+    cfg_select! {
+        target_family = "windows" => JobObjectProcessGroupTracker::new(on_close_cfg),
+        target_family = "unix" => PassthroughProcessGroupTracker
+    }
+}
+
 /// Error of an operation of a process tracker, whatever mechanism it uses.
 #[derive(Debug, thiserror::Error)]
 #[error("{0}")]
@@ -84,13 +101,19 @@ pub mod tests {
 
     pub type TestProcessGroup = <TestProcessGroupTracker as ProcessGroupTracker>::Group;
 
+    /// The tracker of the tests that do not exercise tracking: processes are killed when Agent
+    /// Control stops them.
+    pub fn test_process_group_tracker() -> TestProcessGroupTracker {
+        platform_process_group_tracker(false)
+    }
+
     /// Process config that runs on every target.
     pub fn test_process_config(
         agent_id: AgentID,
         executable_data: &ExecutableData,
         maybe_log_dir: Option<PathBuf>,
     ) -> OsProcessConfig<TestProcessGroup> {
-        let group = TestProcessGroupTracker::default()
+        let group = test_process_group_tracker()
             .group(&agent_id, &executable_data.id)
             .expect("a test group can always be created");
         OsProcessConfig::new(agent_id, executable_data, maybe_log_dir, group)

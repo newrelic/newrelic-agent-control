@@ -108,7 +108,7 @@ where
     /// In those cases, the channel will still be created but not used inside the thread.
     pub fn new(
         thread_name: String,
-        stop_publisher: EventPublisher<()>,
+        stop_publisher: EventPublisher<CancellationMessage>,
         join_handle: JoinHandle<T>,
     ) -> Self {
         Self {
@@ -141,9 +141,12 @@ where
         trace!(thread = self.thread_name, "Publishing stop");
         // Stop consumer could be disconnected if the thread has finished already.
         // Either the stop is full or disconnected that shouldn't prevent to join the thread.
-        let _ = self.stop_publisher.try_publish(()).inspect_err(|err| {
-            debug!(thread = self.thread_name, "Publishing stop failed: {}", err)
-        });
+        let _ = self
+            .stop_publisher
+            .try_publish(CancellationMessage::Stop)
+            .inspect_err(|err| {
+                debug!(thread = self.thread_name, "Publishing stop failed: {}", err)
+            });
         for _ in 0..GRACEFUL_STOP_RETRY {
             if self.join_handle.is_finished() {
                 trace!(thread = self.thread_name, "Finished, joining");
@@ -157,15 +160,18 @@ where
         })
     }
 
-    /// It sends a stop signal and waits until the thread handle is joined.
-    pub fn stop_blocking(self) -> Result<T, ThreadContextStopperError> {
+    /// It sends the given cancellation message and waits until the thread handle is joined.
+    pub(crate) fn cancel_blocking(
+        self,
+        message: CancellationMessage,
+    ) -> Result<T, ThreadContextStopperError> {
         let thread_name = self.thread_name.to_owned();
-        trace!(thread = thread_name, "Publishing stop");
+        trace!(thread = thread_name, "Publishing {message:?}");
         // Stop consumer could be disconnected if the thread has finished already.
         // Either the stop is full or disconnected that shouldn't prevent to join the thread.
         let _ = self
             .stop_publisher
-            .try_publish(())
+            .try_publish(message)
             .inspect_err(|err| debug!(thread = thread_name, "Publishing stop failed: {}", err));
 
         trace!(thread = thread_name, "Joining");
@@ -191,7 +197,7 @@ where
     fn stop(self) -> Result<(), ThreadContextStopperError> {
         let stopped_threads = self
             .into_iter()
-            .map(StartedThreadContext::stop_blocking)
+            .map(|thread| thread.cancel_blocking(CancellationMessage::Stop))
             .collect::<Vec<_>>();
 
         stopped_threads
@@ -216,6 +222,13 @@ pub mod tests {
     impl StartedThreadContext {
         pub fn is_thread_finished(&self) -> bool {
             self.join_handle.is_finished()
+        }
+    }
+
+    impl<T: Send + 'static> StartedThreadContext<T> {
+        /// It sends a stop signal and waits until the thread handle is joined.
+        pub fn stop_blocking(self) -> Result<T, ThreadContextStopperError> {
+            self.cancel_blocking(CancellationMessage::Stop)
         }
     }
 

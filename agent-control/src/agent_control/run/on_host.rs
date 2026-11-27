@@ -46,7 +46,7 @@ use crate::sub_agent::agent_renderer::AgentRenderer;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::builder::OnHostSubAgentBuilder;
 use crate::sub_agent::on_host::builder::SupervisorBuilderOnHost;
-use crate::sub_agent::on_host::process_group_tracker::PlatformProcessGroupTracker;
+use crate::sub_agent::on_host::process_group_tracker::platform_process_group_tracker;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::utils::time::SystemClock;
 use crate::value_provider::ValueProviders;
@@ -217,9 +217,8 @@ impl AgentControlRunner {
         let supervisor_builder = SupervisorBuilderOnHost {
             logging_base_path: log_dir,
             package_manager: agents_package_manager,
-            // TODO: build the tracker from the experimental configuration once it exists, failing
-            // Agent Control's start if the host cannot support it.
-            process_group_tracker: PlatformProcessGroupTracker::default(),
+            process_group_tracker: platform_process_group_tracker(self.detach_sub_agents_on_stop),
+            detach_on_stop: self.detach_sub_agents_on_stop,
         };
 
         let signature_validator = Arc::new(self.signature_validator);
