@@ -35,7 +35,7 @@ use crate::sub_agent::on_host::managed_process::{ProcessState, SupervisedProcess
 use crate::sub_agent::on_host::process_group_tracker::{ProcessGroupTracker, TrackedProcessGroup};
 use crate::sub_agent::supervisor::{Supervisor, SupervisorStarter};
 use crate::utils::thread_context::{
-    NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
+    NotStartedThreadContext, StartedThreadContext, ThreadCollectionStopperError,
 };
 use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use fs::file::LocalFile;
@@ -77,7 +77,7 @@ pub enum SupervisorError {
     RuntimeConfig(AgentRendererError),
     /// The supervisor threads could not be stopped.
     #[error("failure stopping supervisor: {0}")]
-    Stop(ThreadContextStopperError),
+    Stop(ThreadCollectionStopperError),
 }
 
 /// Error describing the failure to install a specific package.
@@ -173,7 +173,7 @@ where
     PGT: ProcessGroupTracker,
 {
     type ApplyError = SupervisorError;
-    type StopError = ThreadContextStopperError;
+    type StopError = ThreadCollectionStopperError;
 
     fn apply(self, rendered_agent: RenderedAgent) -> Result<Self, Self::ApplyError> {
         // Get configuration from effective agent
@@ -243,11 +243,11 @@ where
         Ok(new_started_supervisor)
     }
 
-    fn stop(self) -> Result<(), ThreadContextStopperError> {
+    fn stop(self) -> Result<(), ThreadCollectionStopperError> {
         cancel_supervisor_threads(self.thread_contexts, CancellationMessage::Stop)
     }
 
-    fn on_agent_control_exit(self) -> Result<(), ThreadContextStopperError> {
+    fn on_agent_control_exit(self) -> Result<(), ThreadCollectionStopperError> {
         cancel_supervisor_threads(self.thread_contexts, CancellationMessage::AgentControlExit)
     }
 }
@@ -574,21 +574,19 @@ fn install_packages<PM: PackageManager>(
 fn cancel_supervisor_threads(
     thread_contexts: Vec<StartedThreadContext<()>>,
     message: CancellationMessage,
-) -> Result<(), ThreadContextStopperError> {
-    let mut stop_result = Ok(());
-    for thread_context in thread_contexts {
-        let thread_name = thread_context.thread_name().to_string();
-        match thread_context.cancel_blocking(message) {
-            Ok(_) => info!(thread_name, "Thread stopped"),
-            Err(error_msg) => {
-                error!("Stopping '{thread_name}': {error_msg}");
-                if stop_result.is_ok() {
-                    stop_result = Err(error_msg);
-                }
-            }
-        }
-    }
-    stop_result
+) -> Result<(), ThreadCollectionStopperError> {
+    let errors = thread_contexts
+        .into_iter()
+        .map(|ctx| {
+            let thread_name = ctx.thread_name().to_string();
+            ctx.cancel_blocking(message)
+                .inspect(|_| info!(thread_name, "Thread stopped"))
+                .inspect_err(|e| error!("Stopping '{thread_name}': {e}"))
+        })
+        .filter_map(Result::err)
+        .collect();
+
+    ThreadCollectionStopperError::from_errors(errors)
 }
 
 /// How [`wait_exit`] finished.
